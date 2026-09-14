@@ -267,7 +267,7 @@ private fun FeatureCard(data: FeatureCardData, onClick: () -> Unit) {
                 painter = painterResource(data.image),
                 contentDescription = data.title,
                 modifier = Modifier.size(145.dp).align(Alignment.BottomEnd).padding(4.dp),
-                contentScale = ContentScale.Contain,
+                contentScale = ContentScale.Fit,
             )
         }
     }

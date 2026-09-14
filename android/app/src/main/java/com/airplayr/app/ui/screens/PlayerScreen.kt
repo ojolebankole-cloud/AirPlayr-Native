@@ -44,9 +44,9 @@ import com.airplayr.app.ui.cast.CastButton
         LinearProgressIndicator({frac},Modifier.fillMaxWidth())
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceEvenly){IconButton({controller.seekTo((state.positionMs-10_000).coerceAtLeast(0))}){Icon(Icons.Default.Replay10,"Back 10 seconds")};IconButton({controller.skipPrevious()}){Icon(Icons.Default.SkipPrevious,"Previous")};IconButton({controller.togglePlayPause()}){Icon(if(state.isPlaying)Icons.Default.Pause else Icons.Default.PlayArrow,if(state.isPlaying)"Pause" else "Play")};IconButton({controller.skipNext()}){Icon(Icons.Default.SkipNext,"Next")};IconButton({controller.seekTo(state.positionMs+10_000)}){Icon(Icons.Default.Forward10,"Forward 10 seconds")}}
         Text("${time(state.positionMs)} / ${time(state.durationMs)}")
-        Text("Speed ${"%.2f".format(speed)}×"); Slider(speed,{speed=it},0.25f..4f,steps=14,onValueChangeFinished={controller.setSpeed(speed)})
+        Text("Speed ${"%.2f".format(speed)}×"); Slider(value = speed, onValueChange = { speed = it }, valueRange = 0.25f..4f, steps = 14, onValueChangeFinished = { controller.setSpeed(speed) })
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Preserve pitch");Switch(preserve,{preserve=it;controller.setPreservePitch(it)})}
-        Text("Pitch $pitch semitones"); Slider(pitch.toFloat(),{pitch=it.toInt() },-12f..12f,steps=23,onValueChangeFinished={controller.setPitchSemitones(pitch)})
+        Text("Pitch $pitch semitones"); Slider(value = pitch.toFloat(), onValueChange = { pitch = it.toInt() }, valueRange = -12f..12f, steps = 23, onValueChangeFinished = { controller.setPitchSemitones(pitch) })
         Button(onClick=onEqualizer,modifier=Modifier.fillMaxWidth()){Icon(Icons.Default.GraphicEq,null);Text("Equalizer")}
     }
 }

@@ -14,14 +14,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.airplayr.app.di.AppContainer
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @Composable fun EqualizerScreen(container:AppContainer){
     val scope=rememberCoroutineScope(); var bass by remember{mutableFloatStateOf(0f)}; var loudness by remember{mutableFloatStateOf(0f)}; var virtualizer by remember{mutableFloatStateOf(0f)}
     Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
         Text("Equalizer",style=MaterialTheme.typography.headlineSmall)
-        Text("Bass ${bass.roundToInt()} dB"); Slider(bass, { bass=it }, -15f..15f)
-        Text("Loudness ${loudness.roundToInt()} dB"); Slider(loudness, { loudness=it }, 0f..15f)
-        Text("Virtualizer ${virtualizer.roundToInt()}%"); Slider(virtualizer, { virtualizer=it }, 0f..100f)
+        Text("Bass ${bass.roundToInt()} dB"); Slider(value = bass, onValueChange = { bass = it }, valueRange = -15f..15f)
+        Text("Loudness ${loudness.roundToInt()} dB"); Slider(value = loudness, onValueChange = { loudness = it }, valueRange = 0f..15f)
+        Text("Virtualizer ${virtualizer.roundToInt()}%"); Slider(value = virtualizer, onValueChange = { virtualizer = it }, valueRange = 0f..100f)
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceEvenly){ Button({scope.launch{container.dsp.setEqualizer(true,"manual",(bass*100).roundToInt(),(loudness*100).roundToInt(),(virtualizer*10).roundToInt())}}){Text("Apply")} Button({scope.launch{container.dsp.setEqualizer(true,"flat",0,0,0)} }){Text("Flat")}}
     }
 }
