@@ -26,8 +26,9 @@ grep -q 'fun HomeScreen' "$JAVA/com/airplayr/app/ui/screens/HomeScreen.kt"
 grep -q 'Theme.App.SplashScreen' "$ROOT/app/src/main/AndroidManifest.xml"
 grep -q 'core-splashscreen' "$ROOT/app/build.gradle.kts"
 
+bad_refs=$(mktemp)
 if grep -RIlE '(^|[^A-Za-z])(expo|react-native|expo-router|@expo|package\.json|app\.json|node_modules)([^A-Za-z]|$)' \
-  "$ROOT/app/src/main/java" "$ROOT/app/src/main/res" "$ROOT/app/src/main/assets" >/tmp/airplayr_bad_refs 2>/dev/null; then
+  "$ROOT/app/src/main/java" "$ROOT/app/src/main/res" "$ROOT/app/src/main/assets" >"$bad_refs" 2>/dev/null; then
   echo "FAIL: legacy runtime references found:"
   cat /tmp/airplayr_bad_refs
   exit 1
