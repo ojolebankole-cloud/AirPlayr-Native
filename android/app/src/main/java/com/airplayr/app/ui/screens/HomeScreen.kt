@@ -63,7 +63,7 @@ fun HomeScreen(container: AppContainer, libraryViewModel: LibraryViewModel, onNa
             .map { (key, songs) -> key.first to songs }.take(10)
     }
     val recentArtists = remember(history, lookup) {
-        history.filter { it.mediaType == MediaType.AUDIO.value }.mapNotNull { h -> lookup[h.mediaId] }.groupBy { it.artist?.trim().takeUnless(String::isNullOrBlank) ?: "Unknown artist" }
+        history.filter { it.mediaType == MediaType.AUDIO.value }.mapNotNull { h -> lookup[h.mediaId] }.groupBy { it.artist?.trim().takeUnless { it.isNullOrBlank() } ?: "Unknown artist" }
             .map { it.key to it.value }.take(10)
     }
     val currentlyWatching = remember(videoProgress, lookup) {
@@ -83,14 +83,14 @@ fun HomeScreen(container: AppContainer, libraryViewModel: LibraryViewModel, onNa
         in 12..16 -> Triple("Afternoon Mix", "Live with the culture.", R.drawable.music_cuate)
         in 17..19 -> Triple("Evening Jam", "Beyond sounds.", R.drawable.dj_boy_cuate)
         in 20..22 -> Triple("Night Jam", "Tuned in this very hour.", R.drawable.playing_music_bro)
-        in 23..23, 0..1 -> Triple("Night Extra", "Feel the night.", R.drawable.dj_boy_cuate)
+        in 23..23, in 0..1 -> Triple("Night Extra", "Feel the night.", R.drawable.dj_boy_cuate)
         else -> Triple("Late Night Jam", "For the night.", R.drawable.dj_boy_cuate)
     }
     val featureSeed = remember { java.util.Random(System.nanoTime()).nextLong() }
     val features = remember(timeCard, featureSeed) {
         listOf(
             FeatureSpec("For you now", "Press play & tuned in", "for-you", "for-you", R.drawable.headphone_amico, listOf(Color(0xFFF6D7E8), Color(0xFFE9D8FA), Color(0xFFD7E8F7))),
-            FeatureSpec(timeCard.first, timeCard.second, "tuned-in", when (hour) { in 5..11 -> "morning"; in 12..16 -> "afternoon"; in 17..23, 0..4 -> "night"; else -> "night" }, timeCard.third, listOf(Color(0xFFFFE0B5), Color(0xFFD9F0D8), Color(0xFFD7E9F8))),
+            FeatureSpec(timeCard.first, timeCard.second, "tuned-in", when (hour) { in 5..11 -> "morning"; in 12..16 -> "afternoon"; in 17..23, in 0..4 -> "night"; else -> "night" }, timeCard.third, listOf(Color(0xFFFFE0B5), Color(0xFFD9F0D8), Color(0xFFD7E9F8))),
             FeatureSpec("Rediscover", "From your previous plays.", "rediscover", "rediscover", R.drawable.media_player_bro, listOf(Color(0xFFCDEDE4), Color(0xFFD8E1F7), Color(0xFFFFE0D1))),
             FeatureSpec("Rock your world", "Turn it up.", "rock-your-world", "rock", R.drawable.playing_music_bro, listOf(Color(0xFFFFD1C5), Color(0xFFD6D8F7), Color(0xFFCBE9F0))),
             FeatureSpec("My playlists", "Your Archive", "my-playlists", "playlists", R.drawable.playlist_pana, listOf(Color(0xFFF3D1E2), Color(0xFFD5DDF6), Color(0xFFD2EBD9))),
@@ -113,7 +113,7 @@ fun HomeScreen(container: AppContainer, libraryViewModel: LibraryViewModel, onNa
             if (stats != null && (stats!!.musicPlays > 0 || stats!!.videoPlays > 0)) item { StatsCardPreview(colors, stats, recentSongs.firstOrNull()?.title ?: "—", onNavigate) }
             if (playbackState.currentId != null) item { CurrentPlaybackCard(playbackState.currentTitle.orEmpty(), playbackState.currentArtist.orEmpty(), playbackState.artworkUri, playbackState.positionMs, playbackState.durationMs) }
         }
-        MenuDrawer(visible = menuOpen, musicCount = music.size, videoCount = videos.size, folderCount = music.mapNotNull { it.folder?.takeIf(String::isNotBlank) }.distinct().size, container = container, onClose = { menuOpen = false }, onNavigate = onNavigate, onScanMedia = { libraryViewModel.refresh() })
+        MenuDrawer(visible = menuOpen, musicCount = music.size, videoCount = videos.size, folderCount = music.mapNotNull { it.folder?.takeIf(String::isNotBlank) }.distinct().size, container = container, onClose = { menuOpen = false }, onNavigate = onNavigate, onAbout = {}, onSupport = {}, onScanMedia = { libraryViewModel.refresh() })
     }
 }
 

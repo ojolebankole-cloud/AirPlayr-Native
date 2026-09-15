@@ -1,5 +1,12 @@
 package com.airplayr.app.ui.screens
 
+import com.airplayr.app.ui.theme.LocalAirPlayrColors
+import com.airplayr.app.ui.theme.AirPlayrFonts
+import com.airplayr.app.ui.components.AirPlayrCard
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape

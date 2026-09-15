@@ -369,7 +369,9 @@ class AirPlayrPlaybackService : MediaLibraryService() {
                     val pauseAtEnd = state.crossfadeSeconds > 0.0 || !state.gaplessPlayback
                     localPlayer.setPauseAtEndOfMediaItems(pauseAtEnd)
                     secondaryPlayer.setPauseAtEndOfMediaItems(pauseAtEnd)
-                    setMediaNotificationProvider(if (state.showNowPlayingNotification) mediaNotificationProvider else null)
+                    // Media3 requires a non-null notification provider once one is installed.
+                    // Notification visibility must therefore be handled separately from provider registration.
+                    setMediaNotificationProvider(mediaNotificationProvider)
                 }
         }
         serviceScope.launch {
@@ -509,7 +511,7 @@ class AirPlayrPlaybackService : MediaLibraryService() {
             target.setMediaItems(items, nextIndex, 0L)
             target.shuffleModeEnabled = source.shuffleModeEnabled
             target.repeatMode = Player.REPEAT_MODE_OFF
-            applyDspTo(target, dsp.state.first())
+            if (target is ExoPlayer) applyDspTo(target, dsp.state.first())
             target.volume = 0f
             target.prepare()
             target.play()

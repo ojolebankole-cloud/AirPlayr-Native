@@ -90,36 +90,29 @@ fun StartupPermissionFlow(
     LaunchedEffect(step) {
         when (step) {
             Step.NEARBY -> if (Build.VERSION.SDK_INT >= 33) {
-                launcher.launch(mapOf(Manifest.permission.NEARBY_WIFI_DEVICES to true))
+                launcher.launch(arrayOf(Manifest.permission.NEARBY_WIFI_DEVICES))
             } else {
                 step = Step.NOTIFICATIONS
             }
 
             Step.NOTIFICATIONS -> if (Build.VERSION.SDK_INT >= 33) {
-                launcher.launch(mapOf(Manifest.permission.POST_NOTIFICATIONS to true))
+                launcher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
             } else {
                 step = Step.AUDIO
             }
 
             Step.AUDIO -> launcher.launch(
                 if (Build.VERSION.SDK_INT >= 33)
-                    mapOf(Manifest.permission.READ_MEDIA_AUDIO to true)
+                    arrayOf(Manifest.permission.READ_MEDIA_AUDIO)
                 else
-                    mapOf(Manifest.permission.READ_EXTERNAL_STORAGE to true)
+                    arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
             )
 
             Step.VIDEO -> launcher.launch(
                 when {
-                    Build.VERSION.SDK_INT >= 34 -> mapOf(
-                        Manifest.permission.READ_MEDIA_VIDEO to true,
-                        Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED to true,
-                    )
-                    Build.VERSION.SDK_INT >= 33 -> mapOf(
-                        Manifest.permission.READ_MEDIA_VIDEO to true,
-                    )
-                    else -> mapOf(
-                        Manifest.permission.READ_EXTERNAL_STORAGE to true,
-                    )
+                    Build.VERSION.SDK_INT >= 34 -> arrayOf(Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+                    Build.VERSION.SDK_INT >= 33 -> arrayOf(Manifest.permission.READ_MEDIA_VIDEO)
+                    else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
                 }
             )
 

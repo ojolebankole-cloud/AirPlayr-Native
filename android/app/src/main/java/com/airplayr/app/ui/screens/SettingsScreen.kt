@@ -1,5 +1,6 @@
 package com.airplayr.app.ui.screens
 
+import com.airplayr.app.ui.components.AirPlayrCard
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -118,6 +119,7 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
     ) {
         item { Text("Settings", style = MaterialTheme.typography.headlineLarge); Text("AirPlayr controls and Android integration", color = colors.textSecondary) }
 
+        item {
         settingSection("Appearance") {
             SettingRow("Theme", themeLabel(current.theme), onClick = { selector = SettingSelector("Theme", current.theme, listOf("system" to "System", "dark" to "Dark", "light" to "Light")) { set("theme", it) } })
             SettingSwitch("High contrast", "Strengthens semantic text and controls", current.highContrast) { toggle("highContrast", it) }
@@ -125,7 +127,9 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
             SettingSwitch("Haptic feedback", "Use haptics for meaningful control actions", current.hapticFeedback) { toggle("haptic", it) }
             SettingSwitch("Touch feedback", "Keep pressed-state feedback visible", current.touchFeedback) { toggle("touch", it) }
         }
+        }
 
+        item {
         settingSection("Player") {
             SettingRow("Resume behavior", resumeLabel(current.resumeMode), onClick = { selector = SettingSelector("Resume behavior", current.resumeMode, listOf("auto" to "Resume automatically", "ask" to "Ask before resuming", "start" to "Always start from beginning")) { set("resume", it) } })
             SettingRow("Default speed", "${trimNumber(current.defaultSpeed)}×", onClick = { selector = SettingSelector("Default speed", current.defaultSpeed.toString(), listOf("0.25" to "0.25×", "0.5" to "0.50×", "0.75" to "0.75×", "1.0" to "1×", "1.25" to "1.25×", "1.5" to "1.5×", "1.75" to "1.75×", "2.0" to "2×", "2.5" to "2.5×", "3.0" to "3×", "3.5" to "3.5×", "4.0" to "4×")) { set("speed", it.toDouble()) } })
@@ -133,7 +137,9 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
             SettingRow("Auto-hide controls", autoHideLabel(current.autoHideMs), onClick = { selector = SettingSelector("Auto-hide controls", current.autoHideMs.toString(), listOf("2000" to "2 seconds", "4000" to "4 seconds", "6000" to "6 seconds", "10000" to "10 seconds", "0" to "Never auto-hide")) { set("autohide", it.toInt()) } })
             SettingSwitch("Keep screen awake", "Prevent sleep while a video is playing", current.keepAwake) { toggle("awake", it) }
         }
+        }
 
+        item {
         settingSection("Premium playback") {
             SettingRow("Crossfade", if (current.crossfadeSeconds > 0) "${trimNumber(current.crossfadeSeconds)} seconds" else "Off", onClick = { selector = SettingSelector("Crossfade", current.crossfadeSeconds.toString(), listOf("0.0" to "Off", "2.0" to "2 seconds", "3.0" to "3 seconds", "4.0" to "4 seconds", "5.0" to "5 seconds", "8.0" to "8 seconds", "12.0" to "12 seconds")) { set("crossfade", it.toDouble()) } })
             SettingSwitch("Gapless playback", "Preload the next queue item", current.gaplessPlayback) { toggle("gapless", it) }
@@ -151,7 +157,9 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
             )
             SettingSwitch("ReplayGain clipping protection", "Prevent excessive peaks", current.replayGainPreventClipping) { toggle("replayClip", it) }
         }
+        }
 
+        item {
         settingSection("Subtitles") {
             SettingSwitch("Subtitles enabled by default", null, current.subtitlesEnabledDefault) { toggle("subDefault", it) }
             SettingRow("Text size", subtitleSizeLabel(current.subtitleSize), onClick = { selector = SettingSelector("Subtitle size", current.subtitleSize.toString(), listOf("0.8" to "Small", "1.0" to "Medium", "1.2" to "Large", "1.5" to "Extra large")) { set("subSize", it.toDouble()) } })
@@ -172,13 +180,17 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
             SettingSwitch("Remember subtitle track", null, current.rememberSubtitleTrack) { toggle("rememberSub", it) }
             SettingSwitch("Prefer external subtitles", null, current.preferExternalSubtitles) { toggle("externalSub", it) }
         }
+        }
 
+        item {
         settingSection("Audio") {
             SettingSwitch("Start muted", "New playback sessions begin at volume 0", current.muteOnStart) { toggle("muted", it) }
             SettingRow("Default volume", "${(current.defaultVolume * 100).roundToInt()}%", onClick = { selector = SettingSelector("Default volume", current.defaultVolume.toString(), listOf("0.0" to "0%", "0.25" to "25%", "0.5" to "50%", "0.75" to "75%", "1.0" to "100%")) { set("volume", it.toDouble()) } })
             SettingSwitch("Remember audio track", null, current.rememberAudioTrack) { toggle("rememberAudio", it) }
         }
+        }
 
+        item {
         settingSection("Gestures") {
             SettingSwitch("Double-tap seek", null, current.gestureDoubleTapSeek) { toggle("doubleTap", it) }
             SettingSwitch("Volume gesture", "Vertical swipe on the right side", current.gestureVolume) { toggle("gestureVolume", it) }
@@ -198,12 +210,16 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
                 },
             )
         }
+        }
 
+        item {
         settingSection("Discovery") {
             SettingRow("Smart collections", "Favorites · recent · most played · albums · artists", onClick = { onNavigate("smart-collections") })
             SettingRow("Video collections", "Continue · favorites · watched · bookmarks", onClick = { onNavigate("video-collections") })
         }
+        }
 
+        item {
         settingSection("Library") {
             SettingRow("Layout", if (current.libraryLayout == "list") "List" else "Grid", onClick = { selector = SettingSelector("Library layout", current.libraryLayout, listOf("grid" to "Grid", "list" to "List")) { set("layout", it) } })
             SettingRow(
@@ -223,19 +239,25 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
             SettingRow("Add media folder", "Android Storage Access Framework", icon = Icons.Default.FolderOpen, onClick = { folderLauncher.launch(null) })
             if (status != null) Text(status!!, color = colors.primary, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
         }
+        }
 
+        item {
         settingSection("Diagnostics & recovery") {
             SettingRow("Online metadata & artwork", "Catalog lookup and artwork caching", icon = Icons.Default.Info, onClick = onMetadata)
             SettingRow("Diagnostics & recovery", "Playback · EQ · Cast · Library · Theme", icon = Icons.Default.SettingsIcon, onClick = onDiagnostics)
         }
+        }
 
+        item {
         settingSection("Android") {
             SettingSwitch("Lock screen & notification controls", "Media3 MediaSession controls", current.showNowPlayingNotification) { toggle("notification", it) }
             SettingSwitch("Picture-in-Picture", "Allow PiP from the player", current.allowsPictureInPicture) { toggle("pip", it) }
             SettingSwitch("Auto-enter PiP when leaving app", "Let Android shrink the activity into PiP", current.autoEnterPiPOnBackground) { toggle("autoPip", it) }
             SettingSwitch("Background playback", "Keep music playback alive outside the app", current.backgroundPlayback) { toggle("background", it) }
         }
+        }
 
+        item {
         settingSection("History & privacy") {
             SettingSwitch("Save playback history", "Recently Played and playback analytics", current.savePlaybackHistory) { toggle("history", it) }
             SettingSwitch("Continue Watching", null, current.showContinueWatching) { toggle("continue", it) }
@@ -251,21 +273,26 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
                 status = "App data reset"
             } })
         }
+        }
 
+        item {
         settingSection("Storage") {
             SettingRow("App cache", cacheSize ?: "Tap to calculate", onClick = { scope.launch { cacheSize = withContext(Dispatchers.IO) { formatBytes(calculateCache(context.cacheDir)) } } })
             SettingRow("Clear cache", "Temporary files only", destructive = true, onClick = { confirmAction("Clear cache?", "Only AirPlayr temporary cache files will be removed.") { withContext(Dispatchers.IO) { context.cacheDir.listFiles()?.forEach { it.deleteRecursively() } }; cacheSize = "Cleared" } })
         }
+        }
 
+        item {
         settingSection("About AirPlayr") {
             Text("AirPlayr", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(16.dp))
             Text("Music-first local media player for Android. Media, history and settings stay on this device.", color = colors.textSecondary, modifier = Modifier.padding(horizontal = 16.dp))
             Text("Version ${com.airplayr.app.BuildConfig.VERSION_NAME} · Android ${Build.VERSION.RELEASE}", color = colors.textSecondary, modifier = Modifier.padding(16.dp))
             SettingRow("Reset all settings", "History and playlists are kept", destructive = true, onClick = { confirmAction("Reset settings?", "Restore all AirPlayr settings to their defaults.") { container.preferences.resetToDefaults(); status = "Settings restored" } })
         }
+        }
     }
 
-    selector?.let { sel -> SelectionSheet(sel.title, sel.options, sel.selected) { key -> sel.onSelect(key); selector = null } { selector = null } }
+    selector?.let { sel -> SelectionSheet(title = sel.title, options = sel.options, selected = sel.selected, onSelect = { key -> sel.onSelect(key); selector = null }, onDismiss = { selector = null }) }
     confirm?.let { action -> ConfirmSheet(action.title, action.message, onCancel = { confirm = null }, onConfirm = { scope.launch { action.action(); confirm = null } }) }
 }
 

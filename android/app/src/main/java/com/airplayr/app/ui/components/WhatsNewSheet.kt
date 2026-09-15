@@ -1,5 +1,6 @@
 package com.airplayr.app.ui.components
 
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,6 +34,7 @@ import androidx.compose.ui.unit.dp
 
 private data class FeatureSection(val title: String, val icon: ImageVector, val items: List<String>)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WhatsNewSheet(version: String, onDismiss: () -> Unit) {
     val sections = listOf(

@@ -1,5 +1,6 @@
 package com.airplayr.app.ui.screens
 
+import androidx.activity.ComponentActivity
 import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.Intent
@@ -39,7 +40,8 @@ import com.airplayr.app.ui.video.VideoPlayerViewModelFactory
 @OptIn(UnstableApi::class)
 @Composable fun VideoScreen(container: AppContainer, id: String) {
     val vm: VideoPlayerViewModel = viewModel(factory = VideoPlayerViewModelFactory(container.mediaLibrary, container.structured))
-    val settings by container.preferences.settings.collectAsStateWithLifecycle(initialValue = AirPlayrSettings())
+    val settingsState by container.preferences.settings.collectAsStateWithLifecycle(initialValue = null)
+    val settings = settingsState ?: return
     val video by vm.video.collectAsStateWithLifecycle(); val resume by vm.resume.collectAsStateWithLifecycle(); val context=LocalContext.current
     val bookmarks by remember(video?.id) { video?.id?.let(container.structured::bookmarks) ?: kotlinx.coroutines.flow.flowOf(emptyList()) }.collectAsStateWithLifecycle(initialValue = emptyList())
     var controller by remember { mutableStateOf<MediaController?>(null) }; var speed by remember { mutableFloatStateOf(1f) }; var repeatA by remember { mutableStateOf<Long?>(null) }; var repeatB by remember { mutableStateOf<Long?>(null) }; var favorite by remember { mutableStateOf(false) }
@@ -54,7 +56,7 @@ import com.airplayr.app.ui.video.VideoPlayerViewModelFactory
             runCatching { (context as? Activity)?.setPictureInPictureParams(PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(w,h)).build()) }
         }
         DisposableEffect(settings.autoEnterPiPOnBackground, settings.allowsPictureInPicture, controller, video?.id) {
-            val activity = context as? Activity
+            val activity = context as? ComponentActivity
             val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
                 if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP && settings.autoEnterPiPOnBackground && settings.allowsPictureInPicture && controller?.isPlaying == true) {
                     runCatching { activity?.enterPictureInPictureMode() }

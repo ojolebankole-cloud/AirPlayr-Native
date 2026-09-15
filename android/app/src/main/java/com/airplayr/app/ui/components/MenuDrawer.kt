@@ -1,5 +1,10 @@
 package com.airplayr.app.ui.components
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.weight
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background

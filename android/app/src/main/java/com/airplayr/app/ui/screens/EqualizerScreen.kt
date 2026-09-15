@@ -161,6 +161,8 @@ private fun ShapeControl(title: String, description: String, value: Float, range
 
 @Composable
 private fun EqCurve(bands: List<Float>, modifier: Modifier) {
+    val primary = MaterialTheme.colorScheme.primary
+    val outlineVariant = MaterialTheme.colorScheme.outlineVariant
     Canvas(modifier) {
         val mid = size.height / 2f
         val xStep = size.width / (bands.size - 1).coerceAtLeast(1)
@@ -169,9 +171,9 @@ private fun EqCurve(bands: List<Float>, modifier: Modifier) {
             val x = i * xStep
             val y = mid - (v / 12f) * (size.height * .36f)
             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-            drawCircle(MaterialTheme.colorScheme.primary, 7f, Offset(x, y))
+            drawCircle(primary, 7f, Offset(x, y))
         }
-        drawLine(MaterialTheme.colorScheme.outlineVariant, Offset(0f, mid), Offset(size.width, mid), strokeWidth = 2f)
-        drawPath(path, MaterialTheme.colorScheme.primary, style = Stroke(width = 5f, cap = StrokeCap.Round))
+        drawLine(outlineVariant, Offset(0f, mid), Offset(size.width, mid), strokeWidth = 2f)
+        drawPath(path, primary, style = Stroke(width = 5f, cap = StrokeCap.Round))
     }
 }

@@ -84,7 +84,7 @@ class PlaybackController(private val appContext: Context) : ViewModel() {
     fun playExternal(uri: String, mimeType: String?, title: String) {
         val c = controller ?: return
         val metadata = MediaMetadata.Builder().setTitle(title).build()
-        val media = ExoMediaItem.Builder().setMediaId("external:$uri").setUri(uri).setMimeType(mimeType?.takeIf { it.isNotBlank() } ?: MimeTypes.APPLICATION_OCTET_STREAM).setMediaMetadata(metadata).build()
+        val media = ExoMediaItem.Builder().setMediaId("external:$uri").setUri(uri).setMimeType(mimeType?.takeIf { it.isNotBlank() } ?: "application/octet-stream").setMediaMetadata(metadata).build()
         c.setMediaItem(media, 0L); c.prepare(); c.play()
     }
 
@@ -112,14 +112,15 @@ class PlaybackController(private val appContext: Context) : ViewModel() {
         val c = controller ?: return false
         val items = (0 until c.mediaItemCount).mapNotNull { index ->
             val m = c.getMediaItemAt(index)
-            val uri = m.localConfiguration?.uri?.toString() ?: return@mapNotNull null
+            val localConfig = m.localConfiguration ?: return@mapNotNull null
+            val uri = localConfig.uri.toString()
             MediaItem(
                 id = m.mediaId.ifBlank { "queue:$index:$uri" }, mediaStoreId = null, uri = uri,
                 title = m.mediaMetadata.title?.toString()?.ifBlank { "Media" } ?: "Media", filename = m.mediaMetadata.title?.toString() ?: "Media",
                 artist = m.mediaMetadata.artist?.toString(), album = m.mediaMetadata.albumTitle?.toString(), albumArtist = m.mediaMetadata.albumArtist?.toString(),
                 durationMs = m.mediaMetadata.durationMs ?: 0L, width = 0, height = 0, sizeBytes = 0L, dateModified = 0L, dateAdded = 0L,
-                mediaType = if (m.localConfiguration.mimeType?.startsWith("video/") == true) com.airplayr.app.core.data.media.MediaType.VIDEO else com.airplayr.app.core.data.media.MediaType.AUDIO,
-                mimeType = m.localConfiguration.mimeType, albumId = null, artworkUri = m.mediaMetadata.artworkUri?.toString(), thumbnailUri = null, genre = null,
+                mediaType = if (localConfig.mimeType?.startsWith("video/") == true) com.airplayr.app.core.data.media.MediaType.VIDEO else com.airplayr.app.core.data.media.MediaType.AUDIO,
+                mimeType = localConfig.mimeType, albumId = null, artworkUri = m.mediaMetadata.artworkUri?.toString(), thumbnailUri = null, genre = null,
                 sourceDirectoryUri = null, folderId = null, folder = null, path = null, relativePath = null
             )
         }

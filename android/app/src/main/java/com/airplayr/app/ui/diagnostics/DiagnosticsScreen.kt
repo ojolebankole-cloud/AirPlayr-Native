@@ -48,7 +48,7 @@ fun DiagnosticsScreen(container: AppContainer) {
                 Button(onClick = { scope.launch { QueueStore(context).clear(); recoveryStatus = "Saved playback queue cleared" } }) { Text("Clear saved playback queue") }
             }
             item {
-                Button(onClick = { scope.launch { container.preferences.resetPlaybackDefaults(); recoveryStatus = "Playback defaults reset" } }) { Text("Reset playback defaults") }
+                Button(onClick = { scope.launch { container.preferences.resetToDefaults(); recoveryStatus = "Playback defaults reset" } }) { Text("Reset playback defaults") }
             }
             item {
                 Button(enabled = report.isNotBlank(), onClick = {

@@ -1,5 +1,6 @@
 package com.airplayr.app.ui.screens
 
+import com.airplayr.app.core.data.preferences.PreferencesRepository
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -220,7 +221,6 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
                     value = slider,
                     onValueChange = { seeking = true; slider = it.coerceIn(0f, 1f) },
                     onValueChangeFinished = { seeking = false; controller.seekTo((slider * progressDuration).toLong().coerceIn(0L, progressDuration)) },
-                    modifier = Modifier.fillMaxWidth().height(34.dp),
                 )
             }
 
@@ -449,29 +449,16 @@ private fun PlayerPlaylistSheet(container: AppContainer?, item: MediaItem, onClo
     val colors = LocalAirPlayrColors.current
     val playlists by container.structured.playlists().collectAsStateWithLifecycle(initialValue = emptyList())
     val scope = rememberCoroutineScope()
-    val preferences = remember(appContext) { PreferencesRepository(appContext) }
-    val settings by preferences.settings.collectAsStateWithLifecycle(initialValue = com.airplayr.app.core.data.preferences.AirPlayrSettings(
-        theme = "system", highContrast = false, reduceMotion = false, hapticFeedback = true, touchFeedback = true,
-        resumeMode = "auto", defaultSpeed = 1.0, crossfadeSeconds = 0.0, gaplessPlayback = true,
-        replayGainMode = "off", replayGainPreampDb = 0.0, replayGainPreventClipping = true,
-        defaultAspect = "contain", autoHideMs = 4000, keepAwake = true, subtitlesEnabledDefault = true,
-        subtitleSize = 1.0, subtitlePosition = "bottom", subtitleBg = true, subtitleColor = "#FFFFFF", subtitleDelayMs = 0,
-        rememberSubtitleTrack = true, preferExternalSubtitles = true, rememberAudioTrack = true, defaultVolume = 1.0, muteOnStart = false,
-        gestureDoubleTapSeek = true, gestureVolume = true, gestureBrightness = true, gestureLongPress2x = true, gesturePinchZoom = true,
-        gestureHorizontalSeek = true, seekStepSeconds = 10, librarySort = "recent", librarySortOrder = "desc", libraryLayout = "grid",
-        gridColumns = 0, autoRefreshLibrary = true, showNowPlayingNotification = true, allowsPictureInPicture = true,
-        autoEnterPiPOnBackground = false, backgroundPlayback = true, savePlaybackHistory = true, showContinueWatching = true,
-        showRecentlyPlayed = true, sleepDeadlineMs = 0L, sleepFinishCurrent = false, sleepFadeOut = true, sleepStartVolume = 1.0,
-        sleepPendingTrackId = null
-    ))
+    val settings by container.preferences.settings.collectAsStateWithLifecycle(initialValue = null)
+    val currentSettings = settings ?: return
     var timerNow by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(settings.sleepDeadlineMs) {
-        while (settings.sleepDeadlineMs > 0L) {
+    LaunchedEffect(currentSettings.sleepDeadlineMs) {
+        while (currentSettings.sleepDeadlineMs > 0L) {
             timerNow = System.currentTimeMillis()
             delay(1000L)
         }
     }
-    val timerRemaining = ((settings.sleepDeadlineMs - timerNow).coerceAtLeast(0L) / 1000L)
+    val timerRemaining = ((currentSettings.sleepDeadlineMs - timerNow).coerceAtLeast(0L) / 1000L)
     AirPlayrSheetScaffold("Add to playlist", "PLAYLISTS", onClose) {
         if (playlists.isEmpty()) {
             Text("No playlists yet", style = MaterialTheme.typography.titleMedium)

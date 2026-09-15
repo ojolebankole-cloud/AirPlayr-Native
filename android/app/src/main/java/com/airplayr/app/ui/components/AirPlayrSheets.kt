@@ -1,5 +1,11 @@
 package com.airplayr.app.ui.components
 
+import com.airplayr.app.ui.theme.AirPlayrIcons
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ExperimentalMaterial3Api
 import android.content.Context
 import android.content.ClipDescription
 import android.content.ClipboardManager
@@ -96,6 +102,7 @@ import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AirPlayrSheetScaffold(title: String, eyebrow: String? = null, onDismiss: () -> Unit, content: @Composable () -> Unit) {
     ModalBottomSheet(
@@ -140,14 +147,16 @@ fun SleepTimerSheet(
         Card(shape = RoundedCornerShape(28.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
             Column(Modifier.fillMaxWidth().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(Modifier.size(240.dp), contentAlignment = Alignment.Center) {
+                    val trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    val progressColor = MaterialTheme.colorScheme.primary
                     Canvas(Modifier.fillMaxSize()) {
                         val stroke = 16.dp.toPx()
-                        drawArc(MaterialTheme.colorScheme.surfaceContainerHigh, -90f, 360f, false, style = Stroke(stroke, cap = StrokeCap.Round))
-                        drawArc(MaterialTheme.colorScheme.primary, -90f, progress * 360f, false, style = Stroke(stroke, cap = StrokeCap.Round))
+                        drawArc(trackColor, -90f, 360f, false, style = Stroke(stroke, cap = StrokeCap.Round))
+                        drawArc(progressColor, -90f, progress * 360f, false, style = Stroke(stroke, cap = StrokeCap.Round))
                         val a = (-90f + progress * 360f) * (PI / 180f)
                         val r = (size.minDimension - stroke) / 2f
                         val c = Offset(size.width / 2f, size.height / 2f)
-                        drawCircle(MaterialTheme.colorScheme.primary, 13.dp.toPx(), Offset(c.x + cos(a).toFloat() * r, c.y + sin(a).toFloat() * r))
+                        drawCircle(progressColor, 13.dp.toPx(), Offset(c.x + cos(a).toFloat() * r, c.y + sin(a).toFloat() * r))
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(minutes.toString(), style = MaterialTheme.typography.displayMedium)

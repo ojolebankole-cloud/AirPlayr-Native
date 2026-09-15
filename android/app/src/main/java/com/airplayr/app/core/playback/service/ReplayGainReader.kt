@@ -2,7 +2,7 @@ package com.airplayr.app.core.playback.service
 
 import android.content.Context
 import android.net.Uri
-import net.jthink.jaudiotagger.audio.AudioFileIO
+import org.jaudiotagger.audio.AudioFileIO
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.ConcurrentHashMap

@@ -79,7 +79,7 @@ fun airPlayrColorsFor(
     darkTheme: Boolean,
     dynamic: Boolean,
 ): AirPlayrColors {
-    val base = if (dynamic) scheme else if (darkTheme) AirPlayrDarkBase else AirPlayrLightBase
+    val base = if (darkTheme) AirPlayrDarkBase else AirPlayrLightBase
     val primary = scheme.primary
     val outlineVariant = scheme.outlineVariant
     val background = scheme.background

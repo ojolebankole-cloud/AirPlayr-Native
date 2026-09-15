@@ -1,5 +1,9 @@
 package com.airplayr.app.ui
 
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Modifier
+import androidx.compose.runtime.setValue
 import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -51,6 +55,7 @@ import kotlinx.coroutines.launch
 import com.airplayr.app.ui.permissions.StartupPermissionFlow
 import com.airplayr.app.ui.cast.CastPickerSheet
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AirPlayrApp(
     container: AppContainer,
@@ -131,7 +136,7 @@ fun AirPlayrApp(
                 startDestination = "home",
                 modifier = androidx.compose.ui.Modifier.fillMaxSize(),
             ) {
-                composable("home") { HomeScreen(container = container, libraryViewModel = libraryViewModel, onCast = { castOpen = true }) { route -> navController.navigate(route) } }
+                composable("home") { HomeScreen(container = container, libraryViewModel = libraryViewModel, onNavigate = { route -> navController.navigate(route) }, onCast = { castOpen = true }) }
                 composable("music") {
                     MusicScreen(
                         libraryViewModel = libraryViewModel,
