@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import com.airplayr.app.core.video.NativeVideoController
 import com.airplayr.app.core.metadata.MetadataRepository
+import com.airplayr.app.core.cast.CastController
 
 class AppContainer(context: Context) {
     val appContext: Context = context.applicationContext
@@ -42,22 +43,37 @@ class AppContainer(context: Context) {
         }
     }
 
+    private val migration2To3 = object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS playback_events (eventId INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, mediaId TEXT NOT NULL, mediaType TEXT NOT NULL, playedAt INTEGER NOT NULL)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_playback_events_playedAt ON playback_events(playedAt)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_playback_events_mediaType ON playback_events(mediaType)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS playback_sessions (sessionId TEXT NOT NULL, mediaId TEXT NOT NULL, mediaType TEXT NOT NULL, title TEXT NOT NULL, artist TEXT, album TEXT, artworkUri TEXT, startedAt INTEGER NOT NULL, endedAt INTEGER, seconds INTEGER NOT NULL, lastMediaTime INTEGER NOT NULL, PRIMARY KEY(sessionId))")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_playback_sessions_startedAt ON playback_sessions(startedAt)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_playback_sessions_mediaType ON playback_sessions(mediaType)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS playback_activity (dayKey TEXT NOT NULL, bucket TEXT NOT NULL, mediaType TEXT NOT NULL, seconds INTEGER NOT NULL, PRIMARY KEY(dayKey, bucket, mediaType))")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_playback_activity_dayKey ON playback_activity(dayKey)")
+        }
+    }
+
     val database: AirPlayrDatabase = Room.databaseBuilder(
         appContext,
         AirPlayrDatabase::class.java,
         "airplayr.db",
-    ).addMigrations(migration1To2).build()
+    ).addMigrations(migration1To2, migration2To3).build()
 
     val preferences = PreferencesRepository(appContext)
     val mediaStore = MediaStoreDataSource(appContext)
-    val mediaLibrary = MediaLibraryRepository(database, mediaStore)
+    val metadata = MetadataRepository(appContext)
+    val mediaLibrary = MediaLibraryRepository(database, mediaStore, metadata)
     val safMediaScanner = SafMediaScanner(appContext)
     val structured = com.airplayr.app.core.data.StructuredRepository(database)
+    val stats = com.airplayr.app.core.data.PlaybackStatsRepository(database)
     val search = com.airplayr.app.core.data.search.SearchRepository(database)
     val collections = com.airplayr.app.core.intelligence.CollectionsRepository(mediaLibrary, structured)
     val dsp = com.airplayr.app.core.playback.dsp.DspRepository(appContext)
     val videoController = NativeVideoController(appContext)
-    val metadata = MetadataRepository(appContext)
+    val cast = CastController(appContext)
 
     init {
         scheduleLibraryRefresh()

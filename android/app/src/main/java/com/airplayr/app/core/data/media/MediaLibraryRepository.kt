@@ -10,11 +10,12 @@ import kotlinx.coroutines.sync.withLock
 class MediaLibraryRepository(
     private val database: AirPlayrDatabase,
     private val mediaStore: MediaStoreDataSource,
+    private val metadata: com.airplayr.app.core.metadata.MetadataRepository,
 ) {
     private val refreshMutex = Mutex()
 
-    fun observe(type: MediaType, limit: Int = MAX_LIBRARY_ITEMS): Flow<List<MediaItem>> =
-        database.mediaItemDao().observeByType(type.value, limit.coerceIn(1, MAX_LIBRARY_ITEMS))
+    fun observe(type: MediaType): Flow<List<MediaItem>> =
+        database.mediaItemDao().observeByType(type.value)
             .map { list -> list.map(MediaItemEntity::asExternal) }
 
     suspend fun page(type: MediaType, limit: Int = 250, offset: Int = 0): List<MediaItem> =
@@ -23,7 +24,7 @@ class MediaLibraryRepository(
 
     suspend fun count(type: MediaType): Int = database.mediaItemDao().count(type.value)
 
-    suspend fun get(id: String): MediaItem? = database.mediaItemDao().getById(id)?.asExternal()
+    suspend fun get(id: String): MediaItem? = database.mediaItemDao().getById(id)?.asExternal()?.let { metadata.overlay(it) }
 
     suspend fun refreshAll(): RefreshResult = refreshMutex.withLock {
         val audio = mediaStore.query(MediaType.AUDIO)
@@ -65,7 +66,7 @@ class MediaLibraryRepository(
 
     companion object {
         const val PAGE_SIZE = 250
-        const val MAX_LIBRARY_ITEMS = 10_000
+        const val MAX_LIBRARY_ITEMS = Int.MAX_VALUE
     }
 }
 

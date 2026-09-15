@@ -48,6 +48,8 @@ class DspRepository(private val context: Context) {
 
     suspend fun clearBands() = context.airPlayrDspStore.edit { it.remove(EQ_BANDS) }
 
+    suspend fun reset() = context.airPlayrDspStore.edit { it.clear() }
+
     suspend fun setEqualizer(enabled: Boolean, preset: String, bassMb: Int, loudnessMb: Int, virtualizerStrength: Int) =
         context.airPlayrDspStore.edit {
             it[EQ_ENABLED] = enabled

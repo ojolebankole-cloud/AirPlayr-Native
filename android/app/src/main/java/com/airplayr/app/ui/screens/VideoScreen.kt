@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.airplayr.app.core.data.preferences.AirPlayrSettings
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.MediaItem
 import androidx.media3.common.C
@@ -38,6 +39,7 @@ import com.airplayr.app.ui.video.VideoPlayerViewModelFactory
 @OptIn(UnstableApi::class)
 @Composable fun VideoScreen(container: AppContainer, id: String) {
     val vm: VideoPlayerViewModel = viewModel(factory = VideoPlayerViewModelFactory(container.mediaLibrary, container.structured))
+    val settings by container.preferences.settings.collectAsStateWithLifecycle(initialValue = AirPlayrSettings())
     val video by vm.video.collectAsStateWithLifecycle(); val resume by vm.resume.collectAsStateWithLifecycle(); val context=LocalContext.current
     val bookmarks by remember(video?.id) { video?.id?.let(container.structured::bookmarks) ?: kotlinx.coroutines.flow.flowOf(emptyList()) }.collectAsStateWithLifecycle(initialValue = emptyList())
     var controller by remember { mutableStateOf<MediaController?>(null) }; var speed by remember { mutableFloatStateOf(1f) }; var repeatA by remember { mutableStateOf<Long?>(null) }; var repeatB by remember { mutableStateOf<Long?>(null) }; var favorite by remember { mutableStateOf(false) }
@@ -46,7 +48,22 @@ import com.airplayr.app.ui.video.VideoPlayerViewModelFactory
     LaunchedEffect(video?.id){ favorite = video?.id?.let { vm.isFavorite(it) } ?: false }
     LaunchedEffect(video?.id, resume){ val item=video ?: return@LaunchedEffect; container.videoController.connectAsync { c-> if(item.id==video?.id){controller=c;container.videoController.playVideo(c,item,resume)} } }
     LaunchedEffect(controller, repeatA, repeatB){ while(controller!=null){ val c=controller!!; if(repeatA!=null && repeatB!=null && c.currentPosition>=repeatB!!) c.seekTo(repeatA!!); vm.saveProgress(id,c.currentPosition,c.duration.takeIf{it>0}?:video?.durationMs?:0); kotlinx.coroutines.delay(3000) } }
-    if(Build.VERSION.SDK_INT>=26){SideEffect{val w=(video?.width?:16).coerceAtLeast(1);val h=(video?.height?:9).coerceAtLeast(1);runCatching{(context as? Activity)?.setPictureInPictureParams(PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(w,h)).build())}}}
+    if(Build.VERSION.SDK_INT>=26){
+        SideEffect{
+            val w=(video?.width?:16).coerceAtLeast(1); val h=(video?.height?:9).coerceAtLeast(1)
+            runCatching { (context as? Activity)?.setPictureInPictureParams(PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(w,h)).build()) }
+        }
+        DisposableEffect(settings.autoEnterPiPOnBackground, settings.allowsPictureInPicture, controller, video?.id) {
+            val activity = context as? Activity
+            val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP && settings.autoEnterPiPOnBackground && settings.allowsPictureInPicture && controller?.isPlaying == true) {
+                    runCatching { activity?.enterPictureInPictureMode() }
+                }
+            }
+            activity?.lifecycle?.addObserver(observer)
+            onDispose { activity?.lifecycle?.removeObserver(observer) }
+        }
+    }
     DisposableEffect(controller){onDispose{controller?.pause()}}
     Column(Modifier.fillMaxSize()){
         controller?.let{AndroidPlayerView(it,Modifier.fillMaxWidth().weight(1f))} ?: Box(Modifier.fillMaxWidth().weight(1f),contentAlignment=androidx.compose.ui.Alignment.Center){Text("Loading video…")}
@@ -60,7 +77,7 @@ import com.airplayr.app.ui.video.VideoPlayerViewModelFactory
                 controller?.setPlaybackSpeed(speed)
             }){Icon(Icons.Default.Speed,"Speed ${speed}x")}
             IconButton({subtitleLauncher.launch(arrayOf("text/vtt","application/x-subrip","text/plain"))}){Text("CC")}
-            IconButton({ if (Build.VERSION.SDK_INT >= 26) runCatching { (context as? Activity)?.enterPictureInPictureMode() } }){Text("PiP")}
+            IconButton({ if (Build.VERSION.SDK_INT >= 26 && settings.allowsPictureInPicture) runCatching { (context as? Activity)?.enterPictureInPictureMode() } }){Text("PiP")}
             IconButton({video?.let{vm.toggleFavorite(it);favorite=!favorite}}){Icon(Icons.Default.Favorite,if(favorite)"Unfavorite" else "Favorite")}
         }
         if (bookmarks.isNotEmpty()) {

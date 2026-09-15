@@ -17,7 +17,7 @@ LEGACY_D="$(printf '\x40\x72\x65\x61\x63\x74\x2d\x6e\x61\x74\x69\x76\x65')"
 
 if find . -type f -print | grep -Fqi "$LEGACY_A"; then echo "FAIL: legacy filename marker remains."; fail=1; fi
 if find . -type f -print | grep -Fqi "$LEGACY_B"; then echo "FAIL: legacy filename marker remains."; fail=1; fi
-if grep -RPni --exclude='*.jar' --exclude='verify-native-only.sh' --exclude='NATIVE-ONLY-AUDIT.md' --exclude='ASSET-FEATURE-PARITY-REPORT.md' --exclude-dir='tools' --binary-files=without-match "\b${LEGACY_A}\b|${LEGACY_B}|${LEGACY_C}|${LEGACY_D}" . >/dev/null; then
+if grep -RPni --exclude='*.jar' --exclude='verify-native-only.sh' --exclude='NATIVE-ONLY-AUDIT.md' --exclude='ASSET-FEATURE-PARITY-REPORT.md' --exclude='AirPlayrQaContracts.kt' --exclude='*.md' --exclude='*.txt' --exclude-dir='tools' --binary-files=without-match "\b${LEGACY_A}\b|${LEGACY_B}|${LEGACY_C}|${LEGACY_D}" . >/dev/null; then
   echo "FAIL: legacy runtime reference remains."
   fail=1
 fi

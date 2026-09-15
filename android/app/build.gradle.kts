@@ -13,7 +13,7 @@ android {
         minSdk = 24
         targetSdk = 37
         versionCode = 1
-        versionName = "1.0.0-native"
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -83,6 +83,7 @@ dependencies {
     implementation("androidx.media3:media3-cast:1.11.0")
     implementation("androidx.mediarouter:mediarouter:1.8.1")
     implementation("androidx.media3:media3-ui:1.11.0")
+    implementation("net.jthink:jaudiotagger:3.0.1")
 
     implementation("androidx.work:work-runtime-ktx:2.11.2")
     implementation("androidx.documentfile:documentfile:1.1.0")

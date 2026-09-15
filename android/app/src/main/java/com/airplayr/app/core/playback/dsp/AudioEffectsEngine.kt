@@ -5,7 +5,10 @@ import android.media.audiofx.Equalizer
 import android.media.audiofx.LoudnessEnhancer
 import android.media.audiofx.Virtualizer
 
-/** Device-scoped Android audio effects. Every effect is optional and failures degrade gracefully. */
+/**
+ * Owns the Android audio effects for exactly one live audio session.
+ * Attachment is session-scoped; changing EQ values never recreates the effect objects.
+ */
 class AudioEffectsEngine {
     private var equalizer: Equalizer? = null
     private var bassBoost: BassBoost? = null
@@ -14,8 +17,13 @@ class AudioEffectsEngine {
     private var sessionId = 0
 
     fun attach(audioSessionId: Int): EffectInfo {
+        if (audioSessionId <= 0) {
+            release()
+            return EffectInfo(false, false, false, false, false, "Audio session unavailable")
+        }
+        if (sessionId == audioSessionId && hasAnyEffect()) return info()
+
         release()
-        if (audioSessionId <= 0) return EffectInfo(false, false, false, false, false, "Audio session unavailable")
         sessionId = audioSessionId
         fun <T> create(block: () -> T): T? = runCatching { block() }.getOrNull()
         equalizer = create { Equalizer(0, sessionId) }
@@ -25,20 +33,32 @@ class AudioEffectsEngine {
         return info()
     }
 
+    fun isAttachedTo(audioSessionId: Int): Boolean = sessionId == audioSessionId && hasAnyEffect()
+
+    fun applyState(state: DspState): EffectInfo {
+        if (!hasAnyEffect()) return info()
+        setEnabled(state.eqEnabled)
+        setBass(state.bassMb)
+        setLoudness(state.loudnessMb)
+        setVirtualizer(state.virtualizerStrength)
+        if (state.eqPreset == "flat") setFlat() else setBands(state.bands)
+        return info()
+    }
+
     fun info() = EffectInfo(
-        supported = equalizer != null || bassBoost != null || loudness != null || virtualizer != null,
+        supported = hasAnyEffect(),
         equalizer = equalizer != null,
         bassBoost = bassBoost != null,
         loudnessEnhancer = loudness != null,
         virtualizer = virtualizer != null,
-        reason = if (equalizer != null || bassBoost != null || loudness != null || virtualizer != null) null else "Android device exposes no compatible audio effects",
+        reason = if (hasAnyEffect()) null else "Android device exposes no compatible audio effects",
     )
 
     fun setEnabled(enabled: Boolean) {
-        equalizer?.enabled = enabled
-        bassBoost?.enabled = enabled
-        loudness?.enabled = enabled
-        virtualizer?.enabled = enabled
+        equalizer?.let { runCatching { it.enabled = enabled } }
+        bassBoost?.let { runCatching { it.enabled = enabled } }
+        loudness?.let { runCatching { it.enabled = enabled } }
+        virtualizer?.let { runCatching { it.enabled = enabled } }
     }
 
     fun setBass(millibels: Int) {
@@ -90,6 +110,9 @@ class AudioEffectsEngine {
         virtualizer = null
         sessionId = 0
     }
+
+    private fun hasAnyEffect(): Boolean =
+        equalizer != null || bassBoost != null || loudness != null || virtualizer != null
 }
 
 data class EffectInfo(

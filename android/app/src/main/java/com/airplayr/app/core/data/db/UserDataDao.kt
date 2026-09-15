@@ -28,10 +28,16 @@ interface UserDataDao {
     @Query("DELETE FROM music_playlist_items WHERE playlistId = :id") suspend fun clearPlaylistItems(id: String)
     @Query("SELECT mediaId FROM music_playlist_items WHERE playlistId = :id ORDER BY position ASC") suspend fun playlistItemIds(id: String): List<String>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertPlaylistItems(items: List<MusicPlaylistItemEntity>)
-    @Transaction suspend fun replacePlaylistItems(id: String, items: List<MusicPlaylistItemEntity>) {
-        clearPlaylistItems(id)
-        if (items.isNotEmpty()) insertPlaylistItems(items)
-    }
+    @Transaction suspend fun replacePlaylistItems(id: String, items: List<MusicPlaylistItemEntity>) { clearPlaylistItems(id); if (items.isNotEmpty()) insertPlaylistItems(items) }
+
+    @Insert suspend fun insertPlaybackEvent(event: PlaybackEventEntity)
+    @Query("SELECT * FROM playback_events WHERE playedAt >= :since AND playedAt <= :until ORDER BY playedAt DESC") suspend fun playbackEvents(since: Long, until: Long): List<PlaybackEventEntity>
+    @Query("SELECT * FROM playback_events ORDER BY playedAt DESC LIMIT :limit") suspend fun playbackEvents(limit: Int): List<PlaybackEventEntity>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertPlaybackSession(session: PlaybackSessionEntity)
+    @Query("SELECT * FROM playback_sessions WHERE sessionId = :id") suspend fun playbackSession(id: String): PlaybackSessionEntity?
+    @Query("SELECT * FROM playback_sessions WHERE startedAt >= :since AND startedAt <= :until ORDER BY startedAt DESC") suspend fun playbackSessions(since: Long, until: Long): List<PlaybackSessionEntity>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertPlaybackActivity(activity: PlaybackActivityEntity)
+    @Query("SELECT * FROM playback_activity WHERE dayKey BETWEEN :fromDay AND :toDay ORDER BY dayKey ASC") suspend fun playbackActivity(fromDay: String, toDay: String): List<PlaybackActivityEntity>
 
     @Query("SELECT * FROM video_progress WHERE mediaId = :id") fun observeVideoProgress(id: String): Flow<VideoProgressEntity?>
     @Query("SELECT * FROM video_progress ORDER BY updatedAt DESC") fun observeVideoProgress(): Flow<List<VideoProgressEntity>>

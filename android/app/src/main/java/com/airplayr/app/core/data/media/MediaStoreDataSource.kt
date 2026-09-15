@@ -153,7 +153,7 @@ class MediaStoreDataSource(context: Context) {
     }
 
     private companion object {
-        const val MAX_LIBRARY_ITEMS = 10_000
+        const val MAX_LIBRARY_ITEMS = Int.MAX_VALUE
         val ALBUM_ART_URI = android.net.Uri.parse("content://media/external/audio/albumart")
 
         fun audioProjection(): Array<String> = baseAudioProjection() +

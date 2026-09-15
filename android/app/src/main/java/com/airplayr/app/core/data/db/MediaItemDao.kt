@@ -10,8 +10,8 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface MediaItemDao {
-    @Query("SELECT * FROM media_items WHERE mediaType = :type ORDER BY dateModified DESC, id LIMIT :limit")
-    fun observeByType(type: String, limit: Int): Flow<List<MediaItemEntity>>
+    @Query("SELECT * FROM media_items WHERE mediaType = :type ORDER BY dateModified DESC, id")
+    fun observeByType(type: String): Flow<List<MediaItemEntity>>
 
     @Query("SELECT * FROM media_items WHERE mediaType = :type ORDER BY dateModified DESC, id LIMIT :limit OFFSET :offset")
     suspend fun getPage(type: String, limit: Int, offset: Int): List<MediaItemEntity>

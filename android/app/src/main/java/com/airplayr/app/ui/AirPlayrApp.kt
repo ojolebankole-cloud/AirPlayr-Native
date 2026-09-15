@@ -1,25 +1,19 @@
 package com.airplayr.app.ui
 
 import android.content.Intent
-import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.SideEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.VideoLibrary
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.ui.platform.LocalContext
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.navigation.AirPlayrNavViewModel
 import com.airplayr.app.ui.navigation.LibraryViewModel
@@ -50,6 +44,12 @@ import com.airplayr.app.ui.screens.BrowseFilterScreen
 import com.airplayr.app.ui.metadata.MetadataScreen
 import com.airplayr.app.ui.diagnostics.DiagnosticsScreen
 import com.airplayr.app.ui.theme.AirPlayrTheme
+import com.airplayr.app.ui.components.AirPlayrBottomDock
+import com.airplayr.app.ui.components.LiquidGlassBackground
+import com.airplayr.app.ui.components.WhatsNewSheet
+import kotlinx.coroutines.launch
+import com.airplayr.app.ui.permissions.StartupPermissionFlow
+import com.airplayr.app.ui.cast.CastPickerSheet
 
 @Composable
 fun AirPlayrApp(
@@ -63,11 +63,30 @@ fun AirPlayrApp(
     val libraryViewModel: LibraryViewModel = viewModel(
         factory = LibraryViewModelFactory(container.mediaLibrary),
     )
+    var castOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var whatsNewOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var permissionFlowCompleted by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val rootScope = androidx.compose.runtime.rememberCoroutineScope()
+    val appVersion = com.airplayr.app.BuildConfig.VERSION_NAME
 
     androidx.compose.runtime.LaunchedEffect(launchIntent) {
         initialViewModel.handleIntent(launchIntent)
     }
+    androidx.compose.runtime.LaunchedEffect(permissionFlowCompleted, appVersion) {
+        if (permissionFlowCompleted && !container.preferences.hasSeenWhatsNew(appVersion)) {
+            kotlinx.coroutines.delay(2000L)
+            whatsNewOpen = true
+        }
+    }
     val requestedRoute by initialViewModel.route.collectAsStateWithLifecycle()
+    val externalMedia by initialViewModel.externalMedia.collectAsStateWithLifecycle()
+    androidx.compose.runtime.LaunchedEffect(externalMedia) {
+        externalMedia?.let { external ->
+            playbackController.playExternal(external.uri, external.mimeType, external.title)
+            navController.navigate("player") { launchSingleTop = true }
+            initialViewModel.consumeExternalMedia()
+        }
+    }
     androidx.compose.runtime.LaunchedEffect(requestedRoute) {
         val route = when (requestedRoute) {
             com.airplayr.app.ui.navigation.Route.Home -> "home"
@@ -91,42 +110,34 @@ fun AirPlayrApp(
     }
 
     AirPlayrTheme(darkTheme = darkTheme, highContrast = settings?.highContrast == true) {
+        val context = LocalContext.current
+        SideEffect {
+            val activity = context as? android.app.Activity
+            activity?.window?.let { window ->
+                val controller = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+                controller.isAppearanceLightStatusBars = !darkTheme
+                controller.isAppearanceLightNavigationBars = !darkTheme
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    window.isNavigationBarContrastEnforced = false
+                }
+            }
+        }
+        LiquidGlassBackground {
         val entry by navController.currentBackStackEntryAsState()
         val destination = entry?.destination
-        Scaffold(
-            bottomBar = {
-                AirPlayrBottomDock(
-                    currentRoute = destination?.route,
-                    onNavigate = { route ->
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                )
-            },
-        ) { padding ->
+        Box(Modifier.fillMaxSize()) {
             NavHost(
                 navController = navController,
                 startDestination = "home",
-                modifier = androidx.compose.ui.Modifier.padding(padding),
+                modifier = androidx.compose.ui.Modifier.fillMaxSize(),
             ) {
-                composable("home") { HomeScreen(container = container, libraryViewModel = libraryViewModel) { route -> navController.navigate(route) } }
+                composable("home") { HomeScreen(container = container, libraryViewModel = libraryViewModel, onCast = { castOpen = true }) { route -> navController.navigate(route) } }
                 composable("music") {
                     MusicScreen(
-                        libraryViewModel,
-                        container.appContext,
-                        onCategory = { category ->
-                            when (category) {
-                                "albums" -> navController.navigate("album")
-                                "artists" -> navController.navigate("artist")
-                                "genres" -> navController.navigate("genre")
-                                "folders" -> navController.navigate("folders")
-                                "playlists" -> navController.navigate("my-playlists")
-                                "likes" -> navController.navigate("favorites")
-                            }
-                        },
+                        libraryViewModel = libraryViewModel,
+                        appContext = container.appContext,
+                        container = container,
+                        onNavigate = { route -> navController.navigate(route) },
                     )
                 }
                 composable("videos") {
@@ -138,31 +149,34 @@ fun AirPlayrApp(
                     )
                 }
                 composable("settings") {
-                    SettingsScreen(container = container, onDiagnostics = { navController.navigate("diagnostics") }, onMetadata = { navController.navigate("metadata") })
+                    SettingsScreen(container = container, onDiagnostics = { navController.navigate("diagnostics") }, onMetadata = { navController.navigate("metadata") }, onNavigate = { route -> navController.navigate(route) })
                 }
-                composable("player") { PlayerScreen(container.appContext) { navController.navigate("equalizer") } }
+                composable("player") { PlayerScreen(container.appContext, onBack = { navController.popBackStack() }, onEqualizer = { navController.navigate("equalizer") }, onQueue = { navController.navigate("queue") }, onNavigate = { route -> navController.navigate(route) }) }
                 composable("equalizer") { EqualizerScreen(container) }
                 composable("search") { SearchScreen(container) { item -> if (item.mediaType == com.airplayr.app.core.data.media.MediaType.VIDEO) navController.navigate("video/${item.id}") else { playbackController.play(item); navController.navigate("player") } } }
-                composable("history") { HistoryScreen(container) }
+                composable("history") { HistoryScreen(container, playbackController) { id -> navController.navigate("video/$id") } }
                 composable("favorites") { FavoritesScreen(container, playbackController) }
-                composable("playlists") { PlaylistsScreen(container) }
-                composable("collections") { CollectionsScreen(container) }
+                composable("playlists") { PlaylistsScreen(container) { id -> navController.navigate("playlist/$id") } }
+                composable("collections") { CollectionsScreen(container, { route -> navController.navigate(route) }, playbackController) }
                 composable("metadata") { MetadataScreen(container) }
                 composable("diagnostics") { DiagnosticsScreen(container) }
                 composable("queue") { QueueScreen(container.appContext) }
-                composable("listening-watching-stats") { StatsScreen(container) }
+                composable("listening-watching-stats") { StatsScreen(container, onOpenMedia = { item ->
+                    playbackController.play(item)
+                    navController.navigate("player")
+                }, onBack = { navController.popBackStack() }) }
                 composable("folders") { FoldersScreen(container, libraryViewModel) { navController.navigate("folder/$it") } }
                 composable("my-playlists") { MyPlaylistsScreen(container) { navController.navigate("music-playlist/$it") } }
                 composable("music-playlist/{id}") { entry -> PlaylistDetailScreen(container, entry.arguments?.getString("id").orEmpty(), playbackController) }
                 composable("playlist/{id}") { entry -> PlaylistDetailScreen(container, entry.arguments?.getString("id").orEmpty(), playbackController) }
-                composable("recent/{type}") { entry -> RecentScreen(entry.arguments?.getString("type").orEmpty(), libraryViewModel, playbackController) { navController.navigate("video/$it") } }
+                composable("recent/{type}") { entry -> RecentScreen(entry.arguments?.getString("type").orEmpty(), libraryViewModel, playbackController, { navController.navigate("video/$it") }, container) }
                 composable("most-played") { FeatureCollectionScreen("Most played", "Your most-played local music", { container.collections.mostPlayed() }, playbackController) }
                 composable("for-you") { FeatureCollectionScreen("For you now", "Press play & tuned in", { container.collections.forYou() }, playbackController) }
                 composable("rediscover") { FeatureCollectionScreen("Rediscover", "From your previous plays", { container.collections.rediscover() }, playbackController) }
                 composable("rediscover/rewind") { FeatureCollectionScreen("Worth the rewind", "Previous favorites and repeats", { container.collections.rediscover() }, playbackController) }
                 composable("tuned-in") { FeatureCollectionScreen("Tuned in", "Your recent listening", { container.collections.tunedIn() }, playbackController) }
                 composable("rock-your-world") { FeatureCollectionScreen("Rock your world", "Turn it up", { container.collections.rockYourWorld() }, playbackController) }
-                composable("smart-collections") { CollectionsScreen(container) }
+                composable("smart-collections") { CollectionsScreen(container, { route -> navController.navigate(route) }, playbackController) }
                 composable("video-collections") { FeatureCollectionScreen("Video collections", "Continue watching and unwatched videos", { container.collections.continueWatching() + container.collections.unwatched() }, playbackController) }
                 composable("album") { BrowseIndexScreen("Albums", com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController) { navController.navigate("album/${it}") } }
                 composable("artist") { BrowseIndexScreen("Artists", com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController) { navController.navigate("artist/${it}") } }
@@ -175,38 +189,53 @@ fun AirPlayrApp(
                 composable("open") { LibraryScreen("Open media", com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, onOpen = { playbackController.play(it); navController.navigate("player") }) }
                 composable("video/{id}") { entry -> VideoScreen(container, entry.arguments?.getString("id").orEmpty()) }
             }
-        }
-    }
-}
 
-@Composable
-private fun AirPlayrBottomDock(
-    currentRoute: String?,
-    onNavigate: (String) -> Unit,
-) {
-    val items = listOf(
-        NavItem("home", "Home", androidx.compose.material.icons.Icons.Filled.Home),
-        NavItem("music", "Music", androidx.compose.material.icons.Icons.Filled.MusicNote),
-        NavItem("videos", "Videos", androidx.compose.material.icons.Icons.Filled.VideoLibrary),
-        NavItem("settings", "Settings", androidx.compose.material.icons.Icons.Filled.Settings),
-    )
-    androidx.compose.material3.NavigationBar(
-        windowInsets = androidx.compose.foundation.layout.WindowInsets.navigationBars,
-    ) {
-        items.forEach { item ->
-            val selected = currentRoute == item.route || currentRoute?.startsWith("${item.route}/") == true
-            NavigationBarItem(
-                selected = selected,
-                onClick = { onNavigate(item.route) },
-                icon = { androidx.compose.material3.Icon(item.icon, contentDescription = item.label) },
-                label = { androidx.compose.material3.Text(item.label) },
+            // reference app's dock floats over the page rather than consuming layout height.
+            // Keep that relationship in native so content and the mini-player share the same screen geometry.
+            if (destination?.route != "player") {
+                val dockState by playbackController.state.collectAsStateWithLifecycle()
+                AirPlayrBottomDock(
+                    currentRoute = destination?.route,
+                    playbackState = dockState,
+                    playback = playbackController,
+                    onOpenPlayer = { navController.navigate("player") },
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                )
+            }
+
+            StartupPermissionFlow(
+                context = container.appContext,
+                onCompleted = { permissionState ->
+                    permissionFlowCompleted = true
+                    if (permissionState.audio || permissionState.video) libraryViewModel.refresh()
+                },
             )
+
+            if (whatsNewOpen) {
+                WhatsNewSheet(version = appVersion, onDismiss = {
+                    whatsNewOpen = false
+                    rootScope.launch { container.preferences.markWhatsNewSeen(appVersion) }
+                })
+            }
+            if (castOpen) {
+                ModalBottomSheet(
+                    onDismissRequest = { castOpen = false },
+                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    scrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.46f),
+                ) {
+                    CastPickerSheet(
+                        controller = container.cast,
+                        onDismiss = { castOpen = false },
+                    )
+                }
+            }
         }
     }
 }
-
-private data class NavItem(
-    val route: String,
-    val label: String,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector,
-)
+}

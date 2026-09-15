@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">AirPlayr</string>
+    <string name="music_playback_channel_name">Music playback</string>
 </resources>

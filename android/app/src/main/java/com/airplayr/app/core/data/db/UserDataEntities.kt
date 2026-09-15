@@ -37,3 +37,34 @@ data class VideoProgressEntity(val mediaId: String, val positionMs: Long, val du
 
 @Entity(tableName = "video_bookmarks", primaryKeys = ["mediaId", "positionMs"])
 data class VideoBookmarkEntity(val mediaId: String, val positionMs: Long, val label: String?, val createdAt: Long)
+
+@Entity(tableName = "playback_events", indices = [Index(value = ["playedAt"]), Index(value = ["mediaType"])])
+data class PlaybackEventEntity(
+    @androidx.room.PrimaryKey(autoGenerate = true) val eventId: Long = 0,
+    val mediaId: String,
+    val mediaType: String,
+    val playedAt: Long,
+)
+
+@Entity(tableName = "playback_sessions", indices = [Index(value = ["startedAt"]), Index(value = ["mediaType"])])
+data class PlaybackSessionEntity(
+    @androidx.room.PrimaryKey val sessionId: String,
+    val mediaId: String,
+    val mediaType: String,
+    val title: String,
+    val artist: String?,
+    val album: String?,
+    val artworkUri: String?,
+    val startedAt: Long,
+    val endedAt: Long?,
+    val seconds: Long,
+    val lastMediaTime: Long,
+)
+
+@Entity(tableName = "playback_activity", primaryKeys = ["dayKey", "bucket", "mediaType"], indices = [Index(value = ["dayKey"])])
+data class PlaybackActivityEntity(
+    val dayKey: String,
+    val bucket: String,
+    val mediaType: String,
+    val seconds: Long,
+)
