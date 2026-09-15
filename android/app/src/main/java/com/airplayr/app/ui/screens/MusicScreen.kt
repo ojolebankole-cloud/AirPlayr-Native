@@ -3,7 +3,6 @@ package com.airplayr.app.ui.screens
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.QueueMusic
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -208,11 +207,11 @@ fun MusicScreen(libraryViewModel: LibraryViewModel, appContext: android.content.
                     }
                 }
             }
-            "albums" -> CollectionGrid(grid, albums, { raw -> val name = when(raw){is AlbumGroup->raw.name;is CollectionGroup->raw.name;else->"Unknown"}; onNavigate("album/${java.net.URLEncoder.encode(name, "UTF-8")}") })
-            "artists" -> CollectionGrid(grid, artists, { raw -> val name = when(raw){is AlbumGroup->raw.name;is CollectionGroup->raw.name;else->"Unknown"}; onNavigate("artist/${java.net.URLEncoder.encode(name, "UTF-8")}") }, circular = true)
-            "genres" -> GenreGrid(genres, onNavigate)
-            "folders" -> CollectionGrid(grid, folders, { raw -> val name = when(raw){is AlbumGroup->raw.name;is CollectionGroup->raw.name;else->"Music"}; onNavigate("music-folder/${java.net.URLEncoder.encode(name, "UTF-8")}") })
-            "playlists" -> PlaylistGrid(grid, playlists, playlistCounts, playlistItems, songs, onNavigate, { scope.launch { val p = container.structured.createPlaylist("New playlist"); onNavigate("music-playlist/${p.id}") } })
+            "albums" -> CollectionGrid(grid, albums, { raw -> val name = when(raw){is AlbumGroup->raw.name;is CollectionGroup->raw.name;else->"Unknown"}; onNavigate("album/${java.net.URLEncoder.encode(name, "UTF-8")}") }, modifier = Modifier.weight(1f))
+            "artists" -> CollectionGrid(grid, artists, { raw -> val name = when(raw){is AlbumGroup->raw.name;is CollectionGroup->raw.name;else->"Unknown"}; onNavigate("artist/${java.net.URLEncoder.encode(name, "UTF-8")}") }, circular = true, modifier = Modifier.weight(1f))
+            "genres" -> GenreGrid(genres, onNavigate, modifier = Modifier.weight(1f))
+            "folders" -> CollectionGrid(grid, folders, { raw -> val name = when(raw){is AlbumGroup->raw.name;is CollectionGroup->raw.name;else->"Music"}; onNavigate("music-folder/${java.net.URLEncoder.encode(name, "UTF-8")}") }, modifier = Modifier.weight(1f))
+            "playlists" -> PlaylistGrid(grid, playlists, playlistCounts, playlistItems, songs, onNavigate, { scope.launch { val p = container.structured.createPlaylist("New playlist"); onNavigate("music-playlist/${p.id}") } }, modifier = Modifier.weight(1f))
         }
     }
 
@@ -302,13 +301,13 @@ private fun NativeMusicTile(item: MediaItem, favorite: Boolean, playing: Boolean
     }
 }
 
-@Composable private fun CollectionGrid(grid:Boolean, data:List<Any>, onClick:(Any)->Unit, circular:Boolean=false) {
+@Composable private fun CollectionGrid(grid:Boolean, data:List<Any>, onClick:(Any)->Unit, circular:Boolean=false, modifier:Modifier=Modifier) {
     val colors=LocalAirPlayrColors.current
-    if(grid) LazyVerticalGrid(GridCells.Fixed(2),Modifier.weight(1f), contentPadding=PaddingValues(12.dp), horizontalArrangement=Arrangement.spacedBy(10.dp), verticalArrangement=Arrangement.spacedBy(16.dp)){items(data){ raw -> val (name,songs)=when(raw){is AlbumGroup->raw.name to raw.songs; is CollectionGroup->raw.name to raw.songs; else->"Unknown" to emptyList()}; Column(Modifier.clickableCompat { onClick(raw) }.fillMaxWidth()){Artwork(songs.firstOrNull()?.artworkUri,Modifier.fillMaxWidth().height(170.dp),if(circular)85.dp else 22.dp,name);Text(name,style=MaterialTheme.typography.titleSmall,maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.padding(top=6.dp));Text("${songs.size} songs",style=MaterialTheme.typography.labelSmall,color=colors.textSecondary)}}}
-    else LazyColumn(Modifier.weight(1f),contentPadding=PaddingValues(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){items(data){raw->val(name,songs)=when(raw){is AlbumGroup->raw.name to raw.songs;is CollectionGroup->raw.name to raw.songs;else->"Unknown" to emptyList()};AirPlayrCard(Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp),containerColor=colors.surfaceSolid,elevation=5.dp){Row(Modifier.fillMaxWidth().padding(10.dp).clickableCompat { onClick(raw) },verticalAlignment=Alignment.CenterVertically){Artwork(songs.firstOrNull()?.artworkUri,Modifier.size(66.dp),if(circular)33.dp else 16.dp,name);Column(Modifier.weight(1f).padding(horizontal=12.dp)){Text(name,style=MaterialTheme.typography.titleMedium);Text("${songs.size} songs",style=MaterialTheme.typography.bodySmall,color=colors.textSecondary)}}}}}
+    if(grid) LazyVerticalGrid(GridCells.Fixed(2),modifier, contentPadding=PaddingValues(12.dp), horizontalArrangement=Arrangement.spacedBy(10.dp), verticalArrangement=Arrangement.spacedBy(16.dp)){items(data){ raw -> val (name,songs)=when(raw){is AlbumGroup->raw.name to raw.songs; is CollectionGroup->raw.name to raw.songs; else->"Unknown" to emptyList()}; Column(Modifier.clickableCompat { onClick(raw) }.fillMaxWidth()){Artwork(songs.firstOrNull()?.artworkUri,Modifier.fillMaxWidth().height(170.dp),if(circular)85.dp else 22.dp,name);Text(name,style=MaterialTheme.typography.titleSmall,maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.padding(top=6.dp));Text("${songs.size} songs",style=MaterialTheme.typography.labelSmall,color=colors.textSecondary)}}}
+    else LazyColumn(modifier,contentPadding=PaddingValues(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){items(data){raw->val(name,songs)=when(raw){is AlbumGroup->raw.name to raw.songs;is CollectionGroup->raw.name to raw.songs;else->"Unknown" to emptyList()};AirPlayrCard(Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp),containerColor=colors.surfaceSolid,elevation=5.dp){Row(Modifier.fillMaxWidth().padding(10.dp).clickableCompat { onClick(raw) },verticalAlignment=Alignment.CenterVertically){Artwork(songs.firstOrNull()?.artworkUri,Modifier.size(66.dp),if(circular)33.dp else 16.dp,name);Column(Modifier.weight(1f).padding(horizontal=12.dp)){Text(name,style=MaterialTheme.typography.titleMedium);Text("${songs.size} songs",style=MaterialTheme.typography.bodySmall,color=colors.textSecondary)}}}}}
 }
 
-@Composable private fun GenreGrid(data:List<CollectionGroup>, onNavigate:(String)->Unit){ val colors=LocalAirPlayrColors.current; LazyVerticalGrid(GridCells.Fixed(2),Modifier.weight(1f),contentPadding=PaddingValues(12.dp),horizontalArrangement=Arrangement.spacedBy(10.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){items(data){g->AirPlayrCard(Modifier.fillMaxWidth().height(148.dp),shape=RoundedCornerShape(24.dp),containerColor=listOf(colors.primaryContainer,colors.secondaryContainer,colors.tertiaryContainer)[(g.name.hashCode() and Int.MAX_VALUE)%3],elevation=5.dp,onClick={onNavigate("genre/${java.net.URLEncoder.encode(g.name,"UTF-8")}")}){Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(colors.surfaceContainer.copy(alpha=.1f),colors.surfaceVariant.copy(alpha=.24f))))){Column(Modifier.padding(16.dp)){Text(g.name,style=MaterialTheme.typography.headlineSmall,maxLines=2);Text("${g.songs.size} songs",style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(top=4.dp))};Artwork(g.songs.firstOrNull()?.artworkUri,Modifier.size(92.dp).align(Alignment.BottomEnd).padding(5.dp),18.dp,g.name)}}}} }
+@Composable private fun GenreGrid(data:List<CollectionGroup>, onNavigate:(String)->Unit, modifier:Modifier=Modifier){ val colors=LocalAirPlayrColors.current; LazyVerticalGrid(GridCells.Fixed(2),modifier,contentPadding=PaddingValues(12.dp),horizontalArrangement=Arrangement.spacedBy(10.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){items(data){g->AirPlayrCard(Modifier.fillMaxWidth().height(148.dp),shape=RoundedCornerShape(24.dp),containerColor=listOf(colors.primaryContainer,colors.secondaryContainer,colors.tertiaryContainer)[(g.name.hashCode() and Int.MAX_VALUE)%3],elevation=5.dp,onClick={onNavigate("genre/${java.net.URLEncoder.encode(g.name,"UTF-8")}")}){Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(colors.surfaceContainer.copy(alpha=.1f),colors.surfaceVariant.copy(alpha=.24f))))){Column(Modifier.padding(16.dp)){Text(g.name,style=MaterialTheme.typography.headlineSmall,maxLines=2);Text("${g.songs.size} songs",style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(top=4.dp))};Artwork(g.songs.firstOrNull()?.artworkUri,Modifier.size(92.dp).align(Alignment.BottomEnd).padding(5.dp),18.dp,g.name)}}}} }
 
 @Composable
 private fun PlaylistGrid(
@@ -319,9 +318,10 @@ private fun PlaylistGrid(
     songs: List<MediaItem>,
     onNavigate: (String) -> Unit,
     onAdd: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalAirPlayrColors.current
-    Column(Modifier.weight(1f)) {
+    Column(modifier) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
