@@ -7,7 +7,6 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem as ExoMediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
-import androidx.media3.common.AudioListener
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.cast.CastPlayer
 import androidx.media3.session.LibraryResult
@@ -66,7 +65,7 @@ class AirPlayrPlaybackService : MediaLibraryService() {
     private val mediaLibraryCallback = object : MediaLibrarySession.Callback {
         override fun onGetLibraryRoot(
             session: MediaLibrarySession,
-            browser: ControllerInfo,
+            browser: MediaSession.ControllerInfo,
             params: LibraryParams?,
         ) = Futures.immediateFuture(
             LibraryResult.ofItem(
@@ -77,7 +76,7 @@ class AirPlayrPlaybackService : MediaLibraryService() {
 
         override fun onGetChildren(
             session: MediaLibrarySession,
-            browser: ControllerInfo,
+            browser: MediaSession.ControllerInfo,
             parentId: String,
             page: Int,
             pageSize: Int,
@@ -104,7 +103,7 @@ class AirPlayrPlaybackService : MediaLibraryService() {
 
         override fun onGetItem(
             session: MediaLibrarySession,
-            browser: ControllerInfo,
+            browser: MediaSession.ControllerInfo,
             mediaId: String,
         ) = libraryScope.future {
             val item = library.get(mediaId)
@@ -117,7 +116,7 @@ class AirPlayrPlaybackService : MediaLibraryService() {
 
         override fun onSearch(
             session: MediaLibrarySession,
-            browser: ControllerInfo,
+            browser: MediaSession.ControllerInfo,
             query: String,
             params: LibraryParams?,
         ) = libraryScope.future {
@@ -128,7 +127,7 @@ class AirPlayrPlaybackService : MediaLibraryService() {
 
         override fun onGetSearchResult(
             session: MediaLibrarySession,
-            browser: ControllerInfo,
+            browser: MediaSession.ControllerInfo,
             query: String,
             page: Int,
             pageSize: Int,
@@ -142,7 +141,8 @@ class AirPlayrPlaybackService : MediaLibraryService() {
         }
     }
 
-    private val audioListener = object : AudioListener {
+    private val listener = object : Player.Listener {
+
         override fun onAudioSessionIdChanged(audioSessionId: Int) {
             if (audioSessionId > 0) {
                 serviceScope.launch {
@@ -152,13 +152,15 @@ class AirPlayrPlaybackService : MediaLibraryService() {
                     effects.setBass(state.bassMb)
                     effects.setLoudness(state.loudnessMb)
                     effects.setVirtualizer(state.virtualizerStrength)
-                    if (state.eqPreset == "flat") effects.setFlat() else effects.setBands(state.bands)
+                    if (state.eqPreset == "flat") {
+                        effects.setFlat()
+                    } else {
+                        effects.setBands(state.bands)
+                    }
                 }
             }
         }
-    }
 
-    private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
             if (hydrating) return
             if (events.containsAny(
@@ -208,7 +210,7 @@ class AirPlayrPlaybackService : MediaLibraryService() {
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
-            .also { it.addAudioListener(audioListener) }
+
         castPlayer = CastPlayer.Builder(applicationContext)
             .setLocalPlayer(localPlayer)
             .build()
@@ -276,7 +278,6 @@ class AirPlayrPlaybackService : MediaLibraryService() {
     override fun onDestroy() {
         runCatching { kotlinx.coroutines.runBlocking { persistSnapshotNow() } }
         effects.release()
-        if (::localPlayer.isInitialized) localPlayer.removeAudioListener(audioListener)
         if (::player.isInitialized) player.removeListener(listener)
         mediaLibrarySession?.release()
         if (::castPlayer.isInitialized) castPlayer.release()
@@ -307,7 +308,9 @@ class AirPlayrPlaybackService : MediaLibraryService() {
     private suspend fun persistSnapshotNow() {
         persistMutex.withLock {
             val position = player.currentPosition.coerceAtLeast(0L)
-            val items = player.mediaItems.mapNotNull(::toDomain)
+            val items = (0 until player.mediaItemCount)
+                .map { index -> player.getMediaItemAt(index) }
+                .mapNotNull(::toDomain)
             val index = player.currentMediaItemIndex.coerceAtLeast(0)
             val id = player.currentMediaItem?.mediaId
             val shuffle = player.shuffleModeEnabled
@@ -351,7 +354,7 @@ class AirPlayrPlaybackService : MediaLibraryService() {
             artist = md.artist?.toString(),
             album = md.albumTitle?.toString(),
             albumArtist = null,
-            durationMs = md.durationMs.takeIf { it != C.TIME_UNSET && it > 0L } ?: 0L,
+            durationMs = md.durationMs?.takeIf { it != C.TIME_UNSET && it > 0L } ?: 0L,
             width = 0,
             height = 0,
             sizeBytes = 0L,

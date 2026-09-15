@@ -21,6 +21,7 @@ class CastController(context: Context) {
         override fun onSessionStarting(session: CastSession) = Unit
         override fun onSessionEnding(session: CastSession) = Unit
         override fun onSessionResuming(session: CastSession, sessionId: String) = Unit
+        override fun onSessionResumeFailed(session: CastSession, error: Int) { _connected.value = false }
         override fun onSessionSuspended(session: CastSession, reason: Int) { _connected.value = false }
     }
 

@@ -15,7 +15,7 @@ class AudioEffectsEngine {
 
     fun attach(audioSessionId: Int): EffectInfo {
         release()
-        if (audioSessionId <= 0) return EffectInfo(false, false, false, false, "Audio session unavailable")
+        if (audioSessionId <= 0) return EffectInfo(false, false, false, false, false, "Audio session unavailable")
         sessionId = audioSessionId
         fun <T> create(block: () -> T): T? = runCatching { block() }.getOrNull()
         equalizer = create { Equalizer(0, sessionId) }
@@ -46,7 +46,7 @@ class AudioEffectsEngine {
     }
 
     fun setLoudness(millibels: Int) {
-        loudness?.let { runCatching { it.setTargetGain(millibels.coerceIn(0, 1500).toFloat()) } }
+        loudness?.let { runCatching { it.setTargetGain(millibels.coerceIn(0, 1500)) } }
     }
 
     fun setVirtualizer(strength: Int) {

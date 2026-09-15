@@ -23,6 +23,35 @@ import kotlin.math.roundToInt
         Text("Bass ${bass.roundToInt()} dB"); Slider(value = bass, onValueChange = { bass = it }, valueRange = -15f..15f)
         Text("Loudness ${loudness.roundToInt()} dB"); Slider(value = loudness, onValueChange = { loudness = it }, valueRange = 0f..15f)
         Text("Virtualizer ${virtualizer.roundToInt()}%"); Slider(value = virtualizer, onValueChange = { virtualizer = it }, valueRange = 0f..100f)
-        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceEvenly){ Button({scope.launch{container.dsp.setEqualizer(true,"manual",(bass*100).roundToInt(),(loudness*100).roundToInt(),(virtualizer*10).roundToInt())}}){Text("Apply")} Button({scope.launch{container.dsp.setEqualizer(true,"flat",0,0,0)} }){Text("Flat")}}
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            Button(
+                onClick = {
+                    scope.launch {
+                        container.dsp.setEqualizer(
+                            true,
+                            "manual",
+                            (bass * 100).roundToInt(),
+                            (loudness * 100).roundToInt(),
+                            (virtualizer * 10).roundToInt(),
+                        )
+                    }
+                },
+            ) {
+                Text("Apply")
+            }
+
+            Button(
+                onClick = {
+                    scope.launch {
+                        container.dsp.setEqualizer(true, "flat", 0, 0, 0)
+                    }
+                },
+            ) {
+                Text("Flat")
+            }
+        }
     }
 }

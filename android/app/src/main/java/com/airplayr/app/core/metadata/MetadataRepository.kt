@@ -31,7 +31,7 @@ class MetadataRepository(private val context: Context) {
     private val inFlight = ConcurrentHashMap<String, kotlinx.coroutines.Deferred<List<MetadataMatch>>>()
 
     suspend fun search(item: MediaItem, country: String = "US", force: Boolean = false): List<MetadataMatch> {
-        val term = listOf(item.title, item.artist, item.album).map { it.trim() }.filter { it.isNotBlank() }.joinToString(" ")
+        val term = listOf(item.title, item.artist, item.album).map { it?.trim().orEmpty() }.filter { it.isNotBlank() }.joinToString(" ")
         if (term.isBlank()) return emptyList()
         val key = "$country:${term.lowercase()}"
         val now = System.currentTimeMillis()
