@@ -24,7 +24,7 @@ object AirPlayrIcons {
         ).apply {
             path(
                 fill = null,
-                stroke = Color.White,
+                stroke = SolidColor(Color.White),
                 strokeLineWidth = 2.25f,
                 strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round,
                 strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round,
@@ -88,7 +88,7 @@ object AirPlayrIcons {
         ).apply {
             path(
                 fill = null,
-                stroke = Color.White,
+                stroke = SolidColor(Color.White),
                 strokeLineWidth = 2.25f,
                 strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round,
             ) {
@@ -123,7 +123,7 @@ object AirPlayrIcons {
         ).apply {
             path(
                 fill = null,
-                stroke = Color.White,
+                stroke = SolidColor(Color.White),
                 strokeLineWidth = 2.25f,
                 strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round,
                 strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round,
@@ -166,7 +166,7 @@ object AirPlayrIcons {
 
     val Shuffle: ImageVector
         get() = ImageVector.Builder("AirPlayrShuffle", 26.dp, 26.dp, 26f, 26f).apply {
-            path(fill = null, stroke = Color.White, strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
                 moveTo(4f, 7f); lineTo(7f,7f); curveTo(9.5f,7f,10.5f,19f,16f,19f); lineTo(22f,19f)
                 moveTo(19f,16f); lineTo(22f,19f); lineTo(19f,22f)
                 moveTo(4f,19f); lineTo(7f,19f); curveTo(8.5f,19f,9.8f,16.4f,11f,14f)
@@ -177,7 +177,7 @@ object AirPlayrIcons {
 
     val Repeat: ImageVector
         get() = ImageVector.Builder("AirPlayrRepeat", 26.dp, 26.dp, 26f, 26f).apply {
-            path(fill = null, stroke = Color.White, strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
                 moveTo(6f,9f); horizontalLineTo(20f); moveTo(17f,6f); lineTo(20f,9f); lineTo(17f,12f)
                 moveTo(20f,17f); horizontalLineTo(6f); moveTo(9f,14f); lineTo(6f,17f); lineTo(9f,20f)
             }
@@ -185,7 +185,7 @@ object AirPlayrIcons {
 
     val Previous: ImageVector
         get() = ImageVector.Builder("AirPlayrPrevious", 28.dp, 28.dp, 28f, 28f).apply {
-            path(fill = null, stroke = Color.White, strokeLineWidth = 2.15f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2.15f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
                 moveTo(6f,5.5f); verticalLineTo(22.5f)
             }
             path(fill = SolidColor(Color.White)) { moveTo(22f,6f); lineTo(10f,14f); lineTo(22f,22f); close() }
@@ -193,7 +193,7 @@ object AirPlayrIcons {
 
     val Next: ImageVector
         get() = ImageVector.Builder("AirPlayrNext", 28.dp, 28.dp, 28f, 28f).apply {
-            path(fill = null, stroke = Color.White, strokeLineWidth = 2.15f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2.15f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
                 moveTo(22f,5.5f); verticalLineTo(22.5f)
             }
             path(fill = SolidColor(Color.White)) { moveTo(6f,6f); lineTo(18f,14f); lineTo(6f,22f); close() }
@@ -201,22 +201,22 @@ object AirPlayrIcons {
 
     val Rewind: ImageVector
         get() = ImageVector.Builder("AirPlayrRewind", 30.dp, 30.dp, 30f, 30f).apply {
-            path(fill = null, stroke = Color.White, strokeLineWidth = 1.9f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 1.9f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
                 moveTo(15f,7f); curveTo(10.6f,7f,7f,10.1f,7f,14f); curveTo(7f,17.9f,10.6f,21f,15f,21f); curveTo(19.4f,21f,23f,17.9f,23f,14f)
                 moveTo(9f,10f); lineTo(5f,10f); lineTo(5f,14f)
             }
-            path(fill = null, stroke = Color.White, strokeLineWidth = 1.6f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) { moveTo(13.2f,11f); lineTo(11.2f,11f); lineTo(11.2f,12.6f); lineTo(12.7f,12.6f); curveTo(14.3f,12.6f,14.6f,15.2f,12.4f,15.2f); curveTo(11.6f,15.2f,11.1f,14.7f,10.9f,14.2f) }
-            path(fill = null, stroke = Color.White, strokeLineWidth = 1.6f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) { moveTo(16.8f,11f); lineTo(15.2f,11f); lineTo(15.2f,15.2f); lineTo(17f,15.2f); curveTo(18.7f,15.2f,18.8f,11f,16.8f,11f) }
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 1.6f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) { moveTo(13.2f,11f); lineTo(11.2f,11f); lineTo(11.2f,12.6f); lineTo(12.7f,12.6f); curveTo(14.3f,12.6f,14.6f,15.2f,12.4f,15.2f); curveTo(11.6f,15.2f,11.1f,14.7f,10.9f,14.2f) }
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 1.6f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) { moveTo(16.8f,11f); lineTo(15.2f,11f); lineTo(15.2f,15.2f); lineTo(17f,15.2f); curveTo(18.7f,15.2f,18.8f,11f,16.8f,11f) }
         }.build()
 
     val Forward: ImageVector
         get() = ImageVector.Builder("AirPlayrForward", 30.dp, 30.dp, 30f, 30f).apply {
-            path(fill = null, stroke = Color.White, strokeLineWidth = 1.9f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 1.9f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
                 moveTo(15f,7f); curveTo(19.4f,7f,23f,10.1f,23f,14f); curveTo(23f,17.9f,19.4f,21f,15f,21f); curveTo(10.6f,21f,7f,17.9f,7f,14f)
                 moveTo(21f,10f); lineTo(25f,10f); lineTo(25f,14f)
             }
-            path(fill = null, stroke = Color.White, strokeLineWidth = 1.6f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) { moveTo(11.2f,11f); lineTo(13.2f,11f); lineTo(13.2f,12.6f); lineTo(11.7f,12.6f); curveTo(10.1f,12.6f,9.8f,15.2f,12f,15.2f); curveTo(12.8f,15.2f,13.3f,14.7f,13.5f,14.2f) }
-            path(fill = null, stroke = Color.White, strokeLineWidth = 1.6f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) { moveTo(14.8f,11f); lineTo(16.4f,11f); lineTo(16.4f,15.2f); lineTo(14.6f,15.2f); curveTo(12.9f,15.2f,12.8f,11f,14.8f,11f) }
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 1.6f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) { moveTo(11.2f,11f); lineTo(13.2f,11f); lineTo(13.2f,12.6f); lineTo(11.7f,12.6f); curveTo(10.1f,12.6f,9.8f,15.2f,12f,15.2f); curveTo(12.8f,15.2f,13.3f,14.7f,13.5f,14.2f) }
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 1.6f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) { moveTo(14.8f,11f); lineTo(16.4f,11f); lineTo(16.4f,15.2f); lineTo(14.6f,15.2f); curveTo(12.9f,15.2f,12.8f,11f,14.8f,11f) }
         }.build()
 
     val Play: ImageVector
@@ -242,12 +242,12 @@ object AirPlayrIcons {
 
     val Equalizer: ImageVector
         get() = ImageVector.Builder("AirPlayrEqualizer", 24.dp, 24.dp, 24f, 24f).apply {
-            path(fill = null, stroke = Color.White, strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) {
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) {
                 moveTo(5f, 19f); verticalLineTo(12f);
                 moveTo(12f, 19f); verticalLineTo(5f);
                 moveTo(19f, 19f); verticalLineTo(9f);
             }
-            path(fill = null, stroke = Color.White, strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) {
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) {
                 moveTo(3.5f, 12f); horizontalLineTo(6.5f);
                 moveTo(10.5f, 5f); horizontalLineTo(13.5f);
                 moveTo(17.5f, 9f); horizontalLineTo(20.5f);
@@ -256,11 +256,11 @@ object AirPlayrIcons {
 
     val Lyrics: ImageVector
         get() = ImageVector.Builder("AirPlayrLyrics", 28.dp, 28.dp, 28f, 28f).apply {
-            path(fill = null, stroke = Color.White, strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
                 moveTo(5f, 4f); horizontalLineTo(17f); curveTo(19.2f,4f,21f,5.8f,21f,8f); verticalLineTo(20f); curveTo(21f,22.2f,19.2f,24f,17f,24f); horizontalLineTo(8f); curveTo(5.8f,24f,4f,22.2f,4f,20f); verticalLineTo(6f); curveTo(4f,4.9f,4.9f,4f,5f,4f)
                 moveTo(8f,11f); horizontalLineTo(16f); moveTo(8f,15f); horizontalLineTo(16f);
             }
-            path(fill = null, stroke = Color.White, strokeLineWidth = 1.8f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) { moveTo(14f,20f); curveTo(16.3f,20f,18f,18.5f,18f,16.5f); verticalLineTo(13f); moveTo(17.5f,13f); horizontalLineTo(20.5f) }
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 1.8f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) { moveTo(14f,20f); curveTo(16.3f,20f,18f,18.5f,18f,16.5f); verticalLineTo(13f); moveTo(17.5f,13f); horizontalLineTo(20.5f) }
         }.build()
 
     val Sleep: ImageVector
@@ -273,7 +273,7 @@ object AirPlayrIcons {
         ).apply {
             path(
                 fill = null,
-                stroke = Color.White,
+                stroke = SolidColor(Color.White),
                 strokeLineWidth = 2.15f,
                 strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round,
                 strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round,
@@ -291,7 +291,7 @@ object AirPlayrIcons {
 
     val Queue: ImageVector
         get() = ImageVector.Builder("AirPlayrQueue", 24.dp, 24.dp, 24f, 24f).apply {
-            path(fill = null, stroke = Color.White, strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) {
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) {
                 moveTo(4f, 6f); horizontalLineTo(16f);
                 moveTo(4f, 11f); horizontalLineTo(16f);
                 moveTo(4f, 16f); horizontalLineTo(11f);
@@ -304,7 +304,7 @@ object AirPlayrIcons {
 
     val Back: ImageVector
         get() = ImageVector.Builder("AirPlayrBack", 28.dp, 28.dp, 28f, 28f).apply {
-            path(fill = null, stroke = Color.White, strokeLineWidth = 2.15f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2.15f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
                 moveTo(20f, 14f); horizontalLineTo(7f); moveTo(12f, 8f); lineTo(6f, 14f); lineTo(12f, 20f)
             }
         }.build()
@@ -312,13 +312,13 @@ object AirPlayrIcons {
     val VolumeDown: ImageVector
         get() = ImageVector.Builder("AirPlayrVolumeDown", 28.dp, 28.dp, 28f, 28f).apply {
             path(fill = SolidColor(Color.White)) { moveTo(5f, 11f); horizontalLineTo(9f); lineTo(14f, 7f); verticalLineTo(21f); lineTo(9f, 17f); horizontalLineTo(5f); close() }
-            path(fill = null, stroke = Color.White, strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) { moveTo(18f, 11f); curveTo(20f, 12.5f, 20f, 15.5f, 18f, 17f) }
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) { moveTo(18f, 11f); curveTo(20f, 12.5f, 20f, 15.5f, 18f, 17f) }
         }.build()
 
     val VolumeUp: ImageVector
         get() = ImageVector.Builder("AirPlayrVolumeUp", 28.dp, 28.dp, 28f, 28f).apply {
             path(fill = SolidColor(Color.White)) { moveTo(5f, 11f); horizontalLineTo(9f); lineTo(14f, 7f); verticalLineTo(21f); lineTo(9f, 17f); horizontalLineTo(5f); close() }
-            path(fill = null, stroke = Color.White, strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) { moveTo(18f, 9f); curveTo(22f, 11.5f, 22f, 16.5f, 18f, 19f); moveTo(20f, 6f); curveTo(26f, 10f, 26f, 18f, 20f, 22f) }
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round) { moveTo(18f, 9f); curveTo(22f, 11.5f, 22f, 16.5f, 18f, 19f); moveTo(20f, 6f); curveTo(26f, 10f, 26f, 18f, 20f, 22f) }
         }.build()
 
     val Favorite: ImageVector
@@ -330,7 +330,7 @@ object AirPlayrIcons {
 
     val FavoriteBorder: ImageVector
         get() = ImageVector.Builder("AirPlayrFavoriteBorder", 28.dp, 28.dp, 28f, 28f).apply {
-            path(fill = null, stroke = Color.White, strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
                 moveTo(14f, 23f); curveTo(13.5f, 22.5f, 5f, 17.2f, 5f, 10.8f); curveTo(5f, 7.4f, 7.2f, 5f, 10.3f, 5f); curveTo(12.1f, 5f, 13.4f, 5.9f, 14f, 7f); curveTo(14.6f, 5.9f, 15.9f, 5f, 17.7f, 5f); curveTo(20.8f, 5f, 23f, 7.4f, 23f, 10.8f); curveTo(23f, 17.2f, 14.5f, 22.5f, 14f, 23f)
             }
         }.build()

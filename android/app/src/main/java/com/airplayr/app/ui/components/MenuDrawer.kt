@@ -2,7 +2,7 @@ package com.airplayr.app.ui.components
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.layout.RowScope.weight
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.animation.core.animateFloatAsState
@@ -126,23 +126,23 @@ fun MenuDrawer(
     }
 
     val entriesLibrary = listOf(
-        MenuEntry("Library", Icons.Default.LibraryMusic, "home", "${musicCount + videoCount}"),
-        MenuEntry("Folders", Icons.Default.FolderOpen, "folders", "$folderCount folders"),
-        MenuEntry("Music", Icons.Default.MusicNote, "music", "$musicCount songs"),
-        MenuEntry("Videos", Icons.Default.VideoLibrary, "videos", "$videoCount videos"),
+        MenuEntry("Library", Icons.Outlined.LibraryMusic, "home", "${musicCount + videoCount}"),
+        MenuEntry("Folders", Icons.Outlined.FolderOpen, "folders", "$folderCount folders"),
+        MenuEntry("Music", Icons.Outlined.MusicNote, "music", "$musicCount songs"),
+        MenuEntry("Videos", Icons.Outlined.VideoLibrary, "videos", "$videoCount videos"),
     )
     val entriesPlayback = listOf(
-        MenuEntry("Playing queue", Icons.Default.QueueMusic, "queue"),
-        MenuEntry("Equalizer", Icons.Default.Equalizer, "equalizer"),
+        MenuEntry("Playing queue", Icons.Outlined.QueueMusic, "queue"),
+        MenuEntry("Equalizer", Icons.Outlined.Equalizer, "equalizer"),
     )
     val entriesInsights = listOf(
-        MenuEntry("Listening & watching", Icons.Default.ShowChart, "listening-watching-stats"),
-        MenuEntry("Scan media", Icons.Default.History, "__scan"),
+        MenuEntry("Listening & watching", Icons.Outlined.ShowChart, "listening-watching-stats"),
+        MenuEntry("Scan media", Icons.Outlined.History, "__scan"),
     )
     val entriesAirPlayr = listOf(
-        MenuEntry("Settings", Icons.Default.Settings, "settings"),
-        MenuEntry("About AirPlayr", Icons.Default.Info, "__about"),
-        MenuEntry("Support AirPlayr", Icons.Default.FavoriteBorder, "__support"),
+        MenuEntry("Settings", Icons.Outlined.Settings, "settings"),
+        MenuEntry("About AirPlayr", Icons.Outlined.Info, "__about"),
+        MenuEntry("Support AirPlayr", Icons.Outlined.FavoriteBorder, "__support"),
     )
 
     Box(Modifier.fillMaxSize()) {
@@ -292,7 +292,7 @@ private fun GlassInfoCard(title: String, subtitle: String, colors: com.airplayr.
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(34.dp).background(colors.surfaceContainerHigh, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
-            Icon(Icons.Default.MusicNote, null, tint = colors.primary, modifier = Modifier.size(18.dp))
+            Icon(Icons.Outlined.MusicNote, null, tint = colors.primary, modifier = Modifier.size(18.dp))
         }
         Column(Modifier.weight(1f).padding(start = 10.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
