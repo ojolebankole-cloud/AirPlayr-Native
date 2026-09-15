@@ -195,7 +195,7 @@ private fun AirPlayrBottomDock(
     ) {
         items.forEach { item ->
             val selected = currentRoute == item.route || currentRoute?.startsWith("${item.route}/") == true
-            androidx.compose.material3.NavigationBarItem(
+            NavigationBarItem(
                 selected = selected,
                 onClick = { onNavigate(item.route) },
                 icon = { androidx.compose.material3.Icon(item.icon, contentDescription = item.label) },
