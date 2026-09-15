@@ -2,8 +2,8 @@ package com.airplayr.app.ui.components
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.RowScope.weight
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.weight
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.outlined.Equalizer
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.FolderOpen

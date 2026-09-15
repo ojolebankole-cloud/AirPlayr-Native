@@ -57,7 +57,7 @@ object AirPlayrIcons {
         ).apply {
             path(
                 fill = SolidColor(Color.White),
-                fillType = PathFillType.NonZero,
+                pathFillType = PathFillType.NonZero,
             ) {
                 moveTo(12.2f, 5.2f)
                 verticalLineTo(17.3f)
@@ -104,7 +104,7 @@ object AirPlayrIcons {
             }
             path(
                 fill = SolidColor(Color.White),
-                fillType = PathFillType.NonZero,
+                pathFillType = PathFillType.NonZero,
             ) {
                 moveTo(12f, 10.3f)
                 lineTo(12f, 17.7f)

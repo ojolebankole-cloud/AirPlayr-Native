@@ -3,8 +3,8 @@ package com.airplayr.app.ui.screens
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.foundation.layout.RowScope.weight
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background

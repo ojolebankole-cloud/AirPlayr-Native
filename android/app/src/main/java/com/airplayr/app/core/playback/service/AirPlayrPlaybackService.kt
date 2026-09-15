@@ -39,6 +39,7 @@ import kotlinx.coroutines.guava.future
 import androidx.media3.common.util.UnstableApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -598,7 +599,7 @@ class AirPlayrPlaybackService : MediaLibraryService() {
     private suspend fun fadeAndStop(startVolume: Float) {
         val durationMs = 10_000L
         val started = System.currentTimeMillis()
-        while (isActive && System.currentTimeMillis() - started < durationMs) {
+        while (currentCoroutineContext().isActive && System.currentTimeMillis() - started < durationMs) {
             val t = ((System.currentTimeMillis() - started).toFloat() / durationMs).coerceIn(0f, 1f)
             internalVolumeWrite = true
             player.volume = (startVolume * (1f - t)).coerceIn(0f, 1f)
