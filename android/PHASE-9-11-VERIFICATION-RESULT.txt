@@ -1,0 +1,92 @@
+PASS file exists: app/src/main/java/com/airplayr/app/core/lyrics/LyricsService.kt
+PASS file exists: app/src/main/java/com/airplayr/app/ui/components/AirPlayrSheets.kt
+PASS lyrics uses the four reference providers
+PASS lyrics parser produces synchronized cues and match confidence
+PASS lyrics cache index persists saved lyric IDs
+PASS lyrics editor can import a file
+PASS lyrics editor can paste clipboard text
+PASS lyrics editor can search online
+PASS lyrics editor parses synced LRC on save
+PASS synced lyric lines seek playback
+PASS saved lyrics can be deleted
+PASS file exists: app/src/main/java/com/airplayr/app/core/data/db/UserDataEntities.kt
+PASS file exists: app/src/main/java/com/airplayr/app/core/data/db/UserDataDao.kt
+PASS file exists: app/src/main/java/com/airplayr/app/core/data/db/AirPlayrDatabase.kt
+PASS file exists: app/src/main/java/com/airplayr/app/di/AppContainer.kt
+PASS file exists: app/src/main/java/com/airplayr/app/core/data/PlaybackStatsRepository.kt
+PASS file exists: app/src/main/java/com/airplayr/app/core/playback/service/AirPlayrPlaybackService.kt
+PASS file exists: app/src/main/java/com/airplayr/app/ui/screens/HomeScreen.kt
+PASS file exists: app/src/main/java/com/airplayr/app/ui/screens/StatsScreen.kt
+PASS play events persisted
+PASS play sessions persisted
+PASS time-of-day activity persisted
+PASS period event queries exist
+PASS period session queries exist
+PASS activity-grid queries exist
+PASS Room v3 migration creates analytics tables
+PASS stats starts a real play event
+PASS stats tracks forward playback deltas
+PASS activity persistence is batched in memory
+PASS stats flushes in batches instead of writing every second
+PASS week/month/all period semantics exist
+PASS 7x6 heatmap data exists
+PASS top song ranking exists
+PASS top video ranking exists
+PASS genre analytics exists
+PASS listening streak exists
+PASS playback service feeds real analytics lifecycle
+PASS Home has recently added songs rail
+PASS Home has recently played albums rail
+PASS Home has recent artists rail
+PASS Home has currently watching rail
+PASS Home has completed watching rail
+PASS Home has recently added videos rail
+PASS Home has recently played videos rail
+PASS Home stats card is placed after the content rails
+PASS Week period control
+PASS Month period control
+PASS All-time period control
+PASS music activity heatmap
+PASS video activity heatmap
+PASS top songs section
+PASS top videos section
+PASS genre section
+PASS music/video mode
+PASS video mode
+PASS file exists: app/src/main/java/com/airplayr/app/core/intelligence/CollectionsRepository.kt
+PASS file exists: app/src/main/java/com/airplayr/app/ui/screens/CollectionsScreen.kt
+PASS file exists: app/src/main/java/com/airplayr/app/ui/screens/FavoritesScreen.kt
+PASS file exists: app/src/main/java/com/airplayr/app/ui/screens/HistoryScreen.kt
+PASS file exists: app/src/main/java/com/airplayr/app/ui/screens/PlaylistsScreen.kt
+PASS file exists: app/src/main/java/com/airplayr/app/ui/screens/ParityScreens.kt
+PASS file exists: app/src/main/java/com/airplayr/app/ui/AirPlayrApp.kt
+PASS For you collection
+PASS Recently played music collection
+PASS Recently added music collection
+PASS Most played collection
+PASS Favorites collection
+PASS Rediscover collection
+PASS Rock your world collection
+PASS video unwatched logic is kept separate from Rock your world
+PASS collection card: For you now
+PASS collection card: Recently played
+PASS collection card: Recently added
+PASS collection card: Most played
+PASS collection card: Favorites
+PASS collection card: Rediscover
+PASS collection card: Rock your world
+PASS collection cards show artwork
+PASS collection cards provide full-list navigation
+PASS Favorites screen implemented
+PASS History screen implemented
+PASS Playlists screen implemented
+PASS Recent screen implemented
+PASS History route has playback controller
+PASS Playlists route supports open callback
+PASS Smart collections route exists
+PASS Recent typed route exists
+PASS Phase 0 asset hash manifest retained
+PASS critical font/feature assets still exact after Phase 9–11
+PASS native tree still contains no JS/Node runtime artifacts
+
+RESULT: PASS

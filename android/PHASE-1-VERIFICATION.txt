@@ -1,0 +1,28 @@
+# Phase 1 verification
+
+Reference: original Expo AirPlayr ZIP
+Target: Android-native AirPlayr ZIP
+
+## Exact reference asset parity
+- OpenSans-Regular.ttf: PASS
+- OpenSans-Medium.ttf: PASS
+- OpenSans-Bold.ttf: PASS
+- SmoochSans-SemiBold.ttf: PASS
+- Oswald-Medium.ttf: PASS
+- DancingScript-Regular.ttf: PASS
+- ShadowsIntoLight-Regular.ttf: PASS
+- CaacupeOne-Regular.ttf: PASS
+
+## Phase 1 native changes
+- app/src/main/res/font/ — 8 exact reference fonts promoted to Android font resources
+- app/src/main/java/com/airplayr/app/ui/theme/Fonts.kt
+- app/src/main/java/com/airplayr/app/ui/theme/Typography.kt
+- app/src/main/java/com/airplayr/app/ui/theme/DesignTokens.kt
+- app/src/main/java/com/airplayr/app/ui/theme/AirPlayrTheme.kt
+- app/src/main/java/com/airplayr/app/ui/theme/AirPlayrIcons.kt
+- PHASE-1-ASSET-DESIGN-FOUNDATION.md
+
+## Build verification limitation
+- XML resources parse successfully.
+- Local Gradle wrapper execution could not start because this environment cannot resolve services.gradle.org.
+- No claim of a local APK build is made here.

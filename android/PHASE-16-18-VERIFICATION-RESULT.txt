@@ -1,0 +1,16 @@
+AirPlayr Android Native — Phase 16–18 Verification
+
+PASS Phase 0–2 verifier
+PASS Phase 3–5 verifier
+PASS Phase 6–8 verifier
+PASS Phase 9–11 verifier
+PASS Phase 16 visual parity static gate
+PASS Phase 17 interaction parity static gate
+PASS Phase 18 playback torture static gate
+PASS 19/19 critical Expo asset SHA-256 audit
+PASS modified/new Kotlin lexical audit
+PASS ZIP integrity
+
+NOT DEVICE-CERTIFIED: this environment has no adb and cannot download Gradle 9.5.0 from services.gradle.org.
+Known earlier limitation: metadata edits do not rewrite embedded audio-file tags.
+Video-player UI remains intentionally excluded.

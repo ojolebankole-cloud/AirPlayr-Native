@@ -1,0 +1,33 @@
+PASS: app/src/main/java/com/airplayr/app/ui/components/MenuDrawer.kt exists
+PASS: app/src/main/java/com/airplayr/app/ui/components/AirPlayrSheets.kt exists
+PASS: app/src/main/java/com/airplayr/app/ui/screens/SettingsScreen.kt exists
+PASS: app/src/main/java/com/airplayr/app/ui/metadata/MetadataScreen.kt exists
+PASS: app/src/main/java/com/airplayr/app/core/metadata/MetadataRepository.kt exists
+PASS: app/src/main/java/com/airplayr/app/core/data/preferences/PreferencesRepository.kt exists
+PASS: app/src/main/java/com/airplayr/app/ui/navigation/AirPlayrNavViewModel.kt exists
+PASS: app/src/main/java/com/airplayr/app/ui/playback/PlaybackController.kt exists
+PASS: app/src/main/java/com/airplayr/app/MainActivity.kt exists
+PASS: Drawer about/support callbacks are explicit
+PASS: Drawer about/support actions wired
+PASS: Preference resumeMode
+PASS: Preference replayGainMode
+PASS: Preference subtitleSize
+PASS: Preference subtitleColor
+PASS: Preference subtitleDelayMs
+PASS: Preference gestureDoubleTapSeek
+PASS: Preference gridColumns
+PASS: Preference showNowPlayingNotification
+PASS: Preference allowsPictureInPicture
+PASS: Preference autoEnterPiPOnBackground
+PASS: Preference savePlaybackHistory
+PASS: Preference showContinueWatching
+PASS: Preference showRecentlyPlayed
+PASS: Metadata write + persistent override
+PASS: Music share intent
+PASS: MediaStore delete request
+PASS: Android media intent integration
+PASS: Open-with audio/video to native player
+PASS: Metadata fields include album artist/track/year
+PASS: No TODO/placeholder markers in milestone files
+RESULT: PASS
+GRADLE-COMPILE: NOT VERIFIED
