@@ -28,6 +28,12 @@ interface MediaItemDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(items: List<MediaItemEntity>)
 
+    @Query("SELECT * FROM media_items WHERE mediaType = :type AND sourceDirectoryUri IS NULL")
+    suspend fun getMediaStoreByType(type: String): List<MediaItemEntity>
+
+    @Query("DELETE FROM media_items WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>)
+
     @Query("DELETE FROM media_items WHERE mediaType = :type AND sourceDirectoryUri IS NULL")
     suspend fun deleteMediaStoreType(type: String)
 

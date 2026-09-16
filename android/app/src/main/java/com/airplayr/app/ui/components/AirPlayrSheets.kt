@@ -77,6 +77,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
@@ -144,7 +145,7 @@ fun SleepTimerSheet(
     val progress = (minutes / maxMinutes).coerceIn(0f, 1f)
     val presets = listOf(5, 10, 15, 30, 45, 60, 90)
     AirPlayrSheetScaffold("Sleep timer", "PLAYBACK", onDismiss) {
-        Card(shape = RoundedCornerShape(28.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Card(modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(28.dp), clip = false), shape = RoundedCornerShape(28.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
             Column(Modifier.fillMaxWidth().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(Modifier.size(240.dp), contentAlignment = Alignment.Center) {
                     val trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -173,7 +174,7 @@ fun SleepTimerSheet(
                 FilterChip(selected = minutes == value, onClick = { minutes = value }, label = { Text(if (value >= 60) "${value / 60}h${if (value % 60 == 0) "" else " ${value % 60}m"}" else "${value}m") })
             }
         }
-        Card(shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Card(modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(24.dp), clip = false), shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
             Column(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) { Text("Finish current song", style = MaterialTheme.typography.titleMedium); Text("Don't cut off mid-track", color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -206,21 +207,21 @@ fun SpeedPitchSheet(dsp: com.airplayr.app.core.playback.dsp.DspState, controller
             SummaryTile("SPEED", "%.2f×".format(speed))
             SummaryTile("PITCH", if (pitch >= 0) "+${pitch} st" else "${pitch} st")
         }
-        Card(shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Card(modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(24.dp), clip = false), shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Tune, null, tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(10.dp)); Text("Speed", style = MaterialTheme.typography.titleMedium) }
                 Slider(value = speed, onValueChange = { speed = it }, valueRange = .25f..4f, steps = 14, onValueChangeFinished = { controller.setSpeed(speed) })
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { speedPresets.forEach { s -> FilterChip(selected = kotlin.math.abs(speed - s) < .02f, onClick = { speed = s; controller.setSpeed(s) }, label = { Text("%.2f×".format(s)) }) } }
             }
         }
-        Card(shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Card(modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(24.dp), clip = false), shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Pitch", style = MaterialTheme.typography.titleMedium)
                 Slider(value = pitch.toFloat(), onValueChange = { pitch = it.toInt() }, valueRange = -12f..12f, steps = 23, enabled = !lock, onValueChangeFinished = { controller.setPitchSemitones(pitch) })
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("−12 st"); Text("0 st"); Text("+12 st") }
             }
         }
-        Card(shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Card(modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(24.dp), clip = false), shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
             Column(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Preserve pitch", style = MaterialTheme.typography.titleMedium); Text("Time-stretch playback without changing pitch", color = MaterialTheme.colorScheme.onSurfaceVariant) }; Switch(preserve, { preserve = it; if (it) lock = false; controller.setPreservePitch(it) }) }
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Lock pitch to speed", style = MaterialTheme.typography.titleMedium); Text("Vinyl-style speed/pitch linkage", color = MaterialTheme.colorScheme.onSurfaceVariant) }; Switch(lock, { lock = it; controller.setLockPitch(it); if (it) { preserve = false; pitch = (12 * kotlin.math.log2(speed.toDouble())).toInt().coerceIn(-12, 12); controller.setPitchSemitones(pitch) } }) }
@@ -231,7 +232,7 @@ fun SpeedPitchSheet(dsp: com.airplayr.app.core.playback.dsp.DspState, controller
 }
 
 @Composable
-private fun SummaryTile(label: String, value: String) { Card(Modifier.width(150.dp), shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) { Column(Modifier.padding(18.dp)) { Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary); Text(value, style = MaterialTheme.typography.displaySmall) } } }
+private fun SummaryTile(label: String, value: String) { Card(Modifier.width(150.dp).shadow(6.dp, RoundedCornerShape(24.dp), clip = false), shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) { Column(Modifier.padding(18.dp)) { Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary); Text(value, style = MaterialTheme.typography.displaySmall) } } }
 
 @Composable
 fun LyricsSheet(
@@ -362,10 +363,9 @@ fun LyricsSheet(
 @Composable
 private fun LyricsActionCard(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
     Card(
-        Modifier.fillMaxWidth().clickable(onClick = onClick),
+        Modifier.fillMaxWidth().shadow(8.dp, RoundedCornerShape(22.dp), clip = false).clickable(onClick = onClick),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {

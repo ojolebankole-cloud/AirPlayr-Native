@@ -66,6 +66,7 @@ private val SLEEP_START_VOLUME = doublePreferencesKey("sleep_start_volume")
 private val SLEEP_PENDING_TRACK_ID = stringPreferencesKey("sleep_pending_track_id")
 private val SAF_ROOTS = stringSetPreferencesKey("saf_roots")
 private val WHATS_NEW_SEEN_VERSION = stringPreferencesKey("whats_new_seen_version")
+private val INITIAL_LIBRARY_SCAN_DONE = booleanPreferencesKey("initial_library_scan_done")
 
 class PreferencesRepository(private val context: Context) {
     val settings: Flow<AirPlayrSettings> = context.airPlayrDataStore.data.map { p ->
@@ -172,6 +173,13 @@ class PreferencesRepository(private val context: Context) {
     val safRoots: Flow<Set<String>> = context.airPlayrDataStore.data.map { it[SAF_ROOTS] ?: emptySet() }
     suspend fun hasSeenWhatsNew(version: String): Boolean = context.airPlayrDataStore.data.map { it[WHATS_NEW_SEEN_VERSION] == version }.first()
     suspend fun markWhatsNewSeen(version: String) { context.airPlayrDataStore.edit { it[WHATS_NEW_SEEN_VERSION] = version } }
+
+    // Tracks whether the one-time approved initial MediaStore scan has ever completed.
+    // Used to stop normal launches from repeating the one-time full initialization scan.
+    // Once complete, normal freshness is maintained by delta synchronization.
+    suspend fun hasCompletedInitialLibraryScan(): Boolean =
+        context.airPlayrDataStore.data.map { it[INITIAL_LIBRARY_SCAN_DONE] == true }.first()
+    suspend fun markInitialLibraryScanDone() { context.airPlayrDataStore.edit { it[INITIAL_LIBRARY_SCAN_DONE] = true } }
     suspend fun addSafRoot(uri: String) { context.airPlayrDataStore.edit { it[SAF_ROOTS] = (it[SAF_ROOTS] ?: emptySet()) + uri } }
     suspend fun removeSafRoot(uri: String) { context.airPlayrDataStore.edit { it[SAF_ROOTS] = (it[SAF_ROOTS] ?: emptySet()) - uri } }
 

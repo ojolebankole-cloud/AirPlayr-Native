@@ -20,6 +20,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import com.airplayr.app.core.video.NativeVideoController
 import com.airplayr.app.core.metadata.MetadataRepository
 import com.airplayr.app.core.cast.CastController
@@ -27,6 +32,9 @@ import com.airplayr.app.core.cast.CastController
 class AppContainer(context: Context) {
     val appContext: Context = context.applicationContext
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val initialScanMutex = Mutex()
+    private val _syncState = MutableStateFlow(LibrarySyncState.IDLE)
+    val syncState: StateFlow<LibrarySyncState> = _syncState
 
     private val migration1To2 = object : Migration(1, 2) {
         override fun migrate(db: SupportSQLiteDatabase) {
@@ -77,14 +85,56 @@ class AppContainer(context: Context) {
 
     init {
         scheduleLibraryRefresh()
-        // Cache-first startup: Room remains the immediate source for UI, while this refresh
-        // reconciles MediaStore asynchronously and never blocks Activity creation.
+        // Cache-first startup: Room remains the immediate source for UI, while synchronization
+        // runs in the application-owned scope and never depends on a Compose/UI lifecycle.
+        requestLibrarySynchronization()
         applicationScope.launch {
-            if (MediaPermission.granted(appContext) && preferences.settings.first().autoRefreshLibrary) {
-                runCatching { mediaLibrary.refreshAll() }
-            }
             preferences.safRoots.first().forEach { root ->
                 runCatching { safMediaScanner.scanTree(android.net.Uri.parse(root), mediaLibrary) }
+            }
+        }
+    }
+
+    /**
+     * Requests startup synchronization from an application-owned scope. Existing users receive
+     * a normal delta refresh; only an uninitialized library receives the one-time full scan.
+     */
+    fun requestLibrarySynchronization() {
+        applicationScope.launch {
+            if (!MediaPermission.granted(appContext)) return@launch
+            if (!preferences.hasCompletedInitialLibraryScan()) {
+                ensureInitialLibraryScan()
+            } else {
+                // Every app entry performs a lightweight delta freshness check. The
+                // Auto refresh setting controls background periodic work, not startup freshness.
+                _syncState.value = LibrarySyncState.DELTA
+                runCatching { mediaLibrary.deltaRefresh() }
+                    .onFailure { _syncState.value = LibrarySyncState.FAILED }
+                    .onSuccess { _syncState.value = LibrarySyncState.IDLE }
+            }
+        }
+    }
+
+    /**
+     * Single-flight gate for the one-time initial MediaStore scan. The check is intentionally
+     * repeated after acquiring the mutex so concurrent callers cannot both perform a full scan.
+     */
+    suspend fun ensureInitialLibraryScan() {
+        initialScanMutex.withLock {
+            if (!MediaPermission.granted(appContext)) return
+            if (preferences.hasCompletedInitialLibraryScan()) return
+
+            _syncState.value = LibrarySyncState.INITIAL_SCAN
+            try {
+                mediaLibrary.fullRescan()
+                preferences.markInitialLibraryScanDone()
+                _syncState.value = LibrarySyncState.IDLE
+            } catch (cancellation: CancellationException) {
+                _syncState.value = LibrarySyncState.FAILED
+                throw cancellation
+            } catch (error: Throwable) {
+                _syncState.value = LibrarySyncState.FAILED
+                throw error
             }
         }
     }
@@ -100,3 +150,6 @@ class AppContainer(context: Context) {
         )
     }
 }
+
+
+enum class LibrarySyncState { IDLE, INITIAL_SCAN, DELTA, FAILED }

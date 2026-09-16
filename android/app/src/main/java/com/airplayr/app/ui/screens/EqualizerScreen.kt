@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.airplayr.app.ui.components.airPlayrShadow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -78,7 +79,7 @@ fun EqualizerScreen(container: AppContainer) {
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Card(shape = RoundedCornerShape(28.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+                Card(modifier = Modifier.airPlayrShadow(RoundedCornerShape(28.dp), 6.dp), shape = RoundedCornerShape(28.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
                     Column(Modifier.fillMaxWidth().padding(16.dp)) {
                         EqCurve(bands = bandValues, modifier = Modifier.fillMaxWidth().height(250.dp))
                         Text("Drag controls below to tune each band", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
@@ -108,7 +109,7 @@ fun EqualizerScreen(container: AppContainer) {
                 ShapeControl("Virtualizer", "Widens the stereo field when supported by the device.", virtualizer, 0f..100f) { virtualizer = it; scope.launch { container.dsp.setEqualizer(state.eqEnabled, "manual", state.bassMb, state.loudnessMb, (it * 10).roundToInt()) } }
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                Card(modifier = Modifier.airPlayrShadow(RoundedCornerShape(24.dp), 5.dp), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
                     Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.GraphicEq, null, tint = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.width(12.dp))
@@ -140,7 +141,7 @@ private suspend fun applyPreset(container: AppContainer, preset: String) {
 
 @Composable
 private fun BandCard(label: String, value: Float, onChange: (Float) -> Unit) {
-    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+    Card(modifier = Modifier.airPlayrShadow(RoundedCornerShape(20.dp), 4.dp), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.width(58.dp)) { Text(label, style = MaterialTheme.typography.labelLarge); Text("${value.roundToInt()} dB", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             Slider(value = value, onValueChange = onChange, valueRange = -12f..12f, modifier = Modifier.weight(1f))
@@ -150,7 +151,7 @@ private fun BandCard(label: String, value: Float, onChange: (Float) -> Unit) {
 
 @Composable
 private fun ShapeControl(title: String, description: String, value: Float, range: ClosedFloatingPointRange<Float>, onChange: (Float) -> Unit) {
-    Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+    Card(modifier = Modifier.airPlayrShadow(RoundedCornerShape(24.dp), 5.dp), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
         Column(Modifier.fillMaxWidth().padding(18.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f)); Text("${value.roundToInt()}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }
             Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant)

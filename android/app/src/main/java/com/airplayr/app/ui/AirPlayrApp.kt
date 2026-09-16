@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.navigation.AirPlayrNavViewModel
 import com.airplayr.app.ui.navigation.LibraryViewModel
@@ -31,6 +32,7 @@ import com.airplayr.app.ui.screens.SearchScreen
 import com.airplayr.app.ui.screens.HistoryScreen
 import com.airplayr.app.ui.screens.CollectionsScreen
 import com.airplayr.app.ui.screens.VideoScreen
+import com.airplayr.app.ui.screens.ExternalVideoScreen
 import com.airplayr.app.ui.screens.FavoritesScreen
 import com.airplayr.app.ui.screens.PlaylistsScreen
 import com.airplayr.app.ui.playback.PlaybackController
@@ -55,6 +57,8 @@ import kotlinx.coroutines.launch
 import com.airplayr.app.ui.permissions.StartupPermissionFlow
 import com.airplayr.app.ui.cast.CastPickerSheet
 
+data class ExternalVideoRequest(val uri: String, val mimeType: String?, val title: String)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AirPlayrApp(
@@ -69,26 +73,47 @@ fun AirPlayrApp(
         factory = LibraryViewModelFactory(container.mediaLibrary),
     )
     var castOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var externalVideo by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<ExternalVideoRequest?>(null) }
     var whatsNewOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var permissionFlowCompleted by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val syncState by container.syncState.collectAsStateWithLifecycle()
+    var initialScanObserved by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val rootScope = androidx.compose.runtime.rememberCoroutineScope()
     val appVersion = com.airplayr.app.BuildConfig.VERSION_NAME
 
     androidx.compose.runtime.LaunchedEffect(launchIntent) {
         initialViewModel.handleIntent(launchIntent)
     }
-    androidx.compose.runtime.LaunchedEffect(permissionFlowCompleted, appVersion) {
-        if (permissionFlowCompleted && !container.preferences.hasSeenWhatsNew(appVersion)) {
-            kotlinx.coroutines.delay(2000L)
-            whatsNewOpen = true
+    androidx.compose.runtime.LaunchedEffect(syncState) {
+        if (syncState == com.airplayr.app.di.LibrarySyncState.INITIAL_SCAN) initialScanObserved = true
+    }
+    androidx.compose.runtime.LaunchedEffect(permissionFlowCompleted, syncState, appVersion) {
+        if (!permissionFlowCompleted || container.preferences.hasSeenWhatsNew(appVersion)) return@LaunchedEffect
+        if (initialScanObserved) {
+            if (syncState == com.airplayr.app.di.LibrarySyncState.INITIAL_SCAN) {
+                kotlinx.coroutines.delay(750L)
+                if (syncState == com.airplayr.app.di.LibrarySyncState.INITIAL_SCAN && !container.preferences.hasSeenWhatsNew(appVersion)) {
+                    whatsNewOpen = true
+                }
+            }
+        } else {
+            // Existing installs can receive the once-per-version What's New sheet without
+            // coupling it to an initial full scan that should never repeat.
+            kotlinx.coroutines.delay(750L)
+            if (!container.preferences.hasSeenWhatsNew(appVersion)) whatsNewOpen = true
         }
     }
     val requestedRoute by initialViewModel.route.collectAsStateWithLifecycle()
     val externalMedia by initialViewModel.externalMedia.collectAsStateWithLifecycle()
     androidx.compose.runtime.LaunchedEffect(externalMedia) {
         externalMedia?.let { external ->
-            playbackController.playExternal(external.uri, external.mimeType, external.title)
-            navController.navigate("player") { launchSingleTop = true }
+            if (external.mimeType?.startsWith("video/") == true) {
+                externalVideo = ExternalVideoRequest(external.uri, external.mimeType, external.title)
+                navController.navigate("external-video") { launchSingleTop = true }
+            } else {
+                playbackController.playExternal(external.uri, external.mimeType, external.title)
+                navController.navigate("player") { launchSingleTop = true }
+            }
             initialViewModel.consumeExternalMedia()
         }
     }
@@ -131,10 +156,14 @@ fun AirPlayrApp(
         val entry by navController.currentBackStackEntryAsState()
         val destination = entry?.destination
         Box(Modifier.fillMaxSize()) {
+            val showDock = destination?.route != "player"
+            val showMiniPlayer = destination?.route != "player" && destination?.route != "video/{id}"
             NavHost(
                 navController = navController,
                 startDestination = "home",
-                modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                modifier = androidx.compose.ui.Modifier
+                    .fillMaxSize()
+                    .padding(bottom = if (showDock) com.airplayr.app.ui.components.AIRPLAYR_BOTTOM_DOCK_BASE_HEIGHT.dp else 0.dp),
             ) {
                 composable("home") { HomeScreen(container = container, libraryViewModel = libraryViewModel, onNavigate = { route -> navController.navigate(route) }, onCast = { castOpen = true }) }
                 composable("music") {
@@ -193,16 +222,25 @@ fun AirPlayrApp(
                 composable("genre/{id}") { entry -> BrowseFilterScreen("Genres", java.net.URLDecoder.decode(entry.arguments?.getString("id").orEmpty(), "UTF-8"), com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController) }
                 composable("open") { LibraryScreen("Open media", com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, onOpen = { playbackController.play(it); navController.navigate("player") }) }
                 composable("video/{id}") { entry -> VideoScreen(container, entry.arguments?.getString("id").orEmpty()) }
+                composable("external-video") {
+                    val request = externalVideo
+                    if (request == null) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                            androidx.compose.material3.Text("No video selected")
+                        }
+                    } else {
+                        ExternalVideoScreen(container, request.uri, request.mimeType, request.title)
+                    }
+                }
             }
 
-            // reference app's dock floats over the page rather than consuming layout height.
-            // Keep that relationship in native so content and the mini-player share the same screen geometry.
-            if (destination?.route != "player") {
+            if (showDock) {
                 val dockState by playbackController.state.collectAsStateWithLifecycle()
                 AirPlayrBottomDock(
                     currentRoute = destination?.route,
                     playbackState = dockState,
                     playback = playbackController,
+                    showMiniPlayer = showMiniPlayer,
                     onOpenPlayer = { navController.navigate("player") },
                     onNavigate = { route ->
                         navController.navigate(route) {
@@ -218,7 +256,11 @@ fun AirPlayrApp(
                 context = container.appContext,
                 onCompleted = { permissionState ->
                     permissionFlowCompleted = true
-                    if (permissionState.audio || permissionState.video) libraryViewModel.refresh()
+                    // The application-owned coordinator decides whether this is the one-time
+                    // initial full scan or the normal delta synchronization path.
+                    if (permissionState.audio || permissionState.video) {
+                        container.requestLibrarySynchronization()
+                    }
                 },
             )
 

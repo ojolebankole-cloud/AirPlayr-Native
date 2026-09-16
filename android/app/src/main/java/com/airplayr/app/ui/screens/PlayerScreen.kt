@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -60,6 +62,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
@@ -77,6 +80,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -156,7 +160,7 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
     var deletePending by remember { mutableStateOf<MediaItem?>(null) }
     val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
-            scope.launch { container?.mediaLibrary?.refreshAll() }
+            scope.launch { container?.mediaLibrary?.deltaRefresh() }
         }
     }
 
@@ -182,24 +186,31 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
 
     Box(Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER).fillMaxSize().background(Brush.verticalGradient(listOf(colors.surfaceContainerLowest, colors.background)))) {
         Column(
-            Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 20.dp),
+            Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Row(Modifier.fillMaxWidth().height(54.dp).padding(top = 0.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Header: back chevron pinned left, Lyrics pill + more menu pinned right.
+            // statusBarsPadding() above keeps this whole row clear of the status bar/notch,
+            // and the right-hand cluster is now wrap-content (not a fixed 142.dp width) so it
+            // can never get pushed past the screen edge on narrow devices or larger font scales.
+            Row(Modifier.fillMaxWidth().height(54.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_BACK).size(54.dp)) {
                     Icon(AirPlayrIcons.Back, "Back", tint = colors.primary, modifier = Modifier.size(28.dp))
                 }
                 Spacer(Modifier.weight(1f))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Card(onClick = { sheet = PlayerSheet.Lyrics }, modifier = Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_LYRICS).width(142.dp).height(54.dp).shadow(14.dp, RoundedCornerShape(27.dp)), shape = RoundedCornerShape(27.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerHighest)) {
-                        Row(Modifier.fillMaxSize().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                            Icon(AirPlayrIcons.Lyrics, null, tint = colors.primary, modifier = Modifier.size(26.dp))
-                            Text("Lyrics", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(start = 8.dp))
-                        }
+                Card(
+                    onClick = { sheet = PlayerSheet.Lyrics },
+                    modifier = Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_LYRICS).height(54.dp).shadow(14.dp, RoundedCornerShape(27.dp), clip = false),
+                    shape = RoundedCornerShape(27.dp),
+                    colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerHighest),
+                ) {
+                    Row(Modifier.fillMaxHeight().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                        Icon(AirPlayrIcons.Lyrics, null, tint = colors.primary, modifier = Modifier.size(26.dp))
+                        Text("Lyrics", style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 8.dp))
                     }
-                    IconButton(onClick = { sheet = PlayerSheet.More }, modifier = Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_MORE).padding(start = 8.dp)) {
-                        Icon(AirPlayrIcons.More, "More playback options", tint = colors.primary, modifier = Modifier.size(28.dp))
-                    }
+                }
+                IconButton(onClick = { sheet = PlayerSheet.More }, modifier = Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_MORE).padding(start = 6.dp).size(44.dp)) {
+                    Icon(AirPlayrIcons.More, "More playback options", tint = colors.primary, modifier = Modifier.size(28.dp))
                 }
             }
 
@@ -216,23 +227,28 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
                     Text(time(state.positionMs), style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp), color = colors.textSecondary)
                     Text(time(state.durationMs), style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp), color = colors.textSecondary)
                 }
-                Slider(
-                    modifier = Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_SEEK),
+                AirPlayrThinSlider(
+                    modifier = Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_SEEK).fillMaxWidth(),
                     value = slider,
                     onValueChange = { seeking = true; slider = it.coerceIn(0f, 1f) },
                     onValueChangeFinished = { seeking = false; controller.seekTo((slider * progressDuration).toLong().coerceIn(0L, progressDuration)) },
+                    colors = colors,
                 )
             }
 
-            Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+            // Clustered prev / play / next, centered with fixed gaps — matches the reference's
+            // compact control group instead of stretching prev/next out to the screen edges.
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                 PlayerControl(AirPlayrIcons.Previous, "Previous", colors.primary) { controller.skipPrevious() }
+                Spacer(Modifier.width(30.dp))
                 PlayerPlayControl(state.isPlaying, colors.onPrimary, colors.primaryContainer, controller::togglePlayPause)
+                Spacer(Modifier.width(30.dp))
                 PlayerControl(AirPlayrIcons.Next, "Next", colors.primary) { controller.skipNext() }
             }
 
             Row(Modifier.fillMaxWidth(0.82f).padding(top = 55.dp, bottom = 18.dp).offset(y = (-24).dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(AirPlayrIcons.VolumeDown, null, tint = colors.primary, modifier = Modifier.size(25.dp))
-                Slider(value = volume, onValueChange = { volume = it; controller.setVolume(it) }, modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
+                AirPlayrThinSlider(value = volume, onValueChange = { volume = it; controller.setVolume(it) }, modifier = Modifier.weight(1f).padding(horizontal = 8.dp), colors = colors)
                 Icon(AirPlayrIcons.VolumeUp, null, tint = colors.primary, modifier = Modifier.size(25.dp))
             }
 
@@ -240,7 +256,7 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
             if (mediaDetails.isNotBlank()) Text(mediaDetails, style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp), color = colors.textSecondary, modifier = Modifier.padding(top = 2.dp))
 
             Row(
-                Modifier.fillMaxWidth(0.84f).heightIn(min = 58.dp).padding(horizontal = 0.dp, vertical = 5.dp).offset(y = 10.dp).background(colors.surfaceContainerHighest, RoundedCornerShape(22.dp)).padding(horizontal = 8.dp),
+                Modifier.fillMaxWidth(0.84f).heightIn(min = 58.dp).padding(horizontal = 0.dp, vertical = 5.dp).offset(y = 10.dp).shadow(10.dp, RoundedCornerShape(22.dp), clip = false).background(colors.surfaceContainerHighest, RoundedCornerShape(22.dp)).padding(horizontal = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -272,7 +288,7 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
                                     deleteLauncher.launch(IntentSenderRequest.Builder(request.intentSender).build())
                                 } else {
                                     appContext.contentResolver.delete(uri, null, null)
-                                    scope.launch { container?.mediaLibrary?.refreshAll() }
+                                    scope.launch { container?.mediaLibrary?.deltaRefresh() }
                                 }
                             }
                             deletePending = null
@@ -332,6 +348,47 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
             null -> Unit
         }
     }
+}
+
+/**
+ * Slim, reference-style slider: a thin rounded track (instead of Material3's thick default
+ * track) with a small solid thumb. Used for both the seek bar and the volume bar.
+ */
+@Composable
+private fun AirPlayrThinSlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    colors: com.airplayr.app.ui.theme.AirPlayrColors,
+    modifier: Modifier = Modifier,
+    onValueChangeFinished: (() -> Unit)? = null,
+) {
+    Slider(
+        value = value,
+        onValueChange = onValueChange,
+        onValueChangeFinished = onValueChangeFinished,
+        modifier = modifier,
+        colors = SliderDefaults.colors(
+            thumbColor = colors.primary,
+            activeTrackColor = colors.primary,
+            inactiveTrackColor = colors.outlineVariant.copy(alpha = 0.35f),
+        ),
+        thumb = {
+            Box(
+                Modifier
+                    .size(14.dp)
+                    .shadow(3.dp, CircleShape, clip = false)
+                    .background(colors.primary, CircleShape),
+            )
+        },
+        track = { sliderState ->
+            val fraction = ((sliderState.value - sliderState.valueRange.start) /
+                (sliderState.valueRange.endInclusive - sliderState.valueRange.start).coerceAtLeast(0.0001f)).coerceIn(0f, 1f)
+            Box(Modifier.fillMaxWidth().height(4.dp)) {
+                Box(Modifier.fillMaxSize().clip(RoundedCornerShape(50)).background(colors.outlineVariant.copy(alpha = 0.35f)))
+                Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).clip(RoundedCornerShape(50)).background(colors.primary))
+            }
+        },
+    )
 }
 
 @Composable
@@ -428,7 +485,7 @@ private fun MoreActionIcon(label: String): androidx.compose.ui.graphics.vector.I
 
 @Composable
 private fun MoreGroup(items: List<Pair<String, () -> Unit>>, colors: com.airplayr.app.ui.theme.AirPlayrColors) {
-    Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer)) {
+    Card(modifier = Modifier.shadow(8.dp, RoundedCornerShape(24.dp), clip = false), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer)) {
         Column {
             items.forEachIndexed { index, (label, action) ->
                 Row(Modifier.fillMaxWidth().height(72.dp).clickable(onClick = action).padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -489,7 +546,7 @@ private fun DetailsSheetContent(item: MediaItem?, onClose: () -> Unit, onTags: (
                     Text(item.artist.orEmpty().ifBlank { "Unknown artist" }, color = colors.textSecondary)
                 }
             }
-            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer)) {
+            Card(modifier = Modifier.shadow(8.dp, RoundedCornerShape(22.dp), clip = false), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     DetailLine("Album", item.album)
                     DetailLine("Genre", item.genre)

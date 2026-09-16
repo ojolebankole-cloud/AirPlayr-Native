@@ -142,7 +142,7 @@ private fun StatsHeader(onBack: (() -> Unit)?, colors: com.airplayr.app.ui.theme
 
 @Composable
 private fun PeriodSelector(period: String, colors: com.airplayr.app.ui.theme.AirPlayrColors, onSelect: (String) -> Unit) {
-    AirPlayrCard(shape = RoundedCornerShape(30.dp), containerColor = colors.surfaceContainerLow, elevation = 0.dp) {
+    AirPlayrCard(shape = RoundedCornerShape(30.dp), containerColor = colors.surfaceContainerLow, elevation = 4.dp) {
         Row(Modifier.fillMaxWidth().height(58.dp).padding(5.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             listOf("week" to "Week", "month" to "Month", "all" to "All time").forEach { (key, label) ->
                 val selected = period == key

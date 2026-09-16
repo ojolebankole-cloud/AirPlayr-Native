@@ -15,7 +15,8 @@ object MediaPermission {
         else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
     }
 
-    fun granted(context: Context): Boolean = audioGranted(context) && videoGranted(context)
+    /** At least one media collection must be readable for a valid initial synchronization. */
+    fun granted(context: Context): Boolean = audioGranted(context) || videoGranted(context)
 
     fun audioGranted(context: Context): Boolean = if (Build.VERSION.SDK_INT >= 33) {
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED

@@ -152,7 +152,7 @@ class AirPlayrPlaybackService : MediaLibraryService() {
             isForPlayback: Boolean,
         ) = libraryScope.future {
             val saved = runCatching { queueStore.read() }.getOrNull()
-            val domainItems = saved?.items.orEmpty()
+            val domainItems = saved?.items.orEmpty().filter { it.mediaType == MediaType.AUDIO }
             val items = domainItems.map(MediaItemMapper::toExo)
             if (items.isEmpty()) {
                 MediaSession.MediaItemsWithStartPosition(
@@ -433,12 +433,15 @@ class AirPlayrPlaybackService : MediaLibraryService() {
     private suspend fun restoreQueue() {
         val saved = runCatching { queueStore.read() }.getOrNull()
         if (saved != null && saved.items.isNotEmpty()) {
-            val byIdIndex = saved.currentId?.let { currentId -> saved.items.indexOfFirst { it.id == currentId } } ?: -1
-            val startIndex = (if (byIdIndex >= 0) byIdIndex else saved.currentIndex).coerceIn(0, saved.items.lastIndex)
-            player.setMediaItems(saved.items.map(MediaItemMapper::toExo), startIndex, saved.positionMs)
-            player.shuffleModeEnabled = saved.shuffle
-            player.repeatMode = saved.repeatMode.coerceIn(Player.REPEAT_MODE_OFF, Player.REPEAT_MODE_ALL)
-            player.playWhenReady = saved.playWhenReady
+            val audioItems = saved.items.filter { it.mediaType == MediaType.AUDIO }
+            if (audioItems.isNotEmpty()) {
+                val byIdIndex = saved.currentId?.let { currentId -> audioItems.indexOfFirst { it.id == currentId } } ?: -1
+                val startIndex = (if (byIdIndex >= 0) byIdIndex else 0).coerceIn(0, audioItems.lastIndex)
+                player.setMediaItems(audioItems.map(MediaItemMapper::toExo), startIndex, saved.positionMs)
+                player.shuffleModeEnabled = saved.shuffle
+                player.repeatMode = saved.repeatMode.coerceIn(Player.REPEAT_MODE_OFF, Player.REPEAT_MODE_ALL)
+                player.playWhenReady = saved.playWhenReady
+            }
         }
         hydrating = false
     }

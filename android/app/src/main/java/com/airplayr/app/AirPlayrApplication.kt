@@ -11,7 +11,7 @@ class AirPlayrApplication : Application() {
         CrashReporter(this).install()
     }
 
-    val container: AppContainer by lazy(LazyThreadSafetyMode.NONE) {
+    val container: AppContainer by lazy {
         AppContainer(this)
     }
 }

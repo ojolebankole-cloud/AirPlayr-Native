@@ -12,6 +12,7 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.airplayr.app.core.data.media.MediaItem
+import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.core.data.preferences.PreferencesRepository
 import com.airplayr.app.core.playback.REPEAT_ALL
 import com.airplayr.app.core.playback.REPEAT_OFF
@@ -82,16 +83,21 @@ class PlaybackController(private val appContext: Context) : ViewModel() {
     fun play(media: MediaItem) = playQueue(listOf(media), 0)
 
     fun playExternal(uri: String, mimeType: String?, title: String) {
+        if (mimeType?.startsWith("video/") == true) return
         val c = controller ?: return
-        val metadata = MediaMetadata.Builder().setTitle(title).build()
+        val metadata = MediaMetadata.Builder().setTitle(title).setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC).build()
         val media = ExoMediaItem.Builder().setMediaId("external:$uri").setUri(uri).setMimeType(mimeType?.takeIf { it.isNotBlank() } ?: "application/octet-stream").setMediaMetadata(metadata).build()
         c.setMediaItem(media, 0L); c.prepare(); c.play()
     }
 
     fun playQueue(items: List<MediaItem>, startIndex: Int = 0) {
         val c = controller ?: return
-        if (items.isEmpty()) return
-        c.setMediaItems(items.map(MediaItemMapper::toExo), startIndex.coerceIn(0, items.lastIndex), 0L)
+        val audioItems = items.filter { it.mediaType == MediaType.AUDIO }
+        if (audioItems.isEmpty()) return
+        val requestedIndex = startIndex.coerceIn(0, items.lastIndex)
+        val requestedId = items[requestedIndex].id
+        val audioStartIndex = audioItems.indexOfFirst { it.id == requestedId }.takeIf { it >= 0 } ?: 0
+        c.setMediaItems(audioItems.map(MediaItemMapper::toExo), audioStartIndex, 0L)
         c.prepare()
         viewModelScope.launch {
             val settings = preferences.settings.first()
@@ -102,9 +108,9 @@ class PlaybackController(private val appContext: Context) : ViewModel() {
         }
     }
 
-    fun addToQueue(media: MediaItem) { controller?.addMediaItem(MediaItemMapper.toExo(media)) }
-    fun playNext(media: MediaItem) { controller?.addMediaItem((controller?.currentMediaItemIndex ?: -1) + 1, MediaItemMapper.toExo(media)) }
-    fun playLast(media: MediaItem) { controller?.addMediaItem(MediaItemMapper.toExo(media)) }
+    fun addToQueue(media: MediaItem) { if (media.mediaType == MediaType.AUDIO) controller?.addMediaItem(MediaItemMapper.toExo(media)) }
+    fun playNext(media: MediaItem) { if (media.mediaType == MediaType.AUDIO) controller?.addMediaItem((controller?.currentMediaItemIndex ?: -1) + 1, MediaItemMapper.toExo(media)) }
+    fun playLast(media: MediaItem) { if (media.mediaType == MediaType.AUDIO) controller?.addMediaItem(MediaItemMapper.toExo(media)) }
     fun removeFromQueue(index: Int) { controller?.removeMediaItem(index) }
     fun clearQueue() { controller?.clearMediaItems() }
 
@@ -177,6 +183,9 @@ class PlaybackController(private val appContext: Context) : ViewModel() {
             durationMs = player.duration.takeIf { it >= 0L } ?: 0L,
             bufferedPositionMs = player.bufferedPosition.coerceAtLeast(0L),
             currentId = item?.mediaId,
+            currentMediaType = item?.mediaMetadata?.let { metadata ->
+                if (metadata.mediaType == androidx.media3.common.MediaMetadata.MEDIA_TYPE_VIDEO) MediaType.VIDEO else MediaType.AUDIO
+            },
             currentTitle = item?.mediaMetadata?.title?.toString(),
             currentArtist = item?.mediaMetadata?.artist?.toString(),
             currentAlbum = item?.mediaMetadata?.albumTitle?.toString(),
@@ -197,6 +206,7 @@ data class PlaybackUiState(
     val durationMs: Long = 0L,
     val bufferedPositionMs: Long = 0L,
     val currentId: String? = null,
+    val currentMediaType: MediaType? = null,
     val currentTitle: String? = null,
     val currentArtist: String? = null,
     val currentAlbum: String? = null,

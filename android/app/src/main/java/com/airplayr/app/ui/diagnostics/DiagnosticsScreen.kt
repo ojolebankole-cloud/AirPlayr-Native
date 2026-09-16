@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -26,6 +27,7 @@ import com.airplayr.app.core.diagnostics.DiagnosticsSnapshot
 import com.airplayr.app.core.diagnostics.CrashReporter
 import com.airplayr.app.core.playback.queue.QueueStore
 import com.airplayr.app.di.AppContainer
+import com.airplayr.app.ui.components.airPlayrShadow
 import kotlinx.coroutines.launch
 
 @Composable
@@ -40,9 +42,9 @@ fun DiagnosticsScreen(container: AppContainer) {
     Column(Modifier.fillMaxSize()) {
         LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("Diagnostics", style = MaterialTheme.typography.headlineMedium) }
-            item { Card(Modifier.fillMaxWidth()) { Text(report.ifBlank { "Collecting diagnostics…" }, Modifier.padding(16.dp)) } }
+            item { Card(Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(12.dp), 4.dp)) { Text(report.ifBlank { "Collecting diagnostics…" }, Modifier.padding(16.dp)) } }
             item {
-                Button(onClick = { scope.launch { recoveryStatus = runCatching { container.mediaLibrary.refreshAll(); "Library refresh completed" }.getOrElse { "Recovery failed: ${it.message ?: "unknown error"}" } } }) { Text("Refresh library") }
+                Button(onClick = { scope.launch { recoveryStatus = runCatching { container.mediaLibrary.fullRescan(); "Library rebuild completed" }.getOrElse { "Recovery failed: ${it.message ?: "unknown error"}" } } }) { Text("Rebuild library") }
             }
             item {
                 Button(onClick = { scope.launch { QueueStore(context).clear(); recoveryStatus = "Saved playback queue cleared" } }) { Text("Clear saved playback queue") }
@@ -57,7 +59,7 @@ fun DiagnosticsScreen(container: AppContainer) {
             }
             if (recoveryStatus.isNotBlank()) item { Text(recoveryStatus, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             crash?.let { text ->
-                item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("Last recorded crash", style = MaterialTheme.typography.titleMedium); Text(text) ; Button(onClick = { CrashReporter(context).clear(); crash = null }) { Text("Clear crash record") } } } }
+                item { Card(Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(12.dp), 4.dp)) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("Last recorded crash", style = MaterialTheme.typography.titleMedium); Text(text) ; Button(onClick = { CrashReporter(context).clear(); crash = null }) { Text("Clear crash record") } } } }
             }
         }
     }

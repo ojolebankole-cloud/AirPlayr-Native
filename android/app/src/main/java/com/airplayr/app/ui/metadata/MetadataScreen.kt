@@ -21,12 +21,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airplayr.app.core.data.media.MediaItem
 import com.airplayr.app.core.metadata.MetadataMatch
 import com.airplayr.app.di.AppContainer
+import com.airplayr.app.ui.components.airPlayrShadow
 import com.airplayr.app.ui.navigation.LibraryViewModelFactory
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airplayr.app.ui.navigation.LibraryViewModel
@@ -56,7 +58,7 @@ fun MetadataScreen(container: AppContainer) {
             if (selected == null) {
                 item { Text("Choose a music item to look up and optionally apply catalog metadata.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 items(audio.take(250), key = { it.id }) { item ->
-                    Card(Modifier.fillMaxWidth()) {
+                    Card(Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(12.dp), 4.dp)) {
                         Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                             Column(Modifier.weight(1f)) { Text(item.title, style = MaterialTheme.typography.titleMedium); Text(listOfNotNull(item.artist, item.album).joinToString(" • ").ifBlank { item.filename }, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                             Button(onClick = { selected = item }) { Text("Select") }
@@ -74,14 +76,14 @@ fun MetadataScreen(container: AppContainer) {
                     if (status.isNotBlank()) Text(status, Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 items(results, key = { "${it.provider}:${it.id}" }) { match ->
-                    Card(Modifier.fillMaxWidth()) {
+                    Card(Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(12.dp), 4.dp)) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(match.title, style = MaterialTheme.typography.titleMedium)
                             Text("${match.artist} • ${match.album}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("Score ${match.score} • ${match.genre.ifBlank { "Unknown genre" }}")
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(onClick = { scope.launch { status = if (container.metadata.downloadArtwork(match) != null) "Artwork cached" else "Artwork unavailable" } }) { Text("Cache artwork") }
-                                Button(onClick = { scope.launch { val item = selected!!; val ok = container.metadata.applyToMediaStore(item, match); if (ok) runCatching { container.mediaLibrary.refresh(item.mediaType) }; status = if (ok) "Metadata applied and library refreshed" else "Metadata update failed" } }) { Text("Apply to file") }
+                                Button(onClick = { scope.launch { val item = selected!!; val ok = container.metadata.applyToMediaStore(item, match); if (ok) runCatching { container.mediaLibrary.deltaRefresh(item.mediaType) }; status = if (ok) "Metadata applied and library refreshed" else "Metadata update failed" } }) { Text("Apply to file") }
                             }
                         }
                     }

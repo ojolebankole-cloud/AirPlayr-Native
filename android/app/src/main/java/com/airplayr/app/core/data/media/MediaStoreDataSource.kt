@@ -35,12 +35,21 @@ class MediaStoreDataSource(context: Context) {
             return@withContext MediaStoreRead(accessible = false, items = emptyList())
         }
 
-        cursor?.use { c ->
+        if (cursor == null) {
+            // A null ContentResolver query is not an empty library; it means the source
+            // could not be read reliably. Never interpret that as permission to delete rows.
+            return@withContext MediaStoreRead(accessible = false, items = emptyList())
+        }
+
+        cursor.use { c ->
             val columns = CursorColumns(c)
             while (c.moveToNext() && result.size < maxItems) {
-                result += when (type) {
+                val item = when (type) {
                     MediaType.AUDIO -> readAudio(c, columns)
                     MediaType.VIDEO -> readVideo(c, columns)
+                }
+                if (item.mediaStoreId != null && item.mediaStoreId > 0L) {
+                    result += item
                 }
             }
         }

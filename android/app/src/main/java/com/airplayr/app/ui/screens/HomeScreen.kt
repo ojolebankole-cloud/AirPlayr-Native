@@ -49,6 +49,7 @@ fun HomeScreen(container: AppContainer, libraryViewModel: LibraryViewModel, onNa
     val favorites by container.structured.favorites().collectAsStateWithLifecycle(initialValue = emptyList())
     val playback: PlaybackController = viewModel(factory = PlaybackControllerFactory(container.appContext))
     val playbackState by playback.state.collectAsStateWithLifecycle()
+    val syncState by container.syncState.collectAsStateWithLifecycle()
     var menuOpen by remember { mutableStateOf(false) }
     var stats by remember { mutableStateOf<PlaybackStatsRepository.Summary?>(null) }
 
@@ -100,6 +101,25 @@ fun HomeScreen(container: AppContainer, libraryViewModel: LibraryViewModel, onNa
     Box(Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.HOME).fillMaxSize().background(colors.background)) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 4.dp, bottom = 110.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item { HomeHeader({ menuOpen = true }, { onNavigate("search") }, onCast) }
+            if (music.isEmpty() && videos.isEmpty() && syncState == com.airplayr.app.di.LibrarySyncState.INITIAL_SCAN) {
+                item {
+                    Text(
+                        "Building your library…",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = colors.textSecondary,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+                    )
+                }
+            } else if (music.isEmpty() && videos.isEmpty() && syncState == com.airplayr.app.di.LibrarySyncState.FAILED) {
+                item {
+                    Text(
+                        "Your media library is empty or could not be read yet.",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = colors.textSecondary,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+                    )
+                }
+            }
             item { QuickActions(colors, { onNavigate("history") }, { onNavigate("favorites") }, { onNavigate("most-played") }, { if (music.isNotEmpty()) playback.playQueue(music.shuffled()) }) }
             item { Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) { features.forEach { f -> AirPlayrFeatureCard(f.eyebrow, f.title, f.image, f.gradient, { onNavigate(f.route) }, f.kind) } } }
             item { SectionRailHeader("Recently added songs") { onNavigate("recent/songs") } }

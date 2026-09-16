@@ -36,7 +36,7 @@ fun FavoritesScreen(container: AppContainer, playback: PlaybackController) {
         if (items.isEmpty()) AirPlayrSectionEmpty("Nothing saved yet", "Tap the heart on a song or video to add it to Favorites.")
         else LazyColumn(contentPadding = PaddingValues(bottom = 110.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             item {
-                AirPlayrCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), shape = RoundedCornerShape(26.dp), containerColor = colors.surfaceSolid, elevation = 6.dp) {
+                AirPlayrCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), shape = RoundedCornerShape(26.dp), containerColor = colors.surfaceSolid, elevation = 0.dp) {
                     Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Favorite, null, tint = colors.primary, modifier = Modifier.size(28.dp))
                         Column(Modifier.weight(1f).padding(start = 12.dp)) {

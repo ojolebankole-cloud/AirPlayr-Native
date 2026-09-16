@@ -31,7 +31,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.session.MediaController
 import androidx.media3.ui.PlayerView
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.video.VideoPlayerViewModel
@@ -44,7 +43,7 @@ import com.airplayr.app.ui.video.VideoPlayerViewModelFactory
     val settings = settingsState ?: return
     val video by vm.video.collectAsStateWithLifecycle(); val resume by vm.resume.collectAsStateWithLifecycle(); val context=LocalContext.current
     val bookmarks by remember(video?.id) { video?.id?.let(container.structured::bookmarks) ?: kotlinx.coroutines.flow.flowOf(emptyList()) }.collectAsStateWithLifecycle(initialValue = emptyList())
-    var controller by remember { mutableStateOf<MediaController?>(null) }; var speed by remember { mutableFloatStateOf(1f) }; var repeatA by remember { mutableStateOf<Long?>(null) }; var repeatB by remember { mutableStateOf<Long?>(null) }; var favorite by remember { mutableStateOf(false) }
+    var controller by remember { mutableStateOf<Player?>(null) }; var speed by remember { mutableFloatStateOf(1f) }; var repeatA by remember { mutableStateOf<Long?>(null) }; var repeatB by remember { mutableStateOf<Long?>(null) }; var favorite by remember { mutableStateOf(false) }
     val subtitleLauncher=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()){ uri:Uri? -> if(uri!=null) { context.contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION); controller?.let{c-> val base=c.currentMediaItem ?: return@let; val mime=when(context.contentResolver.getType(uri)){ "text/vtt"->MimeTypes.TEXT_VTT; "application/x-subrip","text/plain"->MimeTypes.APPLICATION_SUBRIP; else->MimeTypes.TEXT_VTT }; val sub=MediaItem.SubtitleConfiguration.Builder(uri).setMimeType(mime).setLanguage("und").setSelectionFlags(C.SELECTION_FLAG_DEFAULT).build(); c.setMediaItem(base.buildUpon().setSubtitleConfigurations(listOf(sub)).build(),c.currentPosition); c.prepare(); c.play() } } }
     LaunchedEffect(id){vm.load(id)}
     LaunchedEffect(video?.id){ favorite = video?.id?.let { vm.isFavorite(it) } ?: false }
@@ -66,7 +65,7 @@ import com.airplayr.app.ui.video.VideoPlayerViewModelFactory
             onDispose { activity?.lifecycle?.removeObserver(observer) }
         }
     }
-    DisposableEffect(controller){onDispose{controller?.pause()}}
+    DisposableEffect(controller){onDispose{controller?.pause(); container.videoController.release()}}
     Column(Modifier.fillMaxSize()){
         controller?.let{AndroidPlayerView(it,Modifier.fillMaxWidth().weight(1f))} ?: Box(Modifier.fillMaxWidth().weight(1f),contentAlignment=androidx.compose.ui.Alignment.Center){Text("Loading video…")}
         Row(Modifier.fillMaxWidth().padding(horizontal=8.dp),horizontalArrangement=Arrangement.SpaceEvenly){

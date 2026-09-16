@@ -33,7 +33,7 @@ class LibraryViewModel(
         if (_state.value.refreshing) return
         viewModelScope.launch {
             _state.value = _state.value.copy(refreshing = true, error = null)
-            runCatching { repository.refreshAll() }
+            runCatching { repository.deltaRefresh() }
                 .onSuccess { result ->
                     _state.value = LibraryUiState(
                         refreshing = false,

@@ -15,17 +15,12 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 
 /**
- * Phase 1 startup permission orchestration.
+ * Ordered Android permission flow used after the app has rendered its Home screen:
+ * Nearby -> Notifications -> Music -> Photo & Video.
  *
- * Parity with reference app:
- *  1) Nearby devices
- *  2) Notifications (Android 13+)
- *  3) Music library
- *  4) Video library
- *
- * The reference app does not render an extra in-app permission card while the
- * system dialogs are being shown, so this native implementation deliberately
- * keeps the UI transparent and lets Android own the permission presentation.
+ * A granted permission is never requested again. A denied permission is not treated as
+ * complete; the flow moves on for the current session, and the denied permission is
+ * discovered and requested again the next time the app enters this flow.
  */
 private enum class Step { IDLE, NEARBY, NOTIFICATIONS, AUDIO, VIDEO, COMPLETE }
 
@@ -68,6 +63,8 @@ fun StartupPermissionFlow(
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
+        // Do not branch on the result here. A denial is intentionally not persisted as
+        // completion; permission state is re-evaluated at the start of the next app entry.
         step = when (step) {
             Step.NEARBY -> Step.NOTIFICATIONS
             Step.NOTIFICATIONS -> Step.AUDIO
@@ -110,7 +107,10 @@ fun StartupPermissionFlow(
 
             Step.VIDEO -> launcher.launch(
                 when {
-                    Build.VERSION.SDK_INT >= 34 -> arrayOf(Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+                    Build.VERSION.SDK_INT >= 34 -> arrayOf(
+                        Manifest.permission.READ_MEDIA_VIDEO,
+                        Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
+                    )
                     Build.VERSION.SDK_INT >= 33 -> arrayOf(Manifest.permission.READ_MEDIA_VIDEO)
                     else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
                 }
