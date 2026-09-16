@@ -355,6 +355,7 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
  * track) with a small solid thumb. Used for both the seek bar and the volume bar.
  */
 @Composable
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 private fun AirPlayrThinSlider(
     value: Float,
     onValueChange: (Float) -> Unit,
