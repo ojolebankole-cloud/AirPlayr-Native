@@ -95,8 +95,8 @@ fun AirPlayrFeatureCard(
         Modifier
             .width(196.dp)
             .height(272.dp)
-            .clip(RoundedCornerShape(AirPlayrFeatureCardTokens.radiusDp.dp))
-            .airPlayrShadow(RoundedCornerShape(AirPlayrFeatureCardTokens.radiusDp.dp), 10.dp)
+            .clip(RoundedCornerShape(28.dp))
+            .airPlayrShadow(RoundedCornerShape(28.dp), 10.dp)
             .clickable(onClick = onClick),
     ) {
         Box(Modifier.fillMaxSize().background(Brush.linearGradient(actualGradient)))
@@ -122,7 +122,7 @@ fun AirPlayrFeatureCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(174.dp)
-                .padding(horizontal = 10.dp, top = 10.dp)
+                .padding(start = 10.dp, top = 10.dp, end = 10.dp)
                 .align(Alignment.TopCenter),
         )
         if (kind in setOf("morning", "afternoon", "night")) {
