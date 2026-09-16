@@ -24,7 +24,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airplayr.app.ui.theme.AirPlayrFeatureCardTokens
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import java.text.SimpleDateFormat
@@ -38,20 +37,24 @@ private fun mix(a: Color, b: Color, amount: Float): Color = Color(
     1f,
 )
 
-private fun palette(kind: String, dark: Boolean, base: Color, secondary: Color, tertiary: Color): List<Color> {
-    val fallback = when (kind) {
-        "for-you" -> if (dark) AirPlayrFeatureCardTokens.forYouDark else AirPlayrFeatureCardTokens.forYouLight
-        "morning" -> if (dark) AirPlayrFeatureCardTokens.morningDark else AirPlayrFeatureCardTokens.morningLight
-        "afternoon" -> if (dark) AirPlayrFeatureCardTokens.afternoonDark else AirPlayrFeatureCardTokens.afternoonLight
-        "night" -> if (dark) AirPlayrFeatureCardTokens.nightDark else AirPlayrFeatureCardTokens.nightLight
-        "rediscover" -> if (dark) AirPlayrFeatureCardTokens.rediscoverDark else AirPlayrFeatureCardTokens.rediscoverLight
-        "rock" -> if (dark) AirPlayrFeatureCardTokens.rockDark else AirPlayrFeatureCardTokens.rockLight
-        else -> if (dark) AirPlayrFeatureCardTokens.playlistsDark else AirPlayrFeatureCardTokens.playlistsLight
+private fun palette(kind: String, dark: Boolean, base: Color, secondary: Color, tertiary: Color, surface: Color): List<Color> {
+    if (dark) {
+        return when (kind) {
+            "rock" -> listOf(mix(base, Color(0xFF2A2020), .55f), mix(secondary, Color(0xFF25212B), .52f), mix(tertiary, Color(0xFF1E2628), .50f))
+            "for-you" -> listOf(mix(tertiary, Color(0xFF24202A), .54f), mix(base, Color(0xFF202732), .50f), mix(secondary, Color(0xFF2A2420), .48f))
+            else -> listOf(mix(base, Color(0xFF211E24), .58f), mix(secondary, Color(0xFF202329), .56f), mix(tertiary, Color(0xFF20262A), .54f))
+        }
     }
-    val a = mix(fallback[0], base, if (dark) .28f else .44f)
-    val b = mix(fallback[1], secondary, if (dark) .30f else .46f)
-    val c = mix(fallback[2], tertiary, if (dark) .26f else .44f)
-    return listOf(a, b, c)
+    // Keep the cards unmistakably in the active light Material You family. The
+    // dynamic scheme provides the hue; blending toward the light surface removes
+    // the overly dark tonal jump that was visible in the current home screenshot.
+    return when (kind) {
+        "rock" -> listOf(mix(surface, base, .34f), mix(surface, secondary, .24f), mix(surface, tertiary, .18f))
+        "for-you" -> listOf(mix(surface, tertiary, .30f), mix(surface, base, .22f), mix(surface, secondary, .18f))
+        "morning", "afternoon", "night" -> listOf(mix(surface, secondary, .26f), mix(surface, tertiary, .20f), mix(surface, base, .18f))
+        "rediscover" -> listOf(mix(surface, tertiary, .26f), mix(surface, base, .20f), mix(surface, secondary, .18f))
+        else -> listOf(mix(surface, secondary, .25f), mix(surface, base, .20f), mix(surface, tertiary, .18f))
+    }
 }
 
 @Composable
@@ -65,7 +68,7 @@ fun AirPlayrFeatureCard(
 ) {
     val colors = LocalAirPlayrColors.current
     val dark = androidx.compose.foundation.isSystemInDarkTheme()
-    val actualGradient = palette(kind, dark, colors.primary, colors.secondary, colors.tertiary)
+    val actualGradient = palette(kind, dark, colors.primary, colors.secondary, colors.tertiary, colors.surfaceSolid)
     val transition = rememberInfiniteTransition(label = "feature-card-drift")
     val driftX by transition.animateFloat(
         initialValue = -20f,
@@ -119,7 +122,7 @@ fun AirPlayrFeatureCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(174.dp)
-                .padding(horizontal = 10.dp)
+                .padding(horizontal = 10.dp, top = 10.dp)
                 .align(Alignment.TopCenter),
         )
         if (kind in setOf("morning", "afternoon", "night")) {

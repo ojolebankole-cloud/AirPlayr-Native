@@ -87,19 +87,22 @@ fun HomeScreen(container: AppContainer, libraryViewModel: LibraryViewModel, onNa
         in 23..23, in 0..1 -> Triple("Night Extra", "Feel the night.", R.drawable.dj_boy_cuate)
         else -> Triple("Late Night Jam", "For the night.", R.drawable.dj_boy_cuate)
     }
-    val featureSeed = remember { java.util.Random(System.nanoTime()).nextLong() }
-    val features = remember(timeCard, featureSeed) {
+    val features = remember(timeCard) {
         listOf(
             FeatureSpec("For you now", "Press play & tuned in", "for-you", "for-you", R.drawable.headphone_amico, listOf(Color(0xFFF6D7E8), Color(0xFFE9D8FA), Color(0xFFD7E8F7))),
             FeatureSpec(timeCard.first, timeCard.second, "tuned-in", when (hour) { in 5..11 -> "morning"; in 12..16 -> "afternoon"; in 17..23, in 0..4 -> "night"; else -> "night" }, timeCard.third, listOf(Color(0xFFFFE0B5), Color(0xFFD9F0D8), Color(0xFFD7E9F8))),
             FeatureSpec("Rediscover", "From your previous plays.", "rediscover", "rediscover", R.drawable.media_player_bro, listOf(Color(0xFFCDEDE4), Color(0xFFD8E1F7), Color(0xFFFFE0D1))),
             FeatureSpec("Rock your world", "Turn it up.", "rock-your-world", "rock", R.drawable.playing_music_bro, listOf(Color(0xFFFFD1C5), Color(0xFFD6D8F7), Color(0xFFCBE9F0))),
             FeatureSpec("My playlists", "Your Archive", "my-playlists", "playlists", R.drawable.playlist_pana, listOf(Color(0xFFF3D1E2), Color(0xFFD5DDF6), Color(0xFFD2EBD9))),
-        ).sortedBy { it.route.hashCode().toLong() xor featureSeed }
+        ).let { list ->
+            val preferred = listOf("rock-your-world", "for-you")
+            preferred.mapNotNull { route -> list.firstOrNull { it.route == route } } +
+                list.filterNot { it.route in preferred }
+        }
     }
 
     Box(Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.HOME).fillMaxSize().background(colors.background)) {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 4.dp, bottom = 110.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 38.dp, bottom = 110.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
             item { HomeHeader({ menuOpen = true }, { onNavigate("search") }, onCast) }
             if (music.isEmpty() && videos.isEmpty() && syncState == com.airplayr.app.di.LibrarySyncState.INITIAL_SCAN) {
                 item {
@@ -123,7 +126,8 @@ fun HomeScreen(container: AppContainer, libraryViewModel: LibraryViewModel, onNa
             item { QuickActions(colors, { onNavigate("history") }, { onNavigate("favorites") }, { onNavigate("most-played") }, { if (music.isNotEmpty()) playback.playQueue(music.shuffled()) }) }
             item { Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) { features.forEach { f -> AirPlayrFeatureCard(f.eyebrow, f.title, f.image, f.gradient, { onNavigate(f.route) }, f.kind) } } }
             item { SectionRailHeader("Recently added songs") { onNavigate("recent/songs") } }
-            item { HorizontalSongRail(recentSongs, playback) }
+            if (recentSongs.isNotEmpty()) { item { HorizontalSongRail(recentSongs, playback) } }
+            if (recentSongs.size > 1) { item { HorizontalSongRail(recentSongs.drop(1), playback) } }
             if (recentPlayedAlbums.isNotEmpty()) { item { SectionRailHeader("Recently played albums") { onNavigate("recent/albums") } }; item { HorizontalAlbumRail(recentPlayedAlbums, onNavigate) } }
             if (recentArtists.isNotEmpty()) { item { SectionRailHeader("Recent Artists") { onNavigate("recent/artists") } }; item { HorizontalArtistRail(recentArtists, onNavigate) } }
             if (currentlyWatching.isNotEmpty()) { item { SectionRailHeader("Currently watching") { onNavigate("recent/videos") } }; item { HorizontalVideoRail(currentlyWatching, onNavigate) } }
@@ -142,34 +146,25 @@ private data class FeatureSpec(val title: String, val eyebrow: String, val route
 @Composable
 private fun HomeHeader(onMenu: () -> Unit, onSearch: () -> Unit, onCast: () -> Unit) {
     val colors = LocalAirPlayrColors.current
-    var prompt by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { kotlinx.coroutines.delay(10_000L); prompt = true }
-    Box(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp)) {
-        Surface(
-            modifier = Modifier.fillMaxWidth().height(54.dp),
-            shape = RoundedCornerShape(27.dp),
-            color = colors.surfaceSolid,
-            tonalElevation = 0.dp,
-            shadowElevation = 0.dp,
-        ) {
-            Row(Modifier.fillMaxSize().padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onMenu, modifier = Modifier.size(42.dp)) {
-                    Icon(Icons.Default.Menu, "Open menu", tint = colors.primary, modifier = Modifier.size(28.dp))
-                }
-                Box(Modifier.weight(1f).height(42.dp).clickable(onClick = onSearch), contentAlignment = Alignment.Center) {
-                    Text(
-                        if (prompt) "Search your music" else "AIR PLAYR",
-                        fontFamily = if (prompt) AirPlayrFonts.SmoochSans else AirPlayrFonts.OpenSansBold,
-                        fontSize = if (prompt) 14.sp else 24.sp,
-                        color = colors.textPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                IconButton(onClick = onCast, modifier = Modifier.size(42.dp)) {
-                    Icon(Icons.Default.Cast, "Cast", tint = colors.primary, modifier = Modifier.size(24.dp))
-                }
-            }
+    Row(
+        Modifier.fillMaxWidth().height(54.dp).padding(horizontal = 24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onMenu, modifier = Modifier.size(42.dp)) {
+            Icon(Icons.Default.Menu, "Open menu", tint = colors.primary, modifier = Modifier.size(28.dp))
+        }
+        Box(Modifier.weight(1f).height(42.dp).clickable(onClick = onSearch), contentAlignment = Alignment.Center) {
+            Text(
+                "Search your music",
+                fontFamily = AirPlayrFonts.SmoochSans,
+                fontSize = 14.sp,
+                color = colors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        IconButton(onClick = onCast, modifier = Modifier.size(42.dp)) {
+            Icon(Icons.Default.Cast, "Cast", tint = colors.primary, modifier = Modifier.size(24.dp))
         }
     }
 }
@@ -182,7 +177,7 @@ private fun QuickActions(colors: AirPlayrColors, onHistory: () -> Unit, onFavori
         Triple("Most played", Icons.Default.TrendingUp, onMostPlayed),
         Triple("Shuffle", AirPlayrIcons.Shuffle, onShuffle),
     )
-    Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.Center) {
         actions.forEachIndexed { index, action ->
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(64.dp).clickable(onClick = action.third)) {
                 Box(Modifier.size(46.dp).clip(CircleShape).background(listOf(colors.primaryContainer, colors.secondaryContainer, colors.tertiaryContainer, colors.primaryContainer)[index]), contentAlignment = Alignment.Center) {
@@ -223,14 +218,14 @@ private fun QuickActions(colors: AirPlayrColors, onHistory: () -> Unit, onFavori
 
 @Composable private fun SectionRailHeader(title: String, onMore: () -> Unit) {
     val c = LocalAirPlayrColors.current
-    Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 19.sp, color = c.textPrimary, modifier = Modifier.weight(1f))
         IconButton(onClick = onMore, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.ArrowForward, "More", tint = c.primary, modifier = Modifier.size(24.dp)) }
     }
 }
 
 @Composable private fun HorizontalSongRail(items: List<MediaItem>, playback: PlaybackController) {
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { items.forEach { item -> SongRailCard(item) { playback.play(item) } } }
+    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { items.forEach { item -> SongRailCard(item) { playback.play(item) } } }
 }
 
 @Composable private fun SongRailCard(item: MediaItem, onClick: () -> Unit) {
@@ -242,7 +237,6 @@ private fun QuickActions(colors: AirPlayrColors, onHistory: () -> Unit, onFavori
                 Text(item.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 17.sp, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(item.artist ?: "Unknown artist", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
             }
-            Icon(AirPlayrIcons.More, "More", tint = c.primary)
         }
     }
 }

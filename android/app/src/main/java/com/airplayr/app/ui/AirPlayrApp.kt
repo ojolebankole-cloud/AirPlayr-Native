@@ -17,6 +17,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -166,6 +167,7 @@ fun AirPlayrApp(
                 startDestination = "home",
                 modifier = androidx.compose.ui.Modifier
                     .fillMaxSize()
+                    .statusBarsPadding()
                     .padding(bottom = if (showDock) com.airplayr.app.ui.components.AIRPLAYR_BOTTOM_DOCK_BASE_HEIGHT.dp else 0.dp),
             ) {
                 composable("home") { HomeScreen(container = container, libraryViewModel = libraryViewModel, onNavigate = { route -> navController.navigate(route) }, onCast = { castOpen = true }) }

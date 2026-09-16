@@ -79,6 +79,12 @@ fun AirPlayrBottomDock(
                     ) {
                         MiniPlayerSection(playbackState, playback, onOpenPlayer)
                     }
+                    if (showMiniPlayer && playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO) {
+                        androidx.compose.material3.HorizontalDivider(
+                            thickness = 1.dp,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.20f),
+                        )
+                    }
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -146,7 +152,7 @@ private fun MiniPlayerSection(
                 Box(
                     Modifier
                         .size(56.dp)
-                        .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                        .background(MaterialTheme.colorScheme.primary, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
