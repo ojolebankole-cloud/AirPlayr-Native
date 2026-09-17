@@ -28,7 +28,7 @@ jobs:
 
       - name: Install required Android SDK packages
         run: |
-          sdkmanager "platform-tools" "platforms;android-37" "build-tools;36.0.0"
+          sdkmanager "platform-tools" "platforms;android-37.0" "build-tools;36.0.0"
 
       - name: Make Gradle wrapper executable
         working-directory: android
