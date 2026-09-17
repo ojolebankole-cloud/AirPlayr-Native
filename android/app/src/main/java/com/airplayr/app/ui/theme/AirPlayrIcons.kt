@@ -183,12 +183,50 @@ object AirPlayrIcons {
             }
         }.build()
 
+    val RepeatOne: ImageVector
+        get() = ImageVector.Builder("AirPlayrRepeatOne", 26.dp, 26.dp, 26f, 26f).apply {
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
+                moveTo(6f,9f); horizontalLineTo(20f); moveTo(17f,6f); lineTo(20f,9f); lineTo(17f,12f)
+                moveTo(20f,17f); horizontalLineTo(6f); moveTo(9f,14f); lineTo(6f,17f); lineTo(9f,20f)
+            }
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 1.8f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
+                moveTo(13.3f,11.5f); lineTo(14.8f,10.2f); verticalLineTo(16f); moveTo(13.4f,16f); horizontalLineTo(16.2f)
+            }
+        }.build()
+
     val Previous: ImageVector
         get() = ImageVector.Builder("AirPlayrPrevious", 28.dp, 28.dp, 28f, 28f).apply {
             path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2.15f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
                 moveTo(6f,5.5f); verticalLineTo(22.5f)
             }
             path(fill = SolidColor(Color.White)) { moveTo(22f,6f); lineTo(10f,14f); lineTo(22f,22f); close() }
+        }.build()
+
+    /** Exact geometry from the uploaded SVG reference icon, used only on the full-screen player. */
+    val PlayerPrevious: ImageVector
+        get() = ImageVector.Builder("AirPlayrPlayerPrevious", 24.dp, 24.dp, 24f, 24f).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(20.2409f, 7.21957f)
+                verticalLineTo(16.7896f)
+                curveTo(20.2409f, 18.7496f, 18.1109f, 19.9796f, 16.4109f, 18.9996f)
+                lineTo(12.2609f, 16.6096f)
+                lineTo(8.11094f, 14.2096f)
+                curveTo(6.41094f, 13.2296f, 6.41094f, 10.7796f, 8.11094f, 9.79957f)
+                lineTo(12.2609f, 7.39957f)
+                lineTo(16.4109f, 5.00957f)
+                curveTo(18.1109f, 4.02957f, 20.2409f, 5.24957f, 20.2409f, 7.21957f)
+                close()
+            }
+            path(fill = SolidColor(Color.White)) {
+                moveTo(3.76172f, 18.9303f)
+                curveTo(3.35172f, 18.9303f, 3.01172f, 18.5903f, 3.01172f, 18.1803f)
+                verticalLineTo(5.82031f)
+                curveTo(3.01172f, 5.41031f, 3.35172f, 5.07031f, 3.76172f, 5.07031f)
+                curveTo(4.17172f, 5.07031f, 4.51172f, 5.41031f, 4.51172f, 5.82031f)
+                verticalLineTo(18.1803f)
+                curveTo(4.51172f, 18.5903f, 4.17172f, 18.9303f, 3.76172f, 18.9303f)
+                close()
+            }
         }.build()
 
     val Next: ImageVector
@@ -306,6 +344,14 @@ object AirPlayrIcons {
         get() = ImageVector.Builder("AirPlayrBack", 28.dp, 28.dp, 28f, 28f).apply {
             path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2.15f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
                 moveTo(20f, 14f); horizontalLineTo(7f); moveTo(12f, 8f); lineTo(6f, 14f); lineTo(12f, 20f)
+            }
+        }.build()
+
+    /** Down-chevron used by the full-screen player to match the reference collapse/back control. */
+    val PlayerBack: ImageVector
+        get() = ImageVector.Builder("AirPlayrPlayerBack", 28.dp, 28.dp, 28f, 28f).apply {
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2.3f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
+                moveTo(5.5f, 9f); lineTo(14f, 17f); lineTo(22.5f, 9f)
             }
         }.build()
 

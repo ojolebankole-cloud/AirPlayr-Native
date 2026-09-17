@@ -2,6 +2,7 @@ package com.airplayr.app.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -115,7 +116,7 @@ fun HomeScreen(
             FeatureSpec("Rock your world", "Turn it up.", "rock-your-world", "rock", R.drawable.playing_music_bro, listOf(Color(0xFFFFD1C5), Color(0xFFD6D8F7), Color(0xFFCBE9F0))),
             FeatureSpec("My playlists", "Your Archive", "my-playlists", "playlists", R.drawable.playlist_pana, listOf(Color(0xFFF3D1E2), Color(0xFFD5DDF6), Color(0xFFD2EBD9))),
         )
-        list.shuffled(java.util.Random(featureSessionSeed.hashCode()))
+        list.shuffled(java.util.Random(featureSessionSeed.hashCode().toLong()))
     }
 
     Box(Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.HOME).fillMaxSize().background(colors.background)) {

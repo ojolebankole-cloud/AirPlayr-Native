@@ -3,6 +3,7 @@ package com.airplayr.app.ui.screens
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.components.AirPlayrCard
+import com.airplayr.app.ui.components.airPlayrShadow
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.clip
@@ -38,6 +39,9 @@ import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
@@ -183,32 +187,32 @@ fun FeatureCollectionScreen(
         if (menuOpen) {
             ModalBottomSheet(onDismissRequest = { menuOpen = false }, containerColor = colors.surfaceContainerLow) {
                 ActionGroup {
-                    ActionButton("Shuffle", Icons.Default.Shuffle) { playAll(true) }
-                    ActionButton("Add to queue", Icons.Default.QueueMusic) {
+                    ActionButton("Shuffle", Icons.Default.Shuffle, onClick = { playAll(true) })
+                    ActionButton("Add to queue", Icons.Default.QueueMusic, onClick = {
                         val audio = items.filter { it.mediaType == MediaType.AUDIO }
                         audio.forEach(playback::addToQueue)
                         menuOpen = false
                         com.airplayr.app.ui.feedback.AppFeedback.showSnackbar(if (audio.isEmpty()) "Videos do not use the music queue." else "Added ${audio.size} songs to the playing queue.")
-                    }
-                    ActionButton("Play next", Icons.Default.SkipNext) {
+                    })
+                    ActionButton("Play next", Icons.Default.SkipNext, onClick = {
                         val audio = items.filter { it.mediaType == MediaType.AUDIO }
                         audio.forEach(playback::playNext)
                         menuOpen = false
                         if (audio.isEmpty()) com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Videos do not use the music queue.")
-                    }
+                    })
                 }
             }
         }
         selected?.let { item ->
             ModalBottomSheet(onDismissRequest = { selected = null }, containerColor = colors.surfaceContainerLow) {
                 ActionGroup {
-                    ActionButton(if (favorite) "Remove from favorites" else "Add to favorites", if (favorite) Icons.Default.Star else Icons.Default.StarBorder) { scope.launch { val active = container?.structured?.toggleFavorite(item) ?: false; favorite = active; com.airplayr.app.ui.feedback.AppFeedback.showSnackbar(if (active) "Added to favorites." else "Removed from favorites.") }; selected = null }
-                    ActionButton("Play next", Icons.Default.SkipNext) {
+                    ActionButton(if (favorite) "Remove from favorites" else "Add to favorites", if (favorite) Icons.Default.Star else Icons.Default.StarBorder, onClick = { scope.launch { val active = container?.structured?.toggleFavorite(item) ?: false; favorite = active; com.airplayr.app.ui.feedback.AppFeedback.showSnackbar(if (active) "Added to favorites." else "Removed from favorites.") }; selected = null })
+                    ActionButton("Play next", Icons.Default.SkipNext, onClick = {
                         if (item.mediaType == MediaType.AUDIO) playback.playNext(item)
                         else com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Videos do not use the music queue.")
                         selected = null
-                    }
-                    ActionButton("Add to queue", Icons.Default.QueueMusic) {
+                    })
+                    ActionButton("Add to queue", Icons.Default.QueueMusic, onClick = {
                         if (item.mediaType == MediaType.AUDIO) {
                             playback.addToQueue(item)
                             com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Added to the playing queue.")
@@ -216,7 +220,7 @@ fun FeatureCollectionScreen(
                             com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Videos do not use the music queue.")
                         }
                         selected = null
-                    }
+                    })
                 }
             }
         }
@@ -227,7 +231,7 @@ fun FeatureCollectionScreen(
 private fun FeatureHero(item: MediaItem, title: String?, subtitle: String, badge: String, colors: com.airplayr.app.ui.theme.AirPlayrColors, onPlay: () -> Unit, onShuffle: () -> Unit) {
     val art = item.displayArtworkUri()
     Box(Modifier.fillMaxWidth().height(360.dp).padding(horizontal = 22.dp).clip(RoundedCornerShape(30.dp)).airPlayrShadow(RoundedCornerShape(30.dp), 6.dp).clickable { onPlay() }) {
-        if (art != null) com.airplayr.app.ui.components.Artwork(art, Modifier.fillMaxSize(), 30.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) VideoLibrary else MusicNote)
+        if (art != null) com.airplayr.app.ui.components.Artwork(art, Modifier.fillMaxSize(), 30.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) androidx.compose.material.icons.filled.VideoLibrary else androidx.compose.material.icons.filled.MusicNote)
         else Box(Modifier.fillMaxSize().background(colors.primaryContainer))
         Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = .42f)))
         Column(Modifier.fillMaxSize().padding(22.dp)) {
@@ -247,7 +251,7 @@ private fun FeatureHero(item: MediaItem, title: String?, subtitle: String, badge
 private fun FeatureMediaRow(item: MediaItem, colors: com.airplayr.app.ui.theme.AirPlayrColors, onPlay: () -> Unit, onMore: () -> Unit) {
     AirPlayrCard(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 5.dp), shape = RoundedCornerShape(22.dp), containerColor = colors.surfaceContainer, elevation = 5.dp) {
         Row(Modifier.fillMaxWidth().clickable(onClick = onPlay).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            com.airplayr.app.ui.components.Artwork(item.displayArtworkUri(), Modifier.size(82.dp), 18.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) VideoLibrary else MusicNote)
+            com.airplayr.app.ui.components.Artwork(item.displayArtworkUri(), Modifier.size(82.dp), 18.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) androidx.compose.material.icons.filled.VideoLibrary else androidx.compose.material.icons.filled.MusicNote)
             Column(Modifier.weight(1f).padding(horizontal = 13.dp)) { Text(item.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 17.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(item.artist ?: if (item.mediaType == MediaType.VIDEO) "Video" else "Unknown artist", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary, maxLines = 1, modifier = Modifier.padding(top = 2.dp)) }
             IconButton(onClick = onMore) { Icon(Icons.Default.MoreVert, "Options", tint = colors.primary) }
         }
@@ -524,9 +528,29 @@ fun MyPlaylistsScreen(container: AppContainer, playback: PlaybackController, onO
             Spacer(Modifier.height(10.dp))
             FloatingActionButton(onClick = { fabOpen = !fabOpen }, containerColor = if (fabOpen) colors.surfaceContainerHigh else colors.primary, contentColor = if (fabOpen) colors.primary else colors.onPrimary, modifier = Modifier.size(88.dp), shape = RoundedCornerShape(28.dp)) { Icon(if (fabOpen) Icons.Default.Close else Icons.Default.Add, if (fabOpen) "Close" else "Add", modifier = Modifier.size(34.dp)) }
         }
-        if (headerMenu) ModalBottomSheet(onDismissRequest = { headerMenu = false }, containerColor = colors.surfaceContainerLow) { ActionGroup { ActionButton("Shuffle all playlist items", Icons.Default.Shuffle) { val all=playlists.flatMap { itemsOf(it) }.shuffled(); if(all.isEmpty()) com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("There are no songs in your playlists yet.") else playback.playQueue(all,0); headerMenu=false }; ActionButton("Add all items to queue", Icons.Default.QueueMusic) { val all=playlists.flatMap { itemsOf(it) }; all.forEach(playback::addToQueue); headerMenu=false; if(all.isNotEmpty()) com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Added ${all.size} songs to the playing queue.") }; ActionButton("Refresh playlists", Icons.Default.Refresh) { headerMenu = false; com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Playlists refreshed.") } } }
-        selected?.let { p -> ModalBottomSheet(onDismissRequest = { selected = null }, containerColor = colors.surfaceContainerLow) { ActionGroup { ActionButton("Play", Icons.Default.PlayArrow) { playPlaylist(p); }; ActionButton("Play next", Icons.Default.SkipNext) { queuePlaylist(p, true) }; ActionButton("Add to queue", Icons.Default.QueueMusic) { queuePlaylist(p, false) }; ActionButton("Add to playlist", Icons.Default.PlaylistAdd) { targetSource=p; targetPicker = true; selected=null }; ActionButton("Choose artwork", Icons.Default.Image) { artworkLauncher.launch("image/*") }; ActionButton("Rename", Icons.Default.Edit) { dialogMode = "rename"; dialogName = p.name; dialogOpen = true }; ActionButton("Save as file", Icons.Default.Save) { exportPlaylist=p; selected=null; exportLauncher.launch("${p.name}.m3u") }; ActionButton("Share playlist", Icons.Default.Share) { val text = "${p.name}\n\n${itemsOf(p).joinToString("\n") { it.title + (it.artist?.let { a -> " · $a" } ?: "") }}"; val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, text) }; context.startActivity(android.content.Intent.createChooser(send, "Share playlist").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)); selected = null }; ActionButton("Delete playlist", Icons.Default.Delete, destructive = true) { deleteTarget = p; selected = null } } } }
-        if (targetPicker) ModalBottomSheet(onDismissRequest = { targetPicker = false }, containerColor = colors.surfaceContainerLow) { ActionGroup { playlists.filter { it.id != selected?.id }.forEach { target -> ActionButton(target.name, Icons.Default.List) { val ids = targetSource?.let { itemsOf(it).map { m -> m.id } }.orEmpty(); scope.launch { ids.forEach { container.structured.addToPlaylist(target.id, it) }; targetPicker = false; targetSource = null; com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Added to ${target.name}.") } } } } }
+        if (headerMenu) ModalBottomSheet(onDismissRequest = { headerMenu = false }, containerColor = colors.surfaceContainerLow) {
+            ActionGroup {
+                ActionButton("Shuffle all playlist items", Icons.Default.Shuffle, onClick = { val all=playlists.flatMap { itemsOf(it) }.shuffled(); if(all.isEmpty()) com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("There are no songs in your playlists yet.") else playback.playQueue(all,0); headerMenu=false })
+                ActionButton("Add all items to queue", Icons.Default.QueueMusic, onClick = { val all=playlists.flatMap { itemsOf(it) }; all.forEach(playback::addToQueue); headerMenu=false; if(all.isNotEmpty()) com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Added ${all.size} songs to the playing queue.") })
+                ActionButton("Refresh playlists", Icons.Default.Refresh, onClick = { headerMenu = false; com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Playlists refreshed.") })
+            }
+        }
+        selected?.let { p ->
+            ModalBottomSheet(onDismissRequest = { selected = null }, containerColor = colors.surfaceContainerLow) {
+                ActionGroup {
+                    ActionButton("Play", Icons.Default.PlayArrow, onClick = { playPlaylist(p) })
+                    ActionButton("Play next", Icons.Default.SkipNext, onClick = { queuePlaylist(p, true) })
+                    ActionButton("Add to queue", Icons.Default.QueueMusic, onClick = { queuePlaylist(p, false) })
+                    ActionButton("Add to playlist", Icons.Default.PlaylistAdd, onClick = { targetSource=p; targetPicker = true; selected=null })
+                    ActionButton("Choose artwork", Icons.Default.Image, onClick = { artworkLauncher.launch("image/*") })
+                    ActionButton("Rename", Icons.Default.Edit, onClick = { dialogMode = "rename"; dialogName = p.name; dialogOpen = true })
+                    ActionButton("Save as file", Icons.Default.Save, onClick = { exportPlaylist=p; selected=null; exportLauncher.launch("${p.name}.m3u") })
+                    ActionButton("Share playlist", Icons.Default.Share, onClick = { val text = "${p.name}\n\n${itemsOf(p).joinToString("\n") { it.title + (it.artist?.let { a -> " · $a" } ?: "") }}"; val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, text) }; context.startActivity(android.content.Intent.createChooser(send, "Share playlist").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)); selected = null })
+                    ActionButton("Delete playlist", Icons.Default.Delete, onClick = { deleteTarget = p; selected = null }, destructive = true)
+                }
+            }
+        }
+        if (targetPicker) ModalBottomSheet(onDismissRequest = { targetPicker = false }, containerColor = colors.surfaceContainerLow) { ActionGroup { playlists.filter { it.id != selected?.id }.forEach { target -> ActionButton(target.name, Icons.Default.List, onClick = { val ids = targetSource?.let { itemsOf(it).map { m -> m.id } }.orEmpty(); scope.launch { ids.forEach { container.structured.addToPlaylist(target.id, it) }; targetPicker = false; targetSource = null; com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Added to ${target.name}.") } }) } } }
         if (dialogOpen) AlertDialog(onDismissRequest = { dialogOpen = false }, title = { Text(if (dialogMode == "rename") "Rename playlist" else "Create playlist") }, text = { OutlinedTextField(dialogName, { dialogName = it }, singleLine = true, modifier = Modifier.fillMaxWidth()) }, dismissButton = { TextButton(onClick = { dialogOpen = false }) { Text("Cancel") } }, confirmButton = { TextButton(onClick = { createOrRename() }) { Text(if (dialogMode == "rename") "Save" else "OK") } })
         deleteTarget?.let { p -> AlertDialog(onDismissRequest = { deleteTarget = null }, title = { Text("Delete playlist?") }, text = { Text("“${p.name}” will be removed. Your media stays on the device.") }, dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel") } }, confirmButton = { TextButton(onClick = { scope.launch { container.structured.deletePlaylist(p.id); deleteTarget = null; com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Playlist deleted.") } }) { Text("Delete", color = colors.error) } }) }
     }

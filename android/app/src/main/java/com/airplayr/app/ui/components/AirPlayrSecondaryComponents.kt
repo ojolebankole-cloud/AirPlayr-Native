@@ -65,7 +65,7 @@ fun AirPlayrMediaRow(
         Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(horizontal = 24.dp, vertical = if (compact) 6.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Artwork(item.displayArtworkUri(), Modifier.size(if (compact) 58.dp else 64.dp), if (item.mediaType == MediaType.VIDEO) 13.dp else 16.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) VideoLibrary else MusicNote)
+        Artwork(item.displayArtworkUri(), Modifier.size(if (compact) 58.dp else 64.dp), if (item.mediaType == MediaType.VIDEO) 13.dp else 16.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) androidx.compose.material.icons.filled.VideoLibrary else androidx.compose.material.icons.filled.MusicNote)
         Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
             Text(item.title.ifBlank { item.filename }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = if (compact) 16.sp else 18.sp, lineHeight = if (compact) 21.sp else 23.sp, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(

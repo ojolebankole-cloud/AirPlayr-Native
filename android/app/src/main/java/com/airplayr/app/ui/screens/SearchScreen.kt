@@ -412,7 +412,7 @@ fun SearchScreen(
 
     detailsSheet?.let { item ->
         AirPlayrSheetScaffold("Details", "MEDIA", onDismiss = { detailsSheet = null }) {
-            Artwork(item.displayArtworkUri(), Modifier.size(92.dp), 18.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) VideoLibrary else MusicNote)
+            Artwork(item.displayArtworkUri(), Modifier.size(92.dp), 18.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) androidx.compose.material.icons.filled.VideoLibrary else androidx.compose.material.icons.filled.MusicNote)
             Text(item.title, style = MaterialTheme.typography.titleLarge)
             Text(listOfNotNull(item.artist, item.album, item.genre).joinToString(" • ").ifBlank { item.filename }, color = colors.textSecondary)
             Text("${item.sizeBytes / 1024 / 1024} MB · ${item.durationMs / 1000}s", color = colors.textSecondary)
@@ -533,7 +533,7 @@ private fun SearchActionSheet(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Artwork(item.displayArtworkUri(), Modifier.size(64.dp), 14.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) VideoLibrary else MusicNote)
+            Artwork(item.displayArtworkUri(), Modifier.size(64.dp), 14.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) androidx.compose.material.icons.filled.VideoLibrary else androidx.compose.material.icons.filled.MusicNote)
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(item.title.ifBlank { if (isVideo) "Video" else "Song" }, color = colors.textPrimary, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
@@ -567,9 +567,10 @@ private fun SearchActionSheet(
             ActionGroup {
                 ActionButton("Tag editor", Icons.Default.Edit, onEditMetadata)
                 ActionButton("Edit lyrics", AirPlayrIcons.Lyrics, {
-                    val target = selected
-                    selected = null
-                    lyricsTarget = target
+                    selected?.let { target ->
+                        selected = null
+                        lyricsTarget = target
+                    }
                 })
             }
         }

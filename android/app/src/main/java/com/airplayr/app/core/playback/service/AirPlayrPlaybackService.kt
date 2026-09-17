@@ -455,7 +455,7 @@ class AirPlayrPlaybackService : MediaLibraryService() {
 
     private fun exitVideoModeInternal() {
         videoMode = false
-        if (::mediaLibrarySession.isInitialized && mediaLibrarySession != null) {
+        if (mediaLibrarySession != null) {
             triggerNotificationUpdate()
         }
     }
@@ -574,7 +574,7 @@ class AirPlayrPlaybackService : MediaLibraryService() {
         val sessionId = target.audioSessionId
         if (sessionId > 0) {
             currentAudioSessionId = sessionId
-            val engine = if (target === secondary) secondaryEffects else localEffects
+            val engine = if (secondaryPlayer === target) secondaryEffects else localEffects
             if (engine.attach(sessionId).supported) engine.applyState(state)
         }
     }
