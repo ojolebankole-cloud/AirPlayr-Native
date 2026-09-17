@@ -32,17 +32,31 @@ class MediaLibraryRepository(
      * This is intentionally rare: first-time initialization and explicit/manual recovery.
      * Normal launches, workers, screens and ViewModels must use [deltaRefresh] instead.
      */
-    suspend fun fullRescan(): RefreshResult = refreshMutex.withLock {
+    suspend fun fullRescan(onProgress: ((found: Int, total: Int, label: String) -> Unit)? = null): RefreshResult = refreshMutex.withLock {
         val audio = mediaStore.query(MediaType.AUDIO)
         val video = mediaStore.query(MediaType.VIDEO)
         var accessibleCount = 0
+        val total = (if (audio.accessible) audio.items.size else 0) + (if (video.accessible) video.items.size else 0)
+        var found = 0
+        val label = when {
+            audio.accessible && audio.items.isNotEmpty() && video.accessible && video.items.isNotEmpty() -> "songs and videos"
+            audio.accessible && audio.items.isNotEmpty() -> "songs"
+            video.accessible && video.items.isNotEmpty() -> "videos"
+            else -> "media files"
+        }
 
         if (audio.accessible) {
-            fullSyncMediaStoreType(MediaType.AUDIO, audio.items)
+            fullSyncMediaStoreType(MediaType.AUDIO, audio.items) { committed ->
+                found += committed
+                onProgress?.invoke(found, total, label)
+            }
             accessibleCount++
         }
         if (video.accessible) {
-            fullSyncMediaStoreType(MediaType.VIDEO, video.items)
+            fullSyncMediaStoreType(MediaType.VIDEO, video.items) { committed ->
+                found += committed
+                onProgress?.invoke(found, total, label)
+            }
             accessibleCount++
         }
 
@@ -107,13 +121,16 @@ class MediaLibraryRepository(
     }
 
 
-    private suspend fun fullSyncMediaStoreType(type: MediaType, items: List<MediaItem>) {
+    private suspend fun fullSyncMediaStoreType(type: MediaType, items: List<MediaItem>, onBatchCommitted: ((Int) -> Unit)? = null) {
         val dao = database.mediaItemDao()
         val existing = dao.getMediaStoreByType(type.value).associateBy { it.id }
         val incoming = items.map(MediaItem::asEntity).associateBy { it.id }
 
         incoming.values.chunked(FULL_SCAN_BATCH_SIZE).forEach { batch ->
-            if (batch.isNotEmpty()) dao.insertAll(batch)
+            if (batch.isNotEmpty()) {
+                dao.insertAll(batch)
+                onBatchCommitted?.invoke(batch.size)
+            }
         }
 
         val removedIds = existing.keys - incoming.keys

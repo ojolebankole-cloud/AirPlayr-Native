@@ -32,6 +32,7 @@ interface UserDataDao {
 
     @Insert suspend fun insertPlaybackEvent(event: PlaybackEventEntity)
     @Query("SELECT * FROM playback_events WHERE playedAt >= :since AND playedAt <= :until ORDER BY playedAt DESC") suspend fun playbackEvents(since: Long, until: Long): List<PlaybackEventEntity>
+    @Query("SELECT * FROM playback_events WHERE mediaType = :mediaType ORDER BY playedAt ASC") suspend fun playbackEventsByType(mediaType: String): List<PlaybackEventEntity>
     @Query("SELECT * FROM playback_events ORDER BY playedAt DESC LIMIT :limit") suspend fun playbackEvents(limit: Int): List<PlaybackEventEntity>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertPlaybackSession(session: PlaybackSessionEntity)
     @Query("SELECT * FROM playback_sessions WHERE sessionId = :id") suspend fun playbackSession(id: String): PlaybackSessionEntity?

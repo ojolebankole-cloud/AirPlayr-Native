@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -64,7 +65,7 @@ fun AirPlayrMediaRow(
         Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(horizontal = 24.dp, vertical = if (compact) 6.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Artwork(item.artworkUri ?: item.thumbnailUri, Modifier.size(if (compact) 58.dp else 64.dp), if (item.mediaType == MediaType.VIDEO) 13.dp else 16.dp, item.title)
+        Artwork(item.displayArtworkUri(), Modifier.size(if (compact) 58.dp else 64.dp), if (item.mediaType == MediaType.VIDEO) 13.dp else 16.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) VideoLibrary else MusicNote)
         Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
             Text(item.title.ifBlank { item.filename }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = if (compact) 16.sp else 18.sp, lineHeight = if (compact) 21.sp else 23.sp, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(

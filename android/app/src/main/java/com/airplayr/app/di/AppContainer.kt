@@ -35,6 +35,8 @@ class AppContainer(context: Context) {
     private val initialScanMutex = Mutex()
     private val _syncState = MutableStateFlow(LibrarySyncState.IDLE)
     val syncState: StateFlow<LibrarySyncState> = _syncState
+    private val _syncProgress = MutableStateFlow(LibrarySyncProgress())
+    val syncProgress: StateFlow<LibrarySyncProgress> = _syncProgress
 
     private val migration1To2 = object : Migration(1, 2) {
         override fun migrate(db: SupportSQLiteDatabase) {
@@ -64,31 +66,42 @@ class AppContainer(context: Context) {
         }
     }
 
-    val database: AirPlayrDatabase = Room.databaseBuilder(
-        appContext,
-        AirPlayrDatabase::class.java,
-        "airplayr.db",
-    ).addMigrations(migration1To2, migration2To3).build()
+    // Keep application construction cheap. Room, Cast and player-adjacent repositories are
+    // created only when their first consumer actually needs them, so an existing user can get
+    // a Compose frame without constructing the entire media stack on the Activity thread.
+    val database: AirPlayrDatabase by lazy {
+        Room.databaseBuilder(
+            appContext,
+            AirPlayrDatabase::class.java,
+            "airplayr.db",
+        ).addMigrations(migration1To2, migration2To3).build()
+    }
 
     val preferences = PreferencesRepository(appContext)
     val mediaStore = MediaStoreDataSource(appContext)
-    val metadata = MetadataRepository(appContext)
-    val mediaLibrary = MediaLibraryRepository(database, mediaStore, metadata)
+    val metadata: MetadataRepository by lazy { MetadataRepository(appContext) }
+    val mediaLibrary: MediaLibraryRepository by lazy { MediaLibraryRepository(database, mediaStore, metadata) }
     val safMediaScanner = SafMediaScanner(appContext)
-    val structured = com.airplayr.app.core.data.StructuredRepository(database)
-    val stats = com.airplayr.app.core.data.PlaybackStatsRepository(database)
-    val search = com.airplayr.app.core.data.search.SearchRepository(database)
-    val collections = com.airplayr.app.core.intelligence.CollectionsRepository(mediaLibrary, structured)
-    val dsp = com.airplayr.app.core.playback.dsp.DspRepository(appContext)
-    val videoController = NativeVideoController(appContext)
-    val cast = CastController(appContext)
+    val structured: com.airplayr.app.core.data.StructuredRepository by lazy { com.airplayr.app.core.data.StructuredRepository(database) }
+    val stats: com.airplayr.app.core.data.PlaybackStatsRepository by lazy { com.airplayr.app.core.data.PlaybackStatsRepository(database) }
+    val search: com.airplayr.app.core.data.search.SearchRepository by lazy { com.airplayr.app.core.data.search.SearchRepository(database) }
+    val collections: com.airplayr.app.core.intelligence.CollectionsRepository by lazy { com.airplayr.app.core.intelligence.CollectionsRepository(mediaLibrary, structured) }
+    val dsp: com.airplayr.app.core.playback.dsp.DspRepository by lazy { com.airplayr.app.core.playback.dsp.DspRepository(appContext) }
+    val videoController: NativeVideoController by lazy { NativeVideoController(appContext) }
+    val cast: CastController by lazy { CastController(appContext) }
 
     init {
-        scheduleLibraryRefresh()
+        // WorkManager setup and SAF roots are never part of the Activity's critical startup path.
+        applicationScope.launch {
+            scheduleLibraryRefresh()
+        }
         // Startup synchronization is deliberately gated by the UI permission flow.
         // Room remains the immediate source for existing users; the UI coordinator starts
         // the first full scan only after all startup permission steps have been presented.
         applicationScope.launch {
+            // SAF roots are supplemental to the already-cached MediaStore library. Returning
+            // users get a short head start; their extra roots are refreshed after Home is usable.
+            if (preferences.hasCompletedInitialLibraryScan()) kotlinx.coroutines.delay(1_200L)
             preferences.safRoots.first().forEach { root ->
                 runCatching { safMediaScanner.scanTree(android.net.Uri.parse(root), mediaLibrary) }
             }
@@ -99,14 +112,16 @@ class AppContainer(context: Context) {
      * Requests startup synchronization from an application-owned scope. Existing users receive
      * a normal delta refresh; only an uninitialized library receives the one-time full scan.
      */
-    fun requestLibrarySynchronization() {
+    fun requestLibrarySynchronization(startupDelayMs: Long = 0L) {
         applicationScope.launch {
+            if (startupDelayMs > 0L) kotlinx.coroutines.delay(startupDelayMs)
             if (!MediaPermission.granted(appContext)) return@launch
             if (!preferences.hasCompletedInitialLibraryScan()) {
                 ensureInitialLibraryScan()
             } else {
-                // Every app entry performs a lightweight delta freshness check. The
-                // Auto refresh setting controls background periodic work, not startup freshness.
+                // Existing-user launches intentionally give the first Home frame a head start.
+                // The freshness pass then runs off the UI path and updates Room underneath the
+                // already-visible Home instead of competing with its first composition.
                 _syncState.value = LibrarySyncState.DELTA
                 runCatching { mediaLibrary.deltaRefresh() }
                     .onFailure { _syncState.value = LibrarySyncState.FAILED }
@@ -125,15 +140,42 @@ class AppContainer(context: Context) {
             if (preferences.hasCompletedInitialLibraryScan()) return
 
             _syncState.value = LibrarySyncState.INITIAL_SCAN
+            _syncProgress.value = LibrarySyncProgress(visible = true, count = 0, total = 0, label = "media files", complete = false)
             try {
-                mediaLibrary.fullRescan()
+                mediaLibrary.fullRescan { found, total, label ->
+                    _syncProgress.value = LibrarySyncProgress(
+                        visible = true,
+                        count = found,
+                        total = total,
+                        label = label,
+                        complete = false,
+                    )
+                }.also { result ->
+                    val label = when {
+                        result.audioCount > 0 && result.videoCount > 0 -> "songs and videos"
+                        result.audioCount > 0 -> "songs"
+                        result.videoCount > 0 -> "videos"
+                        else -> "media files"
+                    }
+                    _syncProgress.value = LibrarySyncProgress(
+                        visible = true,
+                        count = result.audioCount + result.videoCount,
+                        total = result.audioCount + result.videoCount,
+                        label = label,
+                        complete = true,
+                    )
+                }
                 preferences.markInitialLibraryScanDone()
                 _syncState.value = LibrarySyncState.IDLE
+                kotlinx.coroutines.delay(650)
+                _syncProgress.value = LibrarySyncProgress()
             } catch (cancellation: CancellationException) {
                 _syncState.value = LibrarySyncState.FAILED
+                _syncProgress.value = LibrarySyncProgress()
                 throw cancellation
             } catch (error: Throwable) {
                 _syncState.value = LibrarySyncState.FAILED
+                _syncProgress.value = LibrarySyncProgress()
                 throw error
             }
         }
@@ -151,5 +193,13 @@ class AppContainer(context: Context) {
     }
 }
 
+
+data class LibrarySyncProgress(
+    val visible: Boolean = false,
+    val count: Int = 0,
+    val total: Int = 0,
+    val label: String = "media files",
+    val complete: Boolean = false,
+)
 
 enum class LibrarySyncState { IDLE, INITIAL_SCAN, DELTA, FAILED }

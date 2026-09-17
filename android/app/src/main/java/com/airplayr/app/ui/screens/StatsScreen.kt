@@ -32,21 +32,25 @@ import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.components.AirPlayrCard
 import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.components.AirPlayrMediaRow
+import com.airplayr.app.ui.components.AIRPLAYR_FLOATING_PLAY_BOTTOM
+import com.airplayr.app.ui.components.AIRPLAYR_FLOATING_PLAY_BOTTOM_WITH_MINI
 import com.airplayr.app.ui.components.AirPlayrScreenHeader
 import com.airplayr.app.ui.components.Artwork
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
+import com.airplayr.app.ui.playback.PlaybackController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
-fun StatsScreen(container: AppContainer, onOpenMedia: (MediaItem) -> Unit = {}, onBack: (() -> Unit)? = null) {
+fun StatsScreen(container: AppContainer, playback: PlaybackController, onOpenMedia: (MediaItem) -> Unit = {}, onOpenVideo: (String) -> Unit = {}, onBack: (() -> Unit)? = null) {
     val colors = LocalAirPlayrColors.current
     val music by container.mediaLibrary.observe(MediaType.AUDIO).collectAsStateWithLifecycle(emptyList())
     val video by container.mediaLibrary.observe(MediaType.VIDEO).collectAsStateWithLifecycle(emptyList())
     var period by rememberSaveable { mutableStateOf("month") }
     var mode by rememberSaveable { mutableStateOf("music") }
     var stats by remember { mutableStateOf<PlaybackStatsRepository.Summary?>(null) }
+    val playbackState by playback.state.collectAsStateWithLifecycle()
 
     LaunchedEffect(period, music, video) {
         stats = withContext(Dispatchers.IO) {
@@ -71,7 +75,7 @@ fun StatsScreen(container: AppContainer, onOpenMedia: (MediaItem) -> Unit = {}, 
     val watchingLabel = formatDuration(s.watchingSeconds)
     val totalLabel = formatDuration(s.listeningSeconds + s.watchingSeconds)
 
-    Column(Modifier.fillMaxSize().background(colors.background)) {
+    Box(Modifier.fillMaxSize().background(colors.background)) {
         LazyColumn(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 122.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -119,6 +123,29 @@ fun StatsScreen(container: AppContainer, onOpenMedia: (MediaItem) -> Unit = {}, 
                 )
             }
             item { StoryFooter(colors) }
+        }
+
+        val musicById = remember(music) { music.associateBy { it.id } }
+        val videoById = remember(video) { video.associateBy { it.id } }
+        val topSong = s.topSongs.asSequence().mapNotNull { musicById[it.id] }.firstOrNull()
+        val topVideo = s.topVideos.asSequence().mapNotNull { videoById[it.id] }.firstOrNull()
+        val fabTarget = topSong ?: topVideo
+        if (fabTarget != null) {
+            FloatingActionButton(
+                onClick = {
+                    if (fabTarget.mediaType == MediaType.AUDIO) {
+                        onOpenMedia(fabTarget)
+                    } else {
+                        onOpenVideo(fabTarget.id)
+                    }
+                },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 22.dp, bottom = if (playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO) AIRPLAYR_FLOATING_PLAY_BOTTOM_WITH_MINI.dp else AIRPLAYR_FLOATING_PLAY_BOTTOM.dp).size(68.dp),
+                containerColor = colors.primary,
+                contentColor = colors.onPrimary,
+                shape = RoundedCornerShape(22.dp),
+            ) {
+                Icon(Icons.Default.PlayArrow, "Play", modifier = Modifier.size(31.dp))
+            }
         }
     }
 

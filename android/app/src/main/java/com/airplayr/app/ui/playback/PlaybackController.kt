@@ -22,6 +22,9 @@ import com.airplayr.app.core.playback.queue.QueueStore
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -45,13 +48,47 @@ class PlaybackController(private val appContext: Context) : ViewModel() {
     }
 
     init {
-        connect()
+        // Existing users already have a durable playback snapshot. Read it off the UI thread
+        // first so the MiniPlayer can render immediately, then yield once before opening the
+        // MediaController connection that may start the playback service and restore ExoPlayer.
         viewModelScope.launch {
+            yield()
+            val saved = withContext(Dispatchers.IO) { runCatching { queueStore.read() }.getOrNull() }
+            publishCached(saved)
+            yield()
+            connect()
             while (isActive) {
                 controller?.let(::publish)
                 delay(500L)
             }
         }
+    }
+
+    private fun publishCached(saved: com.airplayr.app.core.playback.queue.PersistedQueueState?) {
+        if (saved == null || saved.items.isEmpty()) return
+        val currentIndex = saved.currentId?.let { id -> saved.items.indexOfFirst { it.id == id } }
+            ?.takeIf { it >= 0 }
+            ?: saved.currentIndex.coerceIn(0, saved.items.lastIndex)
+        val current = saved.items.getOrNull(currentIndex) ?: return
+        if (current.mediaType != MediaType.AUDIO) return
+        _state.value = _state.value.copy(
+            connected = false,
+            isPlaying = saved.playWhenReady,
+            positionMs = saved.positionMs.coerceAtLeast(0L),
+            durationMs = current.durationMs.coerceAtLeast(0L),
+            bufferedPositionMs = saved.positionMs.coerceAtLeast(0L),
+            currentId = current.id,
+            currentMediaType = current.mediaType,
+            currentTitle = current.title,
+            currentArtist = current.artist,
+            currentAlbum = current.album,
+            artworkUri = current.artworkUri,
+            currentQueueIndex = currentIndex,
+            queueSize = saved.items.count { it.mediaType == MediaType.AUDIO },
+            shuffle = saved.shuffle,
+            repeatMode = saved.repeatMode,
+            error = null,
+        )
     }
 
     private fun connect() {

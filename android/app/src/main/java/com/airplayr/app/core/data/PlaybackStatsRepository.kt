@@ -116,6 +116,12 @@ class PlaybackStatsRepository(private val db: AirPlayrDatabase) {
         val genres = genreMap.map { (name, counts) -> val total = counts.music + counts.video; GenreStat(name, total, counts.music, counts.video, total.toDouble() / genreTotal) }.sortedByDescending { it.plays }.take(12)
         val sessions = db.userDataDao().playbackSessions(from, Long.MAX_VALUE)
         val activity = db.userDataDao().playbackActivity(dayKey(from), dayKey(now))
+        val completionEvents = db.userDataDao().playbackEventsByType(VIDEO_COMPLETION_EVENT)
+        val completionCounts = completionEvents.groupingBy { it.mediaId }.eachCount()
+        val completedInHistory = history.filter { it.mediaType == MediaType.VIDEO.value && it.completed }.associate { it.mediaId to 1 }
+        val completedVideoCount = (completionCounts.keys + completedInHistory.keys).sumOf { id ->
+            max(completionCounts[id] ?: 0, completedInHistory[id] ?: 0)
+        }
         Summary(
             period = period,
             periodLabel = when (period) { "week" -> "This week"; "all" -> "All time"; else -> "This month" },
@@ -128,7 +134,7 @@ class PlaybackStatsRepository(private val db: AirPlayrDatabase) {
             artists = musicEvents.mapNotNull { itemMap[it.mediaId]?.artist?.takeIf(String::isNotBlank) }.distinct().size,
             albums = musicEvents.mapNotNull { itemMap[it.mediaId]?.album?.takeIf(String::isNotBlank) }.distinct().size,
             videos = videoEvents.map { it.mediaId }.distinct().size,
-            completedVideos = db.userDataDao().history(500).count { it.mediaType == MediaType.VIDEO.value && it.completed },
+            completedVideos = completedVideoCount,
             favorites = favoriteCount,
             sessions = sessions.size,
             averageSessionSeconds = if (sessions.isEmpty()) 0L else sessions.map { it.seconds }.average().toLong(),

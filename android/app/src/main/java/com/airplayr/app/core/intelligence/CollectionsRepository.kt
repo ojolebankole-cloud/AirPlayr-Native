@@ -46,7 +46,13 @@ class CollectionsRepository(private val library: MediaLibraryRepository, private
         (favorites(limit) + recentlyAdded(limit) + recentlyPlayedItems(limit)).distinctBy { it.id }.take(limit)
 
     suspend fun rediscover(limit: Int = 40): List<MediaItem> =
-        (recentlyPlayedItems(limit * 2) + mostPlayed(limit * 2)).distinctBy { it.id }.take(limit)
+        recentlyPlayedItems(limit)
+
+    suspend fun rediscoverVideos(limit: Int = 40): List<MediaItem> {
+        val history = structured.recent(limit * 3).filter { it.mediaType == MediaType.VIDEO.value }
+        val videos = library.page(MediaType.VIDEO, 250, 0).associateBy { it.id }
+        return history.mapNotNull { videos[it.mediaId] }.distinctBy { it.id }.take(limit)
+    }
 
     suspend fun tunedIn(limit: Int = 40): List<MediaItem> =
         recentlyPlayedItems(limit)

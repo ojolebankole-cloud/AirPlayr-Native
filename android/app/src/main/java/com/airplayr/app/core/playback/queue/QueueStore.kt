@@ -89,6 +89,7 @@ class QueueStore(private val context: Context) {
             item.album.orEmpty(),
             item.mediaType.value,
             item.durationMs.toString(),
+            item.artworkUri.orEmpty(),
         ).joinToString("~") { encode(it) }
     }
 
@@ -97,7 +98,9 @@ class QueueStore(private val context: Context) {
         ?.split('|')
         ?.mapNotNull { row ->
             val values = row.split('~').map(::decode)
-            if (values.size != 7 || values[0].isBlank() || values[1].isBlank()) return@mapNotNull null
+            // Backward-compatible with the previous seven-field queue format. New snapshots
+            // carry artwork so an existing user's MiniPlayer can paint immediately on relaunch.
+            if ((values.size != 7 && values.size != 8) || values[0].isBlank() || values[1].isBlank()) return@mapNotNull null
             val type = if (values[5] == "video") com.airplayr.app.core.data.media.MediaType.VIDEO else com.airplayr.app.core.data.media.MediaType.AUDIO
             MediaItem(
                 id = values[0],
@@ -117,8 +120,8 @@ class QueueStore(private val context: Context) {
                 mediaType = type,
                 mimeType = null,
                 albumId = null,
-                artworkUri = null,
-                thumbnailUri = null,
+                artworkUri = values.getOrNull(7)?.ifBlank { null },
+                thumbnailUri = values.getOrNull(7)?.ifBlank { null },
                 genre = null,
                 sourceDirectoryUri = null,
                 folderId = null,

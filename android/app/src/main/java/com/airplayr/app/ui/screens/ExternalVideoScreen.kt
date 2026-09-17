@@ -34,6 +34,10 @@ fun ExternalVideoScreen(
     val context = LocalContext.current
     var player by remember { mutableStateOf<Player?>(null) }
 
+    LaunchedEffect(Unit) {
+        com.airplayr.app.core.playback.service.AirPlayrPlaybackService.enterVideoMode()
+    }
+
     LaunchedEffect(uri) {
         container.videoController.connectAsync { ready ->
             player = ready
@@ -57,6 +61,7 @@ fun ExternalVideoScreen(
         onDispose {
             player?.pause()
             container.videoController.release()
+            com.airplayr.app.core.playback.service.AirPlayrPlaybackService.exitVideoMode()
         }
     }
 

@@ -29,9 +29,9 @@ fun LiquidGlassBackground(content: @Composable BoxScope.() -> Unit) {
     // backgroundSecondaryBlurRadiusDp for surface-level treatments. The reference
     // root does not blur the entire app canvas, so we intentionally do not
     // apply those radii here. Glass is applied only to explicit surfaces.
-    // only to the interactive surfaces that explicitly use BlurView. Keeping
-    // the root background solid also avoids an unnecessary full-screen blur.
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), content = content)
+    // only to the interactive surfaces that explicitly use BlurView. The root
+    // container itself is transparent so no separate top background layer is added.
+    Box(Modifier.fillMaxSize(), content = content)
 }
 
 @Composable

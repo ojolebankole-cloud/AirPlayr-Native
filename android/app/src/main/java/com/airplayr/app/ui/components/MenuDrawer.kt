@@ -186,7 +186,7 @@ fun MenuDrawer(
                 val title = playbackState.currentTitle ?: latest?.title ?: "Nothing playing yet"
                 val artist = playbackState.currentArtist ?: latest?.artist ?: "Start playing your library"
                 val artwork = playbackState.artworkUri ?: latest?.artworkUri
-                Box(Modifier.fillMaxWidth().height(132.dp)) {
+                Box(Modifier.fillMaxWidth().height(184.dp)) {
                     ArtworkBackdrop(artwork, Modifier.fillMaxSize(), alpha = 0.42f, scale = 1.08f)
                     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, colors.surfaceContainer.copy(alpha = 0.62f)))))
                     Row(
@@ -208,7 +208,7 @@ fun MenuDrawer(
 
                 LazyColumn(
                     Modifier.fillMaxWidth().weight(1f),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 10.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     section(entriesLibrary, "YOUR LIBRARY", colors, onClose, onNavigate, onScanMedia, { showAbout = true }, { showSupport = true })

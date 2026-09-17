@@ -51,6 +51,23 @@ class AirPlayrPlaybackService : MediaLibraryService() {
     companion object {
         const val MEDIA_NOTIFICATION_CHANNEL_ID = "airplayr_music_playback"
         const val MEDIA_NOTIFICATION_ID = 24071
+
+        @Volatile
+        private var activeInstance: AirPlayrPlaybackService? = null
+
+        /**
+         * Video playback is deliberately outside the music MediaSession. While a video is
+         * on-screen, suspend the music session playlist so Android has no music session media
+         * to surface in the notification/media-controls area. The persisted music snapshot is
+         * kept on disk so music can be resumed later by the music player.
+         */
+        fun enterVideoMode() {
+            activeInstance?.enterVideoModeInternal()
+        }
+
+        fun exitVideoMode() {
+            activeInstance?.exitVideoModeInternal()
+        }
     }
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val libraryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -65,13 +82,15 @@ class AirPlayrPlaybackService : MediaLibraryService() {
     private val secondaryEffects = AudioEffectsEngine()
     @Volatile private var currentAudioSessionId = 0
     private lateinit var localPlayer: ExoPlayer
-    private lateinit var secondaryPlayer: ExoPlayer
+    private var secondaryPlayer: ExoPlayer? = null
     private lateinit var switchingPlayer: AirPlayrSwitchingPlayer
     private lateinit var player: androidx.media3.common.Player
     private var crossfadeJob: kotlinx.coroutines.Job? = null
     private var crossfadeInProgress = false
     private var replayGainMultiplier = 1f
     private var internalVolumeWrite = false
+    @Volatile private var currentPauseAtEnd = false
+    @Volatile private var latestDspState: com.airplayr.app.core.playback.dsp.DspState? = null
     private lateinit var activePlaybackPlayer: Player
     private var lastObservedMediaId: String? = null
     private lateinit var castPlayer: CastPlayer
@@ -80,6 +99,7 @@ class AirPlayrPlaybackService : MediaLibraryService() {
     private var hydrating = true
     private var lastSnapshotSignature: Int? = null
     @Volatile private var allowBackgroundPlayback = true
+    @Volatile private var videoMode = false
     private val persistMutex = Mutex()
 
     private val mediaLibraryCallback = object : MediaLibrarySession.Callback {
@@ -284,6 +304,7 @@ class AirPlayrPlaybackService : MediaLibraryService() {
 
     override fun onCreate() {
         super.onCreate()
+        activeInstance = this
         queueStore = QueueStore(applicationContext)
         preferences = PreferencesRepository(applicationContext)
         dsp = DspRepository(applicationContext)
@@ -306,18 +327,8 @@ class AirPlayrPlaybackService : MediaLibraryService() {
             .build()
         localPlayer.addListener(localAudioSessionListener)
 
-        secondaryPlayer = ExoPlayer.Builder(applicationContext)
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                    .setUsage(C.USAGE_MEDIA)
-                    .build(),
-                true,
-            )
-            .setHandleAudioBecomingNoisy(true)
-            .setWakeMode(C.WAKE_MODE_LOCAL)
-            .build()
-        secondaryPlayer.addListener(secondaryAudioSessionListener)
+        // Crossfade needs a second player only when it is actually used. Do not allocate the
+        // second ExoPlayer on every existing-user launch when the common default is gapless/off.
 
         castPlayer = CastPlayer.Builder(applicationContext)
             .setLocalPlayer(localPlayer)
@@ -368,8 +379,9 @@ class AirPlayrPlaybackService : MediaLibraryService() {
                 .collect { state ->
                     allowBackgroundPlayback = state.backgroundPlayback
                     val pauseAtEnd = state.crossfadeSeconds > 0.0 || !state.gaplessPlayback
+                    currentPauseAtEnd = pauseAtEnd
                     localPlayer.setPauseAtEndOfMediaItems(pauseAtEnd)
-                    secondaryPlayer.setPauseAtEndOfMediaItems(pauseAtEnd)
+                    secondaryPlayer?.setPauseAtEndOfMediaItems(pauseAtEnd)
                     // Media3 requires a non-null notification provider once one is installed.
                     // Notification visibility must therefore be handled separately from provider registration.
                     setMediaNotificationProvider(mediaNotificationProvider)
@@ -393,19 +405,70 @@ class AirPlayrPlaybackService : MediaLibraryService() {
         serviceScope.launch { restoreQueue() }
         serviceScope.launch {
             dsp.state.collect { state ->
+                latestDspState = state
                 applyDspTo(localPlayer, state)
-                applyDspTo(secondaryPlayer, state)
+                secondaryPlayer?.let { applyDspTo(it, state) }
             }
         }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = mediaLibrarySession
 
+    /**
+     * Media3 normally owns notification publication. We still keep a hard guard here so a
+     * stale notification cannot be recreated while a video is active. The player playlist is
+     * also cleared when entering video mode, which is the Media3-supported way to remove the
+     * media notification/session item immediately.
+     */
+    @OptIn(UnstableApi::class)
+    override fun onUpdateNotification(session: MediaSession, startInForegroundRequired: Boolean) {
+        if (videoMode) {
+            getSystemService(android.app.NotificationManager::class.java)
+                ?.cancel(MEDIA_NOTIFICATION_ID)
+            if (android.os.Build.VERSION.SDK_INT >= 24) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION") stopForeground(true)
+            }
+            return
+        }
+        super.onUpdateNotification(session, startInForegroundRequired)
+    }
+
+    private fun enterVideoModeInternal() {
+        videoMode = true
+        if (!::player.isInitialized) return
+        serviceScope.launch {
+            // Capture the current music queue/position before detaching it from the session.
+            runCatching { persistSnapshotNow() }
+            player.pause()
+            player.clearMediaItems()
+            if (android.os.Build.VERSION.SDK_INT >= 24) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION") stopForeground(true)
+            }
+            getSystemService(android.app.NotificationManager::class.java)
+                ?.cancel(MEDIA_NOTIFICATION_ID)
+        }
+    }
+
+    private fun exitVideoModeInternal() {
+        videoMode = false
+        if (::mediaLibrarySession.isInitialized && mediaLibrarySession != null) {
+            triggerNotificationUpdate()
+        }
+    }
+
     override fun onTaskRemoved(rootIntent: Intent?) {
-        // Capture the last queue/current-item/position before the task disappears. This is
-        // needed even when playback is paused, because the normal one-second persistence loop
-        // intentionally only runs while a track is active.
+        // Capture the last queue/current-item/position before the task disappears. When
+        // background playback is disabled, pause first and persist playWhenReady=false so the
+        // cached relaunch state cannot incorrectly resurrect a track as actively playing.
         if (::player.isInitialized) {
+            if (!allowBackgroundPlayback) {
+                player.pause()
+                player.playWhenReady = false
+            }
             runCatching { kotlinx.coroutines.runBlocking { persistSnapshotNow() } }
         }
         if (allowBackgroundPlayback && player.playWhenReady) {
@@ -417,6 +480,7 @@ class AirPlayrPlaybackService : MediaLibraryService() {
     }
 
     override fun onDestroy() {
+        if (activeInstance === this) activeInstance = null
         runCatching { kotlinx.coroutines.runBlocking { stats.finish(); persistSnapshotNow() } }
         localEffects.release()
         secondaryEffects.release()
@@ -425,15 +489,36 @@ class AirPlayrPlaybackService : MediaLibraryService() {
             player.removeListener(healthMonitor)
         }
         if (::localPlayer.isInitialized) localPlayer.removeListener(localAudioSessionListener)
-        if (::secondaryPlayer.isInitialized) secondaryPlayer.removeListener(secondaryAudioSessionListener)
+        secondaryPlayer?.removeListener(secondaryAudioSessionListener)
         crossfadeJob?.cancel()
         mediaLibrarySession?.release()
         if (::castPlayer.isInitialized) castPlayer.release()
-        if (::secondaryPlayer.isInitialized) secondaryPlayer.release()
+        secondaryPlayer?.release()
+        secondaryPlayer = null
         if (::localPlayer.isInitialized) localPlayer.release()
         serviceScope.cancel()
         libraryScope.cancel()
         super.onDestroy()
+    }
+
+    private fun ensureSecondaryPlayer(): ExoPlayer {
+        secondaryPlayer?.let { return it }
+        val created = ExoPlayer.Builder(applicationContext)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .setUsage(C.USAGE_MEDIA)
+                    .build(),
+                true,
+            )
+            .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_LOCAL)
+            .build()
+        created.addListener(secondaryAudioSessionListener)
+        created.setPauseAtEndOfMediaItems(currentPauseAtEnd)
+        latestDspState?.let { applyDspTo(created, it) }
+        secondaryPlayer = created
+        return created
     }
 
     private suspend fun restoreQueue() {
@@ -489,7 +574,7 @@ class AirPlayrPlaybackService : MediaLibraryService() {
         val sessionId = target.audioSessionId
         if (sessionId > 0) {
             currentAudioSessionId = sessionId
-            val engine = if (target === secondaryPlayer) secondaryEffects else localEffects
+            val engine = if (target === secondary) secondaryEffects else localEffects
             if (engine.attach(sessionId).supported) engine.applyState(state)
         }
     }
@@ -510,7 +595,8 @@ class AirPlayrPlaybackService : MediaLibraryService() {
         crossfadeJob?.cancel()
         crossfadeJob = serviceScope.launch {
             val source = player
-            val target = if (activePlaybackPlayer === secondaryPlayer) castPlayer else secondaryPlayer
+            val secondary = ensureSecondaryPlayer()
+            val target = if (activePlaybackPlayer === secondary) castPlayer else secondary
             val nextIndex = source.nextMediaItemIndex
             val items = (0 until source.mediaItemCount).map { source.getMediaItemAt(it) }
             if (nextIndex !in items.indices) { crossfadeInProgress = false; return@launch }

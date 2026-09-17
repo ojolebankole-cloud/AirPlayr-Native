@@ -22,9 +22,9 @@ class LibraryViewModel(
     private val repository: MediaLibraryRepository,
 ) : ViewModel() {
     val audio: StateFlow<List<MediaItem>> = repository.observe(MediaType.AUDIO)
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000L), emptyList())
     val video: StateFlow<List<MediaItem>> = repository.observe(MediaType.VIDEO)
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000L), emptyList())
 
     private val _state = kotlinx.coroutines.flow.MutableStateFlow(LibraryUiState())
     val state: StateFlow<LibraryUiState> = _state
