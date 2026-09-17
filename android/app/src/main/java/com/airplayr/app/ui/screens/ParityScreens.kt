@@ -1,5 +1,7 @@
 package com.airplayr.app.ui.screens
 
+import com.airplayr.app.ui.theme.AirPlayrIcons
+
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.components.AirPlayrCard
