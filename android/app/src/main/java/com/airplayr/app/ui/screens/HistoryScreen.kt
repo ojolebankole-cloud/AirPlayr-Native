@@ -114,7 +114,7 @@ fun HistoryScreen(
                 items(songs.size, key = { "song:${songs[it].id}" }) { index ->
                     val item = songs[index]
                     val playing = playbackState.isPlaying && playbackState.currentId == item.id
-                    Row(Modifier.fillMaxWidth().clickable { playSong(item) }.padding(horizontal = 24.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(16.dp), 4.dp).clickable { playSong(item) }.padding(horizontal = 24.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Artwork(item.artworkUri ?: item.thumbnailUri, Modifier.size(64.dp), 17.dp, item.title)
                         Column(Modifier.weight(1f).padding(horizontal = 16.dp)) { Text(item.title.ifBlank { "Unknown song" }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, color = colors.textPrimary, maxLines = 1); Text(listOfNotNull(item.artist, item.durationMs.takeIf { it > 0 }?.let(::formatDuration)).joinToString("  ·  ").ifBlank { "Unknown artist" }, color = colors.textSecondary, fontSize = 13.sp, maxLines = 1) }
                         if (playing) {
@@ -123,14 +123,14 @@ fun HistoryScreen(
                     }
                 }
                 item { Text("Albums from your history", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 28.sp, color = colors.textPrimary, modifier = Modifier.padding(horizontal = 24.dp).padding(top = 25.dp, bottom = 10.dp)) }
-                item { Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) { albums.forEach { album -> Column(Modifier.width(170.dp).clickable { onNavigate("album/${Uri.encode(album.album ?: "Unknown album")}") }) { Artwork(album.artworkUri ?: album.thumbnailUri, Modifier.size(170.dp), 27.dp, album.title); Text(album.album ?: "Unknown album", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 17.sp, color = colors.textPrimary, maxLines = 1, modifier = Modifier.padding(top = 7.dp)); Text(album.artist ?: "Unknown artist", color = colors.textSecondary, fontSize = 12.sp, maxLines = 1) } } } }
+                item { Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) { albums.forEach { album -> Column(Modifier.width(170.dp).airPlayrShadow(RoundedCornerShape(18.dp), 4.dp).clickable { onNavigate("album/${Uri.encode(album.album ?: "Unknown album")}") }) { Artwork(album.artworkUri ?: album.thumbnailUri, Modifier.size(170.dp), 27.dp, album.title); Text(album.album ?: "Unknown album", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 17.sp, color = colors.textPrimary, maxLines = 1, modifier = Modifier.padding(top = 7.dp)); Text(album.artist ?: "Unknown artist", color = colors.textSecondary, fontSize = 12.sp, maxLines = 1) } } } }
             }
             fun videoSection(title: String, list: List<MediaItem>) {
                 if (list.isEmpty()) return
                 item { Text(title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 28.sp, color = colors.textPrimary, modifier = Modifier.padding(horizontal = 24.dp).padding(top = 25.dp, bottom = 10.dp)) }
                 items(list.size, key = { "video:${title}:${list[it].id}" }) { index ->
                     val item = list[index]
-                    Row(Modifier.fillMaxWidth().clickable { onOpenVideo(item.id) }.padding(horizontal = 24.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(16.dp), 4.dp).clickable { onOpenVideo(item.id) }.padding(horizontal = 24.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Artwork(item.thumbnailUri ?: item.uri, Modifier.width(122.dp).height(69.dp), 13.dp, item.title, MediaType.VIDEO, AirPlayrIcons.Video)
                         Column(Modifier.weight(1f).padding(horizontal = 14.dp)) { Text(item.title.ifBlank { "Video" }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, color = colors.textPrimary, maxLines = 1); Text("${item.artist ?: "Video"}${if (item.durationMs > 0) "  ·  ${formatDuration(item.durationMs)}" else ""}", color = colors.textSecondary, fontSize = 13.sp, maxLines = 1) }
                         IconButton(onClick = { selected = item }) { Icon(Icons.Default.MoreVert, "Video options", tint = colors.primary) }
@@ -141,7 +141,7 @@ fun HistoryScreen(
             videoSection("Completed watching", completedVideos)
         }
 
-        if (songs.isNotEmpty()) FloatingActionButton(onClick = { playSong(songs.first()) }, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = if (playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO) AIRPLAYR_FLOATING_PLAY_BOTTOM_WITH_MINI.dp else AIRPLAYR_FLOATING_PLAY_BOTTOM.dp), containerColor = colors.primary, contentColor = colors.onPrimary, shape = RoundedCornerShape(22.dp)) { Icon(Icons.Default.PlayArrow, "Play history", modifier = Modifier.size(31.dp)) }
+        if (songs.isNotEmpty()) FloatingActionButton(onClick = { playSong(songs.first()) }, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = if (playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO) AIRPLAYR_FLOATING_PLAY_BOTTOM_WITH_MINI.dp else AIRPLAYR_FLOATING_PLAY_BOTTOM.dp), containerColor = colors.primary, contentColor = colors.onPrimary, shape = RoundedCornerShape(22.dp), elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 10.dp)) { Icon(Icons.Default.PlayArrow, "Play history", modifier = Modifier.size(31.dp)) }
     }
 
     if (headerMenu) {

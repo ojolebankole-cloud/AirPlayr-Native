@@ -1,5 +1,7 @@
 package com.airplayr.app.ui.theme
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.PathFillType
@@ -48,35 +50,7 @@ object AirPlayrIcons {
         }.build()
 
     val Music: ImageVector
-        get() = ImageVector.Builder(
-            name = "AirPlayrMusic",
-            defaultWidth = 30.dp,
-            defaultHeight = 30.dp,
-            viewportWidth = 28f,
-            viewportHeight = 28f,
-        ).apply {
-            path(
-                fill = SolidColor(Color.White),
-                pathFillType = PathFillType.NonZero,
-            ) {
-                moveTo(12.2f, 5.2f)
-                verticalLineTo(17.3f)
-                curveTo(11.0f, 16.2f, 9.3f, 15.6f, 8.3f, 16.3f)
-                curveTo(6.9f, 17.3f, 6.9f, 19.3f, 8.3f, 20.2f)
-                curveTo(9.6f, 21.1f, 11.8f, 20.5f, 12.2f, 18.7f)
-                verticalLineTo(7.3f)
-                lineTo(23.4f, 5f)
-                verticalLineTo(15.1f)
-                curveTo(22.2f, 14f, 20.5f, 13.4f, 19.5f, 14.1f)
-                curveTo(18.1f, 15.1f, 18.1f, 17.1f, 19.5f, 18f)
-                curveTo(20.8f, 18.9f, 23f, 18.3f, 23.4f, 16.5f)
-                verticalLineTo(8.4f)
-                lineTo(17.4f, 9.63f)
-                verticalLineTo(5.2f)
-                lineTo(12.2f, 5.2f)
-                close()
-            }
-        }.build()
+        get() = Icons.Default.LibraryMusic
 
     val Video: ImageVector
         get() = ImageVector.Builder(

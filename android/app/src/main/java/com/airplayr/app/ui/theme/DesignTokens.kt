@@ -31,12 +31,6 @@ object AirPlayrElevation {
     val medium: Dp = 8.dp
 }
 
-object AirPlayrGlass {
-    const val surfaceAlpha = 0.72f
-    const val borderAlpha = 0.18f
-    const val backgroundBlurRadiusDp = 72f
-    const val backgroundSecondaryBlurRadiusDp = 96f
-}
 
 object AirPlayrMotion {
     const val sheetOpenMs = 320

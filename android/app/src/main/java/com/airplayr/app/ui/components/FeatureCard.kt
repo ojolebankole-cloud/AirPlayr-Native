@@ -5,11 +5,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
 import androidx.core.graphics.ColorUtils
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -178,21 +173,14 @@ fun AirPlayrFeatureCard(eyebrow: String, title: String, imageRes: Int, gradient:
     val currentPhase = phase(now.get(Calendar.HOUR_OF_DAY))
     val seed = "$wallpaper:$sessionSeed"
     val p = remember(kind, currentPhase, seed, dark, colors.primary, colors.secondary, colors.tertiary, colors.surface, colors.surfaceContainerLow, colors.surfaceContainerHigh, colors.surfaceContainerHighest) { palette(kind, currentPhase, seed, dark, colors.primary, colors.secondary, colors.tertiary, colors.surface, colors.surfaceContainerLow, colors.surfaceContainerHigh, colors.surfaceContainerHighest) }
-    val transition = rememberInfiniteTransition(label = "feature-card")
-    val x by transition.animateFloat(-26f, 30f, infiniteRepeatable(tween(6200), RepeatMode.Reverse), label = "x")
-    val y by transition.animateFloat(-18f, 28f, infiniteRepeatable(tween(8200), RepeatMode.Reverse), label = "y")
-    val drift by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(9800), RepeatMode.Reverse), label = "drift")
     val width = (configuration.screenWidthDp * .49f).coerceIn(178f, 196f).dp
     val height = (width.value * 1.39f).dp
     val artworkKey = when (imageRes) { com.airplayr.app.R.drawable.headphone_amico -> "headphone_amico"; com.airplayr.app.R.drawable.recording_pana -> "recording_pana"; com.airplayr.app.R.drawable.music_cuate -> "music_cuate"; com.airplayr.app.R.drawable.dj_boy_cuate -> "dj_boy_cuate"; com.airplayr.app.R.drawable.media_player_bro -> "media_player_bro"; com.airplayr.app.R.drawable.playing_music_bro -> "playing_music_bro"; com.airplayr.app.R.drawable.playlist_pana -> "playlist_pana"; else -> "" }
     val artwork = rememberRecoloredArtwork(imageRes, artworkKey, p)
     val titleFont = when (kind) { "rock" -> AirPlayrFonts.DancingScript; "playlists" -> AirPlayrFonts.ShadowsIntoLight; "rediscover" -> AirPlayrFonts.Oswald; else -> AirPlayrFonts.SmoochSans }
     Box(Modifier.width(width).height(height).clip(RoundedCornerShape(27.dp)).airPlayrShadow(RoundedCornerShape(27.dp), 10.dp).clickable(onClick = onClick)) {
+        // One smooth Material-compatible gradient with no stacked overlays or transition seams.
         Box(Modifier.fillMaxSize().background(Brush.linearGradient(p.gradient, start = androidx.compose.ui.geometry.Offset(0f, 0f), end = androidx.compose.ui.geometry.Offset(1000f, 1000f))))
-        Box(Modifier.fillMaxSize().alpha(drift.let { kotlin.math.sin(it * Math.PI).toFloat() * .72f })) { Box(Modifier.fillMaxSize().background(Brush.linearGradient(p.alternate, start = androidx.compose.ui.geometry.Offset(1f,0f), end = androidx.compose.ui.geometry.Offset(0f,1f)))) }
-        Box(Modifier.size(190.dp).offset(x = (-56).dp + x.dp, y = 18.dp + y.dp).alpha(.20f).background(p.gradient[1], CircleShape))
-        Box(Modifier.size(170.dp).align(Alignment.BottomEnd).offset(x=(-48).dp,y=(-62).dp).alpha(.18f).background(p.gradient[2], CircleShape))
-        Box(Modifier.fillMaxSize().background(Color.White.copy(alpha=.10f)))
         if (artwork != null) Image(artwork, title, Modifier.fillMaxWidth().height(height*.64f).padding(10.dp).align(Alignment.TopCenter)) else Image(painterResource(imageRes), title, Modifier.fillMaxWidth().height(height*.64f).padding(10.dp).align(Alignment.TopCenter))
         if (kind in setOf("morning","afternoon","night")) Text(digitalTime(now), color=p.ink.copy(alpha=.78f), fontSize=12.sp, lineHeight=16.sp, fontWeight=FontWeight.Medium, modifier=Modifier.align(Alignment.TopEnd).padding(top=16.dp,end=17.dp))
         Column(Modifier.align(Alignment.BottomStart).padding(start=17.dp,end=16.dp,bottom=17.dp)) {

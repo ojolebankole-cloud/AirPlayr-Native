@@ -13,6 +13,8 @@ import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.CastConnected
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -28,7 +30,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.mediarouter.app.MediaRouteButton
 import com.google.android.gms.cast.framework.CastButtonFactory
 import com.airplayr.app.core.cast.CastController
-import com.airplayr.app.ui.components.LiquidGlassSurface
 
 @Composable
 fun CastPickerSheet(
@@ -37,9 +38,11 @@ fun CastPickerSheet(
 ) {
     val status by controller.status.collectAsState()
     LaunchedEffect(Unit) { controller.start() }
-    LiquidGlassSurface(
+    Card(
         modifier = Modifier.fillMaxWidth().padding(14.dp),
         shape = RoundedCornerShape(30.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -49,10 +52,11 @@ fun CastPickerSheet(
                 }
                 IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Close") }
             }
-            LiquidGlassSurface(
+            Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
-                tint = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.72f),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) {
                 Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Icon(if (status.connected) Icons.Default.CastConnected else Icons.Default.Cast, null, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)

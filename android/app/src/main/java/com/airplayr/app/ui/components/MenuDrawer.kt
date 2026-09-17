@@ -40,6 +40,8 @@ import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.outlined.QueueMusic
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.ShowChart
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -150,7 +152,7 @@ fun MenuDrawer(
                 .clickable(onClick = onClose),
         )
 
-        LiquidGlassSurface(
+        Card(
             modifier = Modifier
                 .fillMaxHeight()
                 .width(drawerWidth)
@@ -177,8 +179,8 @@ fun MenuDrawer(
                 topStart = 0.dp,
                 bottomStart = 0.dp,
             ),
-            tint = colors.surfaceContainer.copy(alpha = 0.94f),
-            elevation = 18.dp,
+            colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer.copy(alpha = 0.94f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 18.dp),
         ) {
             Column(Modifier.fillMaxSize()) {
                 val isPlaying = playbackState.isPlaying && playbackState.currentId != null
@@ -214,7 +216,7 @@ fun MenuDrawer(
                     section(entriesPlayback, "PLAYBACK", colors, onClose, onNavigate, onScanMedia, { showAbout = true }, { showSupport = true })
                     section(entriesInsights, "INSIGHTS & TOOLS", colors, onClose, onNavigate, onScanMedia, { showAbout = true }, { showSupport = true })
                     section(entriesAirPlayr, "AIR PLAYR", colors, onClose, onNavigate, onScanMedia, { showAbout = true }, { showSupport = true })
-                    item { GlassInfoCard("Made for your media", "Music first. Video when you want it.", colors) }
+                    item { MaterialInfoCard("Made for your media", "Music first. Video when you want it.", colors) }
                 }
             }
         }
@@ -282,7 +284,7 @@ private fun DrawerRow(item: MenuEntry, colors: com.airplayr.app.ui.theme.AirPlay
 }
 
 @Composable
-private fun GlassInfoCard(title: String, subtitle: String, colors: com.airplayr.app.ui.theme.AirPlayrColors) {
+private fun MaterialInfoCard(title: String, subtitle: String, colors: com.airplayr.app.ui.theme.AirPlayrColors) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 14.dp)
             .background(colors.primaryContainer, androidx.compose.foundation.shape.RoundedCornerShape(20.dp))

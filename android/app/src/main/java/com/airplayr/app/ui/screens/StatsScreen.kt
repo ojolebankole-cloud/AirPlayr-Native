@@ -144,6 +144,7 @@ fun StatsScreen(container: AppContainer, playback: PlaybackController, onOpenMed
                 containerColor = colors.primary,
                 contentColor = colors.onPrimary,
                 shape = RoundedCornerShape(22.dp),
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 10.dp),
             ) {
                 Icon(Icons.Default.PlayArrow, "Play", modifier = Modifier.size(31.dp))
             }

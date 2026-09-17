@@ -15,6 +15,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +25,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Snackbar
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.airplayr.app.di.AppContainer
@@ -59,7 +61,6 @@ import com.airplayr.app.ui.diagnostics.DiagnosticsScreen
 import com.airplayr.app.ui.theme.AirPlayrTheme
 import com.airplayr.app.ui.components.AirPlayrBottomDock
 import com.airplayr.app.ui.components.AirPlayrMiniPlayerOnly
-import com.airplayr.app.ui.components.LiquidGlassBackground
 import com.airplayr.app.ui.components.WhatsNewSheet
 import kotlinx.coroutines.launch
 import com.airplayr.app.ui.permissions.StartupPermissionFlow
@@ -168,15 +169,15 @@ fun AirPlayrApp(
                 val controller = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
                 controller.isAppearanceLightStatusBars = !darkTheme
                 controller.isAppearanceLightNavigationBars = !darkTheme
+                window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(MaterialTheme.colorScheme.background.toArgb()))
                 if (android.os.Build.VERSION.SDK_INT >= 29) {
                     window.isNavigationBarContrastEnforced = false
                 }
             }
         }
-        LiquidGlassBackground {
         val entry by navController.currentBackStackEntryAsState()
         val destination = entry?.destination
-        Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             val currentRoute = destination?.route
             val primaryDockRoutes = remember {
                 setOf("home", "music", "videos", "settings")
@@ -382,5 +383,4 @@ fun AirPlayrApp(
             }
         }
     }
-}
 }

@@ -183,6 +183,7 @@ fun FeatureCollectionScreen(
             contentColor = colors.onPrimary,
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 22.dp, bottom = if (playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO) AIRPLAYR_FLOATING_PLAY_BOTTOM_WITH_MINI.dp else AIRPLAYR_FLOATING_PLAY_BOTTOM.dp).size(68.dp),
             shape = RoundedCornerShape(22.dp),
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 10.dp),
         ) { Icon(Icons.Default.PlayArrow, "Play mix", modifier = Modifier.size(31.dp)) }
         if (menuOpen) {
             ModalBottomSheet(onDismissRequest = { menuOpen = false }, containerColor = colors.surfaceContainerLow) {
@@ -354,6 +355,7 @@ fun BrowseFilterScreen(
                 containerColor = colors.primary,
                 contentColor = colors.onPrimary,
                 shape = RoundedCornerShape(22.dp),
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 10.dp),
             ) {
                 Icon(Icons.Default.PlayArrow, "Play", modifier = Modifier.size(31.dp))
             }
@@ -430,6 +432,7 @@ fun RecentScreen(
                 containerColor = com.airplayr.app.ui.theme.LocalAirPlayrColors.current.primary,
                 contentColor = com.airplayr.app.ui.theme.LocalAirPlayrColors.current.onPrimary,
                 shape = RoundedCornerShape(22.dp),
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 10.dp),
             ) {
                 Icon(Icons.Default.PlayArrow, "Play", modifier = Modifier.size(31.dp))
             }
@@ -595,6 +598,7 @@ fun PlaylistDetailScreen(
                 containerColor = colors.primary,
                 contentColor = colors.onPrimary,
                 shape = RoundedCornerShape(22.dp),
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 10.dp),
             ) {
                 Icon(Icons.Default.PlayArrow, "Play playlist", modifier = Modifier.size(31.dp))
             }

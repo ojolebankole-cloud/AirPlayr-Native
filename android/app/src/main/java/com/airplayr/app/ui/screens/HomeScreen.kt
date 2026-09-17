@@ -334,7 +334,7 @@ private fun StatsCardPreview(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 18.dp, vertical = 0.dp)
-            .padding(top = 24.dp)
+            .padding(top = 24.dp, bottom = 16.dp)
             .alpha(if (pressed) 0.94f else 1f)
             .shadow(
                 elevation = 6.dp,
@@ -471,10 +471,12 @@ private fun formatExpoListeningTime(totalSeconds: Long): String {
 @Composable private fun HorizontalAlbumRail(groups: List<Pair<String,List<MediaItem>>>, onNavigate: (String) -> Unit) {
     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         groups.forEach { (name, songs) ->
-            Column(Modifier.width(164.dp).clickable { onNavigate("album/${java.net.URLEncoder.encode(name, "UTF-8")}") }) {
+            androidx.compose.material3.Surface(Modifier.width(164.dp), shape = RoundedCornerShape(18.dp), color = Color.Transparent, shadowElevation = 5.dp) {
+                Column(Modifier.fillMaxWidth().clickable { onNavigate("album/${java.net.URLEncoder.encode(name, "UTF-8")}") }) {
                 Artwork(songs.firstOrNull()?.artworkUri, Modifier.size(164.dp), 18.dp, name)
                 Text(name, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 17.sp, color = LocalAirPlayrColors.current.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
                 Text(songs.firstOrNull()?.artist ?: "Unknown artist", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = LocalAirPlayrColors.current.textPrimary, maxLines = 1)
+                }
             }
         }
     }
@@ -483,9 +485,11 @@ private fun formatExpoListeningTime(totalSeconds: Long): String {
 @Composable private fun HorizontalArtistRail(groups: List<Pair<String,List<MediaItem>>>, onNavigate: (String) -> Unit) {
     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         groups.forEach { (name, songs) ->
-            Column(Modifier.width(132.dp).clickable { onNavigate("artist/${java.net.URLEncoder.encode(name, "UTF-8")}") }, horizontalAlignment = Alignment.CenterHorizontally) {
+            androidx.compose.material3.Surface(Modifier.width(132.dp), shape = RoundedCornerShape(18.dp), color = Color.Transparent, shadowElevation = 5.dp) {
+                Column(Modifier.fillMaxWidth().clickable { onNavigate("artist/${java.net.URLEncoder.encode(name, "UTF-8")}") }, horizontalAlignment = Alignment.CenterHorizontally) {
                 Artwork(songs.firstOrNull()?.artworkUri, Modifier.size(120.dp), 60.dp, name)
                 Text(name, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 13.sp, color = LocalAirPlayrColors.current.textPrimary, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+                }
             }
         }
     }

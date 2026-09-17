@@ -2,8 +2,10 @@ package com.airplayr.app.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -19,6 +21,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.Modifier
 
 private val AirPlayrDarkFallback = darkColorScheme(
     primary = Color(0xFFD0BCFF),
@@ -147,7 +150,14 @@ fun AirPlayrTheme(
         MaterialTheme(
             colorScheme = accessibleScheme,
             typography = AirPlayrTypography,
-            content = content,
-        )
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background,
+                contentColor = MaterialTheme.colorScheme.onBackground,
+            ) {
+                content()
+            }
+        }
     }
 }

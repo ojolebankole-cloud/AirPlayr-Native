@@ -1,11 +1,11 @@
 package com.airplayr.app.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -32,17 +32,11 @@ fun AirPlayrCard(
     content: @Composable () -> Unit,
 ) {
     val clickModifier = onClick?.let { modifier.clickable(onClick = it) } ?: modifier
-    Box(
-        clickModifier
-            .shadow(
-                elevation = elevation,
-                shape = shape,
-                ambientColor = Color.Black.copy(alpha = 0.14f),
-                spotColor = Color.Black.copy(alpha = 0.18f),
-                clip = false,
-            )
-            .clip(shape)
-            .background(containerColor)
+    Card(
+        modifier = clickModifier,
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = elevation),
     ) { content() }
 }
 
