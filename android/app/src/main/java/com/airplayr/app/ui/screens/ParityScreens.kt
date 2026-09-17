@@ -229,7 +229,7 @@ fun FeatureCollectionScreen(
 private fun FeatureHero(item: MediaItem, title: String?, subtitle: String, badge: String, colors: com.airplayr.app.ui.theme.AirPlayrColors, onPlay: () -> Unit, onShuffle: () -> Unit) {
     val art = item.displayArtworkUri()
     Box(Modifier.fillMaxWidth().height(360.dp).padding(horizontal = 22.dp).clip(RoundedCornerShape(30.dp)).airPlayrShadow(RoundedCornerShape(30.dp), 6.dp).clickable { onPlay() }) {
-        if (art != null) com.airplayr.app.ui.components.Artwork(art, Modifier.fillMaxSize(), 30.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO)  else )
+        if (art != null) com.airplayr.app.ui.components.Artwork(art, Modifier.fillMaxSize(), 30.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music)
         else Box(Modifier.fillMaxSize().background(colors.primaryContainer))
         Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = .42f)))
         Column(Modifier.fillMaxSize().padding(22.dp)) {
@@ -249,7 +249,7 @@ private fun FeatureHero(item: MediaItem, title: String?, subtitle: String, badge
 private fun FeatureMediaRow(item: MediaItem, colors: com.airplayr.app.ui.theme.AirPlayrColors, onPlay: () -> Unit, onMore: () -> Unit) {
     AirPlayrCard(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 5.dp), shape = RoundedCornerShape(22.dp), containerColor = colors.surfaceContainer, elevation = 5.dp) {
         Row(Modifier.fillMaxWidth().clickable(onClick = onPlay).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            com.airplayr.app.ui.components.Artwork(item.displayArtworkUri(), Modifier.size(82.dp), 18.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO)  else )
+            com.airplayr.app.ui.components.Artwork(item.displayArtworkUri(), Modifier.size(82.dp), 18.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music)
             Column(Modifier.weight(1f).padding(horizontal = 13.dp)) { Text(item.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 17.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(item.artist ?: if (item.mediaType == MediaType.VIDEO) "Video" else "Unknown artist", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary, maxLines = 1, modifier = Modifier.padding(top = 2.dp)) }
             IconButton(onClick = onMore) { Icon(Icons.Default.MoreVert, "Options", tint = colors.primary) }
         }

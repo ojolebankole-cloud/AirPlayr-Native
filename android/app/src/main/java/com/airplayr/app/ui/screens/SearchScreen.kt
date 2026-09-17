@@ -417,7 +417,7 @@ fun SearchScreen(
 
     detailsSheet?.let { item ->
         AirPlayrSheetScaffold("Details", "MEDIA", onDismiss = { detailsSheet = null }) {
-            Artwork(item.displayArtworkUri(), Modifier.size(92.dp), 18.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO)  else )
+            Artwork(item.displayArtworkUri(), Modifier.size(92.dp), 18.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music)
             Text(item.title, style = MaterialTheme.typography.titleLarge)
             Text(listOfNotNull(item.artist, item.album, item.genre).joinToString(" • ").ifBlank { item.filename }, color = colors.textSecondary)
             Text("${item.sizeBytes / 1024 / 1024} MB · ${item.durationMs / 1000}s", color = colors.textSecondary)
@@ -539,7 +539,7 @@ private fun SearchActionSheet(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Artwork(item.displayArtworkUri(), Modifier.size(64.dp), 14.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO)  else )
+            Artwork(item.displayArtworkUri(), Modifier.size(64.dp), 14.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music)
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(item.title.ifBlank { if (isVideo) "Video" else "Song" }, color = colors.textPrimary, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
