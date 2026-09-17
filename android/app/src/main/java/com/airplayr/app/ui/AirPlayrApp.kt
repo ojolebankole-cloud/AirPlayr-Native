@@ -163,13 +163,18 @@ fun AirPlayrApp(
 
     AirPlayrTheme(darkTheme = darkTheme, highContrast = settings?.highContrast == true) {
         val context = LocalContext.current
+        // Read the composable theme value before entering SideEffect.
+        // SideEffect itself is not a composable context.
+        val windowBackgroundColor = MaterialTheme.colorScheme.background.toArgb()
         SideEffect {
             val activity = context as? android.app.Activity
             activity?.window?.let { window ->
                 val controller = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
                 controller.isAppearanceLightStatusBars = !darkTheme
                 controller.isAppearanceLightNavigationBars = !darkTheme
-                window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(MaterialTheme.colorScheme.background.toArgb()))
+                window.setBackgroundDrawable(
+                    android.graphics.drawable.ColorDrawable(windowBackgroundColor)
+                )
                 if (android.os.Build.VERSION.SDK_INT >= 29) {
                     window.isNavigationBarContrastEnforced = false
                 }
