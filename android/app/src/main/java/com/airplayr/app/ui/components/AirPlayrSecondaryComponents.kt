@@ -9,8 +9,6 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -65,7 +63,7 @@ fun AirPlayrMediaRow(
         Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(horizontal = 24.dp, vertical = if (compact) 6.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Artwork(item.displayArtworkUri(), Modifier.size(if (compact) 58.dp else 64.dp), if (item.mediaType == MediaType.VIDEO) 13.dp else 16.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) androidx.compose.material.icons.filled.VideoLibrary else androidx.compose.material.icons.filled.MusicNote)
+        Artwork(item.displayArtworkUri(), Modifier.size(if (compact) 58.dp else 64.dp), if (item.mediaType == MediaType.VIDEO) 13.dp else 16.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO)  else )
         Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
             Text(item.title.ifBlank { item.filename }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = if (compact) 16.sp else 18.sp, lineHeight = if (compact) 21.sp else 23.sp, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
@@ -90,7 +88,7 @@ fun AirPlayrMediaRow(
 fun AirPlayrSectionEmpty(title: String, message: String) {
     val c = LocalAirPlayrColors.current
     Column(Modifier.fillMaxWidth().padding(horizontal = 36.dp, vertical = 56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(Icons.Default.MusicNote, null, Modifier.size(42.dp), tint = c.primary)
+        Icon(AirPlayrIcons.Music, null, Modifier.size(42.dp), tint = c.primary)
         Text(title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 26.sp, color = c.textPrimary, modifier = Modifier.padding(top = 16.dp))
         Text(message, fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, lineHeight = 20.sp, color = c.textPrimary, modifier = Modifier.padding(top = 7.dp))
     }

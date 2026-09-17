@@ -1,5 +1,6 @@
 package com.airplayr.app.ui.components
 
+import com.airplayr.app.ui.theme.AirPlayrIcons
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -85,7 +86,7 @@ fun HistoryFavoriteActionSheet(
                 }
                 ActionGroup {
                     ActionButton("Tag editor", Icons.Default.Edit, onEdit)
-                    ActionButton("Edit lyrics", Icons.Default.MusicNote, onLyrics)
+                    ActionButton("Edit lyrics", AirPlayrIcons.Music, onLyrics)
                 }
             }
             ActionGroup {

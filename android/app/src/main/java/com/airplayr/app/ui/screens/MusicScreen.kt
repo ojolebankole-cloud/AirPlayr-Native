@@ -1,7 +1,6 @@
 package com.airplayr.app.ui.screens
 
 import androidx.compose.material.icons.filled.LibraryMusic
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.clickable
@@ -385,7 +384,7 @@ private fun PlaylistCard(
         ) {
             if (arts.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.MusicNote, null, Modifier.size(42.dp), tint = colors.primary)
+                    Icon(AirPlayrIcons.Music, null, Modifier.size(42.dp), tint = colors.primary)
                 }
             } else {
                 androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {

@@ -24,8 +24,6 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Replay
@@ -231,7 +229,7 @@ fun FeatureCollectionScreen(
 private fun FeatureHero(item: MediaItem, title: String?, subtitle: String, badge: String, colors: com.airplayr.app.ui.theme.AirPlayrColors, onPlay: () -> Unit, onShuffle: () -> Unit) {
     val art = item.displayArtworkUri()
     Box(Modifier.fillMaxWidth().height(360.dp).padding(horizontal = 22.dp).clip(RoundedCornerShape(30.dp)).airPlayrShadow(RoundedCornerShape(30.dp), 6.dp).clickable { onPlay() }) {
-        if (art != null) com.airplayr.app.ui.components.Artwork(art, Modifier.fillMaxSize(), 30.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) androidx.compose.material.icons.filled.VideoLibrary else androidx.compose.material.icons.filled.MusicNote)
+        if (art != null) com.airplayr.app.ui.components.Artwork(art, Modifier.fillMaxSize(), 30.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO)  else )
         else Box(Modifier.fillMaxSize().background(colors.primaryContainer))
         Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = .42f)))
         Column(Modifier.fillMaxSize().padding(22.dp)) {
@@ -251,7 +249,7 @@ private fun FeatureHero(item: MediaItem, title: String?, subtitle: String, badge
 private fun FeatureMediaRow(item: MediaItem, colors: com.airplayr.app.ui.theme.AirPlayrColors, onPlay: () -> Unit, onMore: () -> Unit) {
     AirPlayrCard(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 5.dp), shape = RoundedCornerShape(22.dp), containerColor = colors.surfaceContainer, elevation = 5.dp) {
         Row(Modifier.fillMaxWidth().clickable(onClick = onPlay).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            com.airplayr.app.ui.components.Artwork(item.displayArtworkUri(), Modifier.size(82.dp), 18.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) androidx.compose.material.icons.filled.VideoLibrary else androidx.compose.material.icons.filled.MusicNote)
+            com.airplayr.app.ui.components.Artwork(item.displayArtworkUri(), Modifier.size(82.dp), 18.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO)  else )
             Column(Modifier.weight(1f).padding(horizontal = 13.dp)) { Text(item.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 17.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(item.artist ?: if (item.mediaType == MediaType.VIDEO) "Video" else "Unknown artist", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary, maxLines = 1, modifier = Modifier.padding(top = 2.dp)) }
             IconButton(onClick = onMore) { Icon(Icons.Default.MoreVert, "Options", tint = colors.primary) }
         }
@@ -470,14 +468,15 @@ fun MyPlaylistsScreen(container: AppContainer, playback: PlaybackController, onO
         }
     }
     var exportPlaylist by remember { mutableStateOf<com.airplayr.app.core.data.db.MusicPlaylistEntity?>(null) }
-    val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("audio/x-mpegurl")) { uri ->
-        val p=exportPlaylist; exportPlaylist=null
-        if (uri != null && p != null) scope.launch { runCatching { val content="#EXTM3U\n"+itemsOf(p).joinToString("\n") { "#EXTINF:${it.durationMs/1000},${it.title} - ${it.artist.orEmpty()}\n${it.uri}" }+"\n"; context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(content) }; com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Playlist saved.") }.onFailure { com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("The playlist could not be saved.") } }
-    }
     val idMap by produceState(initialValue = emptyMap<String, List<MediaItem>>(), playlists, library) {
         value = playlists.associate { p -> p.id to runCatching { container.structured.playlistIds(p.id).mapNotNull { id -> library.firstOrNull { it.id == id } } }.getOrDefault(emptyList()) }
     }
     fun itemsOf(p: com.airplayr.app.core.data.db.MusicPlaylistEntity) = idMap[p.id].orEmpty()
+
+    val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("audio/x-mpegurl")) { uri ->
+        val p=exportPlaylist; exportPlaylist=null
+        if (uri != null && p != null) scope.launch { runCatching { val content="#EXTM3U\n"+itemsOf(p).joinToString("\n") { "#EXTINF:${it.durationMs/1000},${it.title} - ${it.artist.orEmpty()}\n${it.uri}" }+"\n"; context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(content) }; com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Playlist saved.") }.onFailure { com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("The playlist could not be saved.") } }
+    }
     fun createOrRename() {
         val n = dialogName.trim().ifBlank { "New playlist" }
         scope.launch {

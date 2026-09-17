@@ -1,5 +1,6 @@
 package com.airplayr.app.ui.components
 
+import com.airplayr.app.ui.theme.AirPlayrIcons
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,11 +17,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.LibraryMusic
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShowChart
-import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
@@ -39,12 +38,12 @@ private data class FeatureSection(val title: String, val icon: ImageVector, val 
 @Composable
 fun WhatsNewSheet(version: String, onDismiss: () -> Unit) {
     val sections = listOf(
-        FeatureSection("MUSIC PLAYER", Icons.Default.MusicNote, listOf(
+        FeatureSection("MUSIC PLAYER", AirPlayrIcons.Music, listOf(
             "Shuffle, repeat, favorites, queue and playback controls stay within reach.",
             "Adjust playback speed and pitch, start a sleep timer and preserve your preferred playback behavior.",
             "Open lyrics, edit song tags and add music to playlists without leaving the player.",
         )),
-        FeatureSection("VIDEO PLAYBACK", Icons.Default.VideoLibrary, listOf(
+        FeatureSection("VIDEO PLAYBACK", AirPlayrIcons.Video, listOf(
             "Browse your video library and keep playback controls close while you watch.",
             "Use subtitles, playback speed and device output controls when supported by the media.",
         )),

@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -496,7 +497,7 @@ private fun formatExpoListeningTime(totalSeconds: Long): String {
         items.forEach { item ->
             AirPlayrCard(Modifier.width(196.dp), shape = RoundedCornerShape(18.dp), containerColor = c.surfaceSolid, elevation = 5.dp, onClick = { onNavigate("video/${item.id}") }) {
                 Column {
-                    Artwork(item.thumbnailUri ?: item.uri, Modifier.fillMaxWidth().height(110.dp), 18.dp, item.title, MediaType.VIDEO, Icons.Default.VideoLibrary)
+                    Artwork(item.thumbnailUri ?: item.uri, Modifier.fillMaxWidth().height(110.dp), 18.dp, item.title, MediaType.VIDEO, AirPlayrIcons.Video)
                     Text(item.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 15.sp, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(8.dp))
                 }
             }

@@ -1,5 +1,6 @@
 package com.airplayr.app.ui.components
 
+import com.airplayr.app.ui.theme.AirPlayrIcons
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.height
@@ -36,11 +37,9 @@ import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LibraryMusic
-import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.QueueMusic
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.ShowChart
-import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -127,8 +126,8 @@ fun MenuDrawer(
     val entriesLibrary = listOf(
         MenuEntry("Library", Icons.Outlined.LibraryMusic, "home", "${musicCount + videoCount}"),
         MenuEntry("Folders", Icons.Outlined.FolderOpen, "folders", "$folderCount folders"),
-        MenuEntry("Music", Icons.Outlined.MusicNote, "music", "$musicCount songs"),
-        MenuEntry("Videos", Icons.Outlined.VideoLibrary, "videos", "$videoCount videos"),
+        MenuEntry("Music", AirPlayrIcons.Music, "music", "$musicCount songs"),
+        MenuEntry("Videos", AirPlayrIcons.Video, "videos", "$videoCount videos"),
     )
     val entriesPlayback = listOf(
         MenuEntry("Playing queue", Icons.Outlined.QueueMusic, "queue"),
@@ -291,7 +290,7 @@ private fun GlassInfoCard(title: String, subtitle: String, colors: com.airplayr.
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(34.dp).background(colors.surfaceContainerHigh, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
-            Icon(Icons.Outlined.MusicNote, null, tint = colors.primary, modifier = Modifier.size(18.dp))
+            Icon(AirPlayrIcons.Music, null, tint = colors.primary, modifier = Modifier.size(18.dp))
         }
         Column(Modifier.weight(1f).padding(start = 10.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall)

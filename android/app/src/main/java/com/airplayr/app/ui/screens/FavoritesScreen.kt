@@ -1,5 +1,6 @@
 package com.airplayr.app.ui.screens
 
+import com.airplayr.app.ui.theme.AirPlayrIcons
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -96,7 +97,7 @@ fun FavoritesScreen(
                 items(likedVideos.size, key = { "video:${likedVideos[it].id}" }) { index ->
                     val item = likedVideos[index]
                     Row(Modifier.fillMaxWidth().clickable { onOpenVideo(item.id) }.padding(horizontal = 24.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Artwork(item.thumbnailUri ?: item.uri, Modifier.width(122.dp).height(69.dp), 13.dp, item.title, MediaType.VIDEO, Icons.Default.VideoLibrary)
+                        Artwork(item.thumbnailUri ?: item.uri, Modifier.width(122.dp).height(69.dp), 13.dp, item.title, MediaType.VIDEO, AirPlayrIcons.Video)
                         Column(Modifier.weight(1f).padding(horizontal = 14.dp)) { Text(item.title.ifBlank { "Video" }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, color = colors.textPrimary, maxLines = 1); Text("${item.artist ?: "Video"}${if (item.durationMs > 0) "  ·  ${formatDuration(item.durationMs)}" else ""}", color = colors.textSecondary, fontSize = 13.sp, maxLines = 1) }
                         IconButton(onClick = { selected = item }) { Icon(Icons.Default.MoreVert, "Video options", tint = colors.primary) }
                     }

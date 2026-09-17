@@ -1,5 +1,6 @@
 package com.airplayr.app.ui.components
 
+import com.airplayr.app.ui.theme.AirPlayrIcons
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.os.Build
@@ -9,7 +10,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -39,7 +39,7 @@ fun Artwork(
     radius: Dp = 16.dp,
     contentDescription: String? = null,
     mediaType: MediaType? = null,
-    fallbackIcon: ImageVector = Icons.Default.MusicNote,
+    fallbackIcon: ImageVector = AirPlayrIcons.Music,
 ) {
     val context = LocalContext.current
     val bitmap = produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, uri, mediaType) {
