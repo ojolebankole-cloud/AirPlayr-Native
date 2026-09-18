@@ -36,7 +36,6 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.outlined.QueueMusic
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.ShowChart
@@ -126,7 +125,7 @@ fun MenuDrawer(
     }
 
     val entriesLibrary = listOf(
-        MenuEntry("Library", Icons.Outlined.LibraryMusic, "home", "${musicCount + videoCount}"),
+        MenuEntry("Library", AirPlayrIcons.Music, "home", "${musicCount + videoCount}"),
         MenuEntry("Folders", Icons.Outlined.FolderOpen, "folders", "$folderCount folders"),
         MenuEntry("Music", AirPlayrIcons.Music, "music", "$musicCount songs"),
         MenuEntry("Videos", AirPlayrIcons.Video, "videos", "$videoCount videos"),

@@ -15,7 +15,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -182,7 +181,7 @@ fun AirPlayrApp(
         }
         val entry by navController.currentBackStackEntryAsState()
         val destination = entry?.destination
-        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Box(Modifier.fillMaxSize()) {
             val currentRoute = destination?.route
             val primaryDockRoutes = remember {
                 setOf("home", "music", "videos", "settings")
@@ -334,6 +333,7 @@ fun AirPlayrApp(
 
             if (showDock) {
                 AirPlayrBottomDock(
+                    modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter),
                     currentRoute = currentRoute,
                     playbackState = shellPlaybackState,
                     playback = playbackController,

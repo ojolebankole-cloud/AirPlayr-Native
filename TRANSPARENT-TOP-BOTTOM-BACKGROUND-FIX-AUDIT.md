@@ -1,3 +1,5 @@
+> **Historical document notice (2026-09-18):** This document predates the current UI repair pass. Its earlier PASS statements were not treated as source-of-truth. The Kotlin/resource tree in the submitted ZIP was re-audited directly; see `UI-FIXES-HONEST-AUDIT-2026-09-18.md` for the verified current state.
+
 # Top/Bottom Background Removal Audit
 
 ## Scope

@@ -16,7 +16,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShowChart
@@ -47,7 +46,7 @@ fun WhatsNewSheet(version: String, onDismiss: () -> Unit) {
             "Browse your video library and keep playback controls close while you watch.",
             "Use subtitles, playback speed and device output controls when supported by the media.",
         )),
-        FeatureSection("YOUR LIBRARY", Icons.Default.LibraryMusic, listOf(
+        FeatureSection("YOUR LIBRARY", AirPlayrIcons.Music, listOf(
             "AirPlayr indexes the music and videos you allow it to access and keeps the local library refreshed.",
             "Favorites, playlists, recently added media and playback history stay together in one place.",
         )),

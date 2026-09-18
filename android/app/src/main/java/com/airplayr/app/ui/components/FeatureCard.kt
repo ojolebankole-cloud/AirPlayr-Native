@@ -32,6 +32,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.airplayr.app.ui.theme.AirPlayrFonts
+import com.airplayr.app.ui.theme.AirPlayrFeatureCardTokens
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -178,7 +179,7 @@ fun AirPlayrFeatureCard(eyebrow: String, title: String, imageRes: Int, gradient:
     val artworkKey = when (imageRes) { com.airplayr.app.R.drawable.headphone_amico -> "headphone_amico"; com.airplayr.app.R.drawable.recording_pana -> "recording_pana"; com.airplayr.app.R.drawable.music_cuate -> "music_cuate"; com.airplayr.app.R.drawable.dj_boy_cuate -> "dj_boy_cuate"; com.airplayr.app.R.drawable.media_player_bro -> "media_player_bro"; com.airplayr.app.R.drawable.playing_music_bro -> "playing_music_bro"; com.airplayr.app.R.drawable.playlist_pana -> "playlist_pana"; else -> "" }
     val artwork = rememberRecoloredArtwork(imageRes, artworkKey, p)
     val titleFont = when (kind) { "rock" -> AirPlayrFonts.DancingScript; "playlists" -> AirPlayrFonts.ShadowsIntoLight; "rediscover" -> AirPlayrFonts.Oswald; else -> AirPlayrFonts.SmoochSans }
-    Box(Modifier.width(width).height(height).clip(RoundedCornerShape(27.dp)).airPlayrShadow(RoundedCornerShape(27.dp), 10.dp).clickable(onClick = onClick)) {
+    Box(Modifier.width(width).height(height).clip(RoundedCornerShape(27.dp)).airPlayrShadow(RoundedCornerShape(27.dp), AirPlayrFeatureCardTokens.shadowElevationDp.dp).clickable(onClick = onClick)) {
         // One smooth Material-compatible gradient with no stacked overlays or transition seams.
         Box(Modifier.fillMaxSize().background(Brush.linearGradient(p.gradient, start = androidx.compose.ui.geometry.Offset(0f, 0f), end = androidx.compose.ui.geometry.Offset(1000f, 1000f))))
         if (artwork != null) Image(artwork, title, Modifier.fillMaxWidth().height(height*.64f).padding(10.dp).align(Alignment.TopCenter)) else Image(painterResource(imageRes), title, Modifier.fillMaxWidth().height(height*.64f).padding(10.dp).align(Alignment.TopCenter))

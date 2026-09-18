@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
@@ -645,7 +644,7 @@ fun BrowseIndexScreen(
                             "artists" -> Icons.Default.Person
                             "genres" -> Icons.Default.LocalOffer
                             "folders" -> Icons.Default.Folder
-                            else -> Icons.Default.LibraryMusic
+                            else -> AirPlayrIcons.Music
                         }
                         Icon(icon, null, tint = LocalAirPlayrColors.current.primary, modifier = Modifier.size(28.dp))
                         Column(Modifier.weight(1f).padding(start = 12.dp)) {

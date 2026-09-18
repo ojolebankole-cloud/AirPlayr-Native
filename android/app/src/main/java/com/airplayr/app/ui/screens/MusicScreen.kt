@@ -1,6 +1,5 @@
 package com.airplayr.app.ui.screens
 
-import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.clickable
@@ -405,6 +404,6 @@ private fun PlaylistCard(
 @Composable private fun ActionDialog(item:MediaItem,favorite:Boolean,onDismiss:()->Unit,onPlay:()->Unit,onQueue:()->Unit,onNext:()->Unit,onFavorite:()->Unit,onPlaylist:()->Unit,onEdit:()->Unit){AlertDialog(onDismissRequest=onDismiss,title={Text(item.title)},text={Column(verticalArrangement=Arrangement.spacedBy(6.dp)){DialogAction("Play",onPlay);DialogAction("Play next",onNext);DialogAction("Add to queue",onQueue);DialogAction(if(favorite)"Remove from likes" else "Like",onFavorite);DialogAction("Add to playlist",onPlaylist);DialogAction("Edit song",onEdit)}},confirmButton={})}
 @Composable private fun DialogAction(label:String,onClick:()->Unit){TextButton(onClick=onClick,modifier=Modifier.fillMaxWidth()){Text(label,textAlign=TextAlign.Start,modifier=Modifier.fillMaxWidth())}}
 @Composable private fun PlaylistPickerDialog(playlists:List<MusicPlaylistEntity>,counts:Map<String,Int>,item:MediaItem,onDismiss:()->Unit,onSelect:(String)->Unit){AlertDialog(onDismissRequest=onDismiss,title={Text("Add to playlist")},text={Column(Modifier.height(320.dp),verticalArrangement=Arrangement.spacedBy(2.dp)){playlists.forEach{p->TextButton(onClick={onSelect(p.id)},modifier=Modifier.fillMaxWidth()){Text("${p.name}  ·  ${counts[p.id]?:0} songs",modifier=Modifier.fillMaxWidth())}};if(playlists.isEmpty())Text("Create a playlist first.")}},confirmButton={TextButton(onClick=onDismiss){Text("Close")}})}
-@Composable private fun EmptyMusic(title:String,message:String){val colors=LocalAirPlayrColors.current;Column(Modifier.fillMaxWidth().padding(40.dp),horizontalAlignment=Alignment.CenterHorizontally){Icon(Icons.Default.LibraryMusic,null,Modifier.size(40.dp),tint=colors.primary);Text(title,style=MaterialTheme.typography.titleMedium,modifier=Modifier.padding(top=10.dp));Text(message,style=MaterialTheme.typography.bodySmall,color=colors.textSecondary,textAlign=TextAlign.Center)}}
+@Composable private fun EmptyMusic(title:String,message:String){val colors=LocalAirPlayrColors.current;Column(Modifier.fillMaxWidth().padding(40.dp),horizontalAlignment=Alignment.CenterHorizontally){Icon(AirPlayrIcons.Music,null,Modifier.size(40.dp),tint=colors.primary);Text(title,style=MaterialTheme.typography.titleMedium,modifier=Modifier.padding(top=10.dp));Text(message,style=MaterialTheme.typography.bodySmall,color=colors.textSecondary,textAlign=TextAlign.Center)}}
 private fun time(ms:Long):String{val s=(ms.coerceAtLeast(0)/1000);return "%02d:%02d".format(s/60,s%60)}
 private fun Modifier.clickableCompat(onClick:()->Unit):Modifier=then(androidx.compose.ui.Modifier.clickable(onClick=onClick))

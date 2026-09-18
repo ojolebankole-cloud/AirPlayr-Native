@@ -13,7 +13,7 @@ object AirPlayrFeatureCardTokens {
     const val artworkTopInsetDp = 10f
     const val copyHorizontalInsetDp = 17f
     const val copyBottomInsetDp = 17f
-    const val shadowElevationDp = 10f
+    const val shadowElevationDp = 8f
     const val shadowOpacity = 0.28f
     const val shadowRadiusDp = 16f
     const val shadowOffsetYDp = 10f

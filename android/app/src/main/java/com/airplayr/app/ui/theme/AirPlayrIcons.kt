@@ -1,7 +1,5 @@
 package com.airplayr.app.ui.theme
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.PathFillType
@@ -50,7 +48,31 @@ object AirPlayrIcons {
         }.build()
 
     val Music: ImageVector
-        get() = Icons.Default.LibraryMusic
+        get() = ImageVector.Builder(
+            name = "AirPlayrMusic",
+            defaultWidth = 30.dp,
+            defaultHeight = 30.dp,
+            viewportWidth = 28f,
+            viewportHeight = 28f,
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(14f, 4f)
+                horizontalLineTo(22f)
+                verticalLineTo(6.8f)
+                lineTo(16.8f, 8.2f)
+                verticalLineTo(17.1f)
+                horizontalLineTo(14f)
+                close()
+            }
+            path(fill = SolidColor(Color.White)) {
+                moveTo(5.5f, 18.2f)
+                curveTo(5.5f, 16.1f, 7.9f, 14.4f, 10.9f, 14.4f)
+                curveTo(13.9f, 14.4f, 16.3f, 16.1f, 16.3f, 18.2f)
+                curveTo(16.3f, 20.3f, 13.9f, 22f, 10.9f, 22f)
+                curveTo(7.9f, 22f, 5.5f, 20.3f, 5.5f, 18.2f)
+                close()
+            }
+        }.build()
 
     val Video: ImageVector
         get() = ImageVector.Builder(
@@ -150,21 +172,21 @@ object AirPlayrIcons {
         }.build()
 
     val Repeat: ImageVector
-        get() = ImageVector.Builder("AirPlayrRepeat", 26.dp, 26.dp, 26f, 26f).apply {
-            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
+        get() = ImageVector.Builder("AirPlayrRepeat", 28.dp, 28.dp, 28f, 28f).apply {
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2.15f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
                 moveTo(6f,9f); horizontalLineTo(20f); moveTo(17f,6f); lineTo(20f,9f); lineTo(17f,12f)
-                moveTo(20f,17f); horizontalLineTo(6f); moveTo(9f,14f); lineTo(6f,17f); lineTo(9f,20f)
+                moveTo(20f,19f); horizontalLineTo(6f); moveTo(9f,16f); lineTo(6f,19f); lineTo(9f,22f)
             }
         }.build()
 
     val RepeatOne: ImageVector
-        get() = ImageVector.Builder("AirPlayrRepeatOne", 26.dp, 26.dp, 26f, 26f).apply {
-            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
+        get() = ImageVector.Builder("AirPlayrRepeatOne", 28.dp, 28.dp, 28f, 28f).apply {
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 2.15f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
                 moveTo(6f,9f); horizontalLineTo(20f); moveTo(17f,6f); lineTo(20f,9f); lineTo(17f,12f)
-                moveTo(20f,17f); horizontalLineTo(6f); moveTo(9f,14f); lineTo(6f,17f); lineTo(9f,20f)
+                moveTo(20f,19f); horizontalLineTo(6f); moveTo(9f,16f); lineTo(6f,19f); lineTo(9f,22f)
             }
-            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 1.8f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
-                moveTo(13.3f,11.5f); lineTo(14.8f,10.2f); verticalLineTo(16f); moveTo(13.4f,16f); horizontalLineTo(16.2f)
+            path(fill = null, stroke = SolidColor(Color.White), strokeLineWidth = 1.9f, strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round, strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round) {
+                moveTo(13.1f,11.7f); lineTo(14.8f,10.2f); verticalLineTo(17f); moveTo(13.3f,17f); horizontalLineTo(16.3f)
             }
         }.build()
 

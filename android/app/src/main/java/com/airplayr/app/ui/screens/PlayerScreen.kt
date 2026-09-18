@@ -61,6 +61,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.CircularProgressIndicator
@@ -76,7 +77,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.clip
@@ -109,6 +109,7 @@ import com.airplayr.app.ui.playback.PlaybackController
 import com.airplayr.app.ui.playback.PlaybackControllerFactory
 import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.theme.AirPlayrFonts
+import com.airplayr.app.ui.theme.AirPlayrElevation
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -184,7 +185,7 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
     val progressDuration = state.durationMs.coerceAtLeast(1L)
     val repeatLabel = when (state.repeatMode) { REPEAT_ONE -> "Repeat one"; REPEAT_ALL -> "Repeat all"; else -> "Repeat off" }
 
-    Box(Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER).fillMaxSize().background(Brush.verticalGradient(listOf(colors.surfaceContainerLowest, colors.background)))) {
+    Box(Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER).fillMaxSize().background(colors.background)) {
         Column(
             Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -194,22 +195,25 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
             // can never get pushed past the screen edge on narrow devices or larger font scales.
             Row(Modifier.fillMaxWidth().height(54.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_BACK).size(54.dp)) {
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .shadow(18.dp, CircleShape, ambientColor = Color.Black.copy(alpha = .18f), spotColor = Color.Black.copy(alpha = .24f), clip = false)
-                            .background(colors.surfaceContainerHighest, CircleShape),
-                        contentAlignment = Alignment.Center,
+                    Surface(
+                        modifier = Modifier.size(44.dp),
+                        shape = CircleShape,
+                        color = colors.surfaceContainerHighest,
+                        tonalElevation = 2.dp,
+                        shadowElevation = AirPlayrElevation.soft,
                     ) {
-                        Icon(AirPlayrIcons.PlayerBack, "Back", tint = colors.primary, modifier = Modifier.size(28.dp))
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(AirPlayrIcons.PlayerBack, "Back", tint = colors.primary, modifier = Modifier.size(28.dp))
+                        }
                     }
                 }
                 Spacer(Modifier.weight(1f))
                 Card(
                     onClick = { sheet = PlayerSheet.Lyrics },
-                    modifier = Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_LYRICS).height(54.dp).shadow(18.dp, RoundedCornerShape(27.dp), ambientColor = Color.Black.copy(alpha = .18f), spotColor = Color.Black.copy(alpha = .24f), clip = false),
+                    modifier = Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_LYRICS).height(54.dp),
                     shape = RoundedCornerShape(27.dp),
                     colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerHighest),
+                    elevation = CardDefaults.cardElevation(defaultElevation = AirPlayrElevation.soft),
                 ) {
                     Row(Modifier.fillMaxHeight().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                         Icon(AirPlayrIcons.Lyrics, null, tint = colors.primary, modifier = Modifier.size(26.dp))
@@ -222,7 +226,7 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
             }
 
             Spacer(Modifier.height(4.dp))
-            Artwork(state.artworkUri, Modifier.size(artSizeDp).shadow(20.dp, RoundedCornerShape(min(34f, artSizeDp.value * 0.055f).dp), ambientColor = Color.Black.copy(alpha = .18f), spotColor = Color.Black.copy(alpha = .24f)), min(34f, artSizeDp.value * 0.055f).dp, state.currentTitle)
+            Artwork(state.artworkUri, Modifier.size(artSizeDp).shadow(AirPlayrElevation.medium, RoundedCornerShape(min(34f, artSizeDp.value * 0.055f).dp)), min(34f, artSizeDp.value * 0.055f).dp, state.currentTitle)
 
             Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(state.currentTitle ?: "Nothing playing", style = MaterialTheme.typography.displayLarge.copy(fontFamily = AirPlayrFonts.SmoochSans), textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -262,16 +266,28 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
             val mediaDetails = currentItem?.mimeType?.substringAfterLast('/', currentItem?.mimeType ?: "")?.uppercase().orEmpty()
             if (mediaDetails.isNotBlank()) Text(mediaDetails, style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp), color = colors.textSecondary, modifier = Modifier.padding(top = 2.dp))
 
-            Row(
-                Modifier.fillMaxWidth(0.84f).heightIn(min = 58.dp).padding(horizontal = 0.dp, vertical = 5.dp).offset(y = 10.dp).shadow(18.dp, RoundedCornerShape(22.dp), ambientColor = Color.Black.copy(alpha = .18f), spotColor = Color.Black.copy(alpha = .24f), clip = false).background(colors.surfaceContainerHighest, RoundedCornerShape(22.dp)).padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(0.84f)
+                    .heightIn(min = 58.dp)
+                    .padding(horizontal = 0.dp, vertical = 5.dp)
+                    .offset(y = 10.dp),
+                shape = RoundedCornerShape(22.dp),
+                color = colors.surfaceContainerHighest,
+                tonalElevation = 2.dp,
+                shadowElevation = AirPlayrElevation.medium,
             ) {
-                PlayerAction(AirPlayrIcons.Shuffle, "Shuffle", state.shuffle, colors) { controller.toggleShuffle() }
-                PlayerAction(if (favorite) AirPlayrIcons.Favorite else AirPlayrIcons.FavoriteBorder, if (favorite) "Remove favorite" else "Add favorite", false, colors, onClick = ::setFav)
-                PlayerAction(AirPlayrIcons.Sleep, "Sleep timer", false, colors) { sheet = PlayerSheet.Sleep }
-                PlayerAction(AirPlayrIcons.Queue, "Queue", false, colors, onClick = onQueue)
-                PlayerAction(if (state.repeatMode == REPEAT_ONE) AirPlayrIcons.RepeatOne else AirPlayrIcons.Repeat, repeatLabel, state.repeatMode != REPEAT_OFF, colors) { controller.cycleRepeat() }
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    PlayerAction(AirPlayrIcons.Shuffle, "Shuffle", state.shuffle, colors) { controller.toggleShuffle() }
+                    PlayerAction(if (favorite) AirPlayrIcons.Favorite else AirPlayrIcons.FavoriteBorder, if (favorite) "Remove favorite" else "Add favorite", false, colors, onClick = ::setFav)
+                    PlayerAction(AirPlayrIcons.Sleep, "Sleep timer", false, colors) { sheet = PlayerSheet.Sleep }
+                    PlayerAction(AirPlayrIcons.Queue, "Queue", false, colors, onClick = onQueue)
+                    PlayerAction(if (state.repeatMode == REPEAT_ONE) AirPlayrIcons.RepeatOne else AirPlayrIcons.Repeat, repeatLabel, state.repeatMode != REPEAT_OFF, colors) { controller.cycleRepeat() }
+                }
             }
         }
 
@@ -414,21 +430,23 @@ private fun PlayerControl(
             .size(64.dp)
             .testTag(when (label) { "Previous" -> com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_PREVIOUS; "Next" -> com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_NEXT; else -> "airplayr.player.control.$label" }),
     ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .shadow(18.dp, CircleShape, ambientColor = Color.Black.copy(alpha = .18f), spotColor = Color.Black.copy(alpha = .24f), clip = false)
-                .background(colors.surfaceContainerHighest, CircleShape),
-            contentAlignment = Alignment.Center,
+        Surface(
+            modifier = Modifier.size(58.dp),
+            shape = CircleShape,
+            color = colors.surfaceContainerHighest,
+            tonalElevation = 2.dp,
+            shadowElevation = AirPlayrElevation.soft,
         ) {
-            Icon(
-                icon,
-                label,
-                tint = tint,
-                modifier = Modifier
-                    .size(34.dp)
-                    .graphicsLayer { if (mirrorX) scaleX = -1f },
-            )
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    icon,
+                    label,
+                    tint = tint,
+                    modifier = Modifier
+                        .size(34.dp)
+                        .graphicsLayer { if (mirrorX) scaleX = -1f },
+                )
+            }
         }
     }
 }
@@ -436,8 +454,16 @@ private fun PlayerControl(
 @Composable
 private fun PlayerPlayControl(playing: Boolean, iconTint: androidx.compose.ui.graphics.Color, background: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
     IconButton(onClick = onClick, modifier = Modifier.size(72.dp).testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_PLAY)) {
-        Box(Modifier.size(72.dp).shadow(20.dp, CircleShape, ambientColor = Color.Black.copy(alpha = .18f), spotColor = Color.Black.copy(alpha = .24f), clip = false).background(background, CircleShape), contentAlignment = Alignment.Center) {
-            Icon(if (playing) AirPlayrIcons.Pause else AirPlayrIcons.Play, if (playing) "Pause" else "Play", tint = iconTint, modifier = Modifier.size(38.dp))
+        Surface(
+            modifier = Modifier.size(72.dp),
+            shape = CircleShape,
+            color = background,
+            tonalElevation = 3.dp,
+            shadowElevation = AirPlayrElevation.medium,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(if (playing) AirPlayrIcons.Pause else AirPlayrIcons.Play, if (playing) "Pause" else "Play", tint = iconTint, modifier = Modifier.size(38.dp))
+            }
         }
     }
 }
@@ -522,7 +548,7 @@ private fun MoreActionIcon(label: String): androidx.compose.ui.graphics.vector.I
 
 @Composable
 private fun MoreGroup(items: List<Pair<String, () -> Unit>>, colors: com.airplayr.app.ui.theme.AirPlayrColors) {
-    Card(modifier = Modifier.shadow(8.dp, RoundedCornerShape(24.dp), clip = false), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer)) {
+    Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer), elevation = CardDefaults.cardElevation(defaultElevation = AirPlayrElevation.medium)) {
         Column {
             items.forEachIndexed { index, (label, action) ->
                 Row(Modifier.fillMaxWidth().height(72.dp).clickable(onClick = action).padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -583,7 +609,7 @@ private fun DetailsSheetContent(item: MediaItem?, onClose: () -> Unit, onTags: (
                     Text(item.artist.orEmpty().ifBlank { "Unknown artist" }, color = colors.textSecondary)
                 }
             }
-            Card(modifier = Modifier.shadow(8.dp, RoundedCornerShape(22.dp), clip = false), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer)) {
+            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer), elevation = CardDefaults.cardElevation(defaultElevation = AirPlayrElevation.medium)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     DetailLine("Album", item.album)
                     DetailLine("Genre", item.genre)

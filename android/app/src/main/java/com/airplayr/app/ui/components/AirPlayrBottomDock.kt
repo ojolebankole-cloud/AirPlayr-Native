@@ -3,7 +3,6 @@ package com.airplayr.app.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -12,17 +11,19 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,10 +43,12 @@ import com.airplayr.app.core.qa.AirPlayrQaTags
 import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.ui.playback.PlaybackController
 import com.airplayr.app.ui.playback.PlaybackUiState
+import com.airplayr.app.ui.theme.AirPlayrElevation
 import com.airplayr.app.ui.theme.AirPlayrIcons
 
 @Composable
 fun AirPlayrBottomDock(
+    modifier: Modifier = Modifier,
     currentRoute: String?,
     playbackState: PlaybackUiState,
     playback: PlaybackController,
@@ -53,49 +56,53 @@ fun AirPlayrBottomDock(
     onOpenPlayer: () -> Unit,
     showMiniPlayer: Boolean = true,
 ) {
-    Box(
-        Modifier
-            .fillMaxSize()
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .wrapContentHeight()
+            .navigationBarsPadding()
+            .padding(horizontal = 10.dp, vertical = 8.dp)
             .testTag(AirPlayrQaTags.DOCK),
     ) {
-        Column(
-            Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 10.dp, vertical = 8.dp),
+        val miniVisible = showMiniPlayer && playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO
+        AnimatedVisibility(
+            visible = miniVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
         ) {
-            // The bottom shell is intentionally transparent. The MiniPlayer and dock
-            // controls float directly over the screen instead of creating a separate
-            // background slab behind them.
-            Column(Modifier.fillMaxWidth()) {
-                AnimatedVisibility(
-                    visible = showMiniPlayer && playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO,
-                    enter = fadeIn(),
-                    exit = fadeOut(),
-                ) {
-                    MiniPlayerSection(playbackState, playback, onOpenPlayer)
-                }
-                if (showMiniPlayer && playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO) {
-                    androidx.compose.material3.HorizontalDivider(
-                        thickness = 1.dp,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.20f),
-                    )
-                }
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(72.dp)
-                        .padding(horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                ) {
-                    DockItem(AirPlayrIcons.Home, currentRoute == "home", "Home") { onNavigate("home") }
-                    DockItem(AirPlayrIcons.Music, currentRoute == "music", "Music") { onNavigate("music") }
-                    Spacer(Modifier.size(1.dp))
-                    DockItem(AirPlayrIcons.Video, currentRoute == "videos", "Videos") { onNavigate("videos") }
-                    DockItem(AirPlayrIcons.Settings, currentRoute == "settings", "Settings") { onNavigate("settings") }
-                }
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                tonalElevation = 2.dp,
+                shadowElevation = AirPlayrElevation.medium,
+            ) {
+                MiniPlayerSection(playbackState, playback, onOpenPlayer)
+            }
+        }
+
+        Spacer(Modifier.height(if (miniVisible) 8.dp else 0.dp))
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            tonalElevation = 2.dp,
+            shadowElevation = AirPlayrElevation.medium,
+        ) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .height(72.dp)
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                DockItem(AirPlayrIcons.Home, currentRoute == "home", "Home") { onNavigate("home") }
+                DockItem(AirPlayrIcons.Music, currentRoute == "music", "Music") { onNavigate("music") }
+                Spacer(Modifier.size(1.dp))
+                DockItem(AirPlayrIcons.Video, currentRoute == "videos", "Videos") { onNavigate("videos") }
+                DockItem(AirPlayrIcons.Settings, currentRoute == "settings", "Settings") { onNavigate("settings") }
             }
         }
     }
@@ -110,6 +117,8 @@ fun AirPlayrMiniPlayerOnly(
 ) {
     Column(
         modifier = modifier
+            .fillMaxWidth()
+            .wrapContentHeight()
             .navigationBarsPadding()
             .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
@@ -118,7 +127,15 @@ fun AirPlayrMiniPlayerOnly(
             enter = fadeIn(),
             exit = fadeOut(),
         ) {
-            MiniPlayerSection(playbackState, playback, onOpenPlayer)
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                tonalElevation = 2.dp,
+                shadowElevation = AirPlayrElevation.medium,
+            ) {
+                MiniPlayerSection(playbackState, playback, onOpenPlayer)
+            }
         }
     }
 }
@@ -225,10 +242,10 @@ private fun DockItem(
     }
 }
 
-/** Height reserved by primary screens for the transparent dock (with MiniPlayer space). */
-const val AIRPLAYR_BOTTOM_DOCK_BASE_HEIGHT = 184
-/** Height reserved by non-primary screens when the music-only MiniPlayer is visible. */
-const val AIRPLAYR_MINI_PLAYER_ONLY_BASE_HEIGHT = 112
+/** Approximate overlay height reserved by primary screens for dock + MiniPlayer. */
+const val AIRPLAYR_BOTTOM_DOCK_BASE_HEIGHT = 210
+/** Approximate overlay height reserved by non-primary screens when MiniPlayer is visible. */
+const val AIRPLAYR_MINI_PLAYER_ONLY_BASE_HEIGHT = 128
 /** Extra FAB inset inside a screen that already reserves the MiniPlayer area. */
 const val AIRPLAYR_FLOATING_PLAY_BOTTOM_WITH_MINI = 24
 /** Floating play FAB bottom inset when no MiniPlayer is visible. */
