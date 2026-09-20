@@ -73,6 +73,10 @@ fun AirPlayrBottomDock(
         Column(Modifier.fillMaxWidth()) {
             if (miniVisible) {
                 MiniPlayerSection(playback, onOpenPlayer)
+                androidx.compose.material3.HorizontalDivider(
+                    thickness = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+                )
             }
             Row(
                 Modifier
