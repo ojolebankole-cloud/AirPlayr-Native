@@ -89,7 +89,7 @@ class MediaStoreDataSource(context: Context) {
             albumId = albumId,
             artworkUri = albumId?.let { ContentUris.withAppendedId(ALBUM_ART_URI, it).toString() },
             thumbnailUri = null,
-            genre = null,
+            genre = c.getStringOrNull(columns.genre)?.trim()?.takeIf { it.isNotEmpty() },
             sourceDirectoryUri = null,
             folderId = null,
             folder = null,
@@ -123,7 +123,7 @@ class MediaStoreDataSource(context: Context) {
             albumId = null,
             artworkUri = uri,
             thumbnailUri = uri,
-            genre = null,
+            genre = c.getStringOrNull(columns.genre)?.trim()?.takeIf { it.isNotEmpty() },
             sourceDirectoryUri = null,
             folderId = null,
             folder = null,
@@ -148,6 +148,7 @@ class MediaStoreDataSource(context: Context) {
         val albumId: Int,
         val width: Int,
         val height: Int,
+        val genre: Int,
     ) {
         constructor(c: android.database.Cursor) : this(
             id = c.getColumnIndex(MediaStore.MediaColumns._ID),
@@ -165,6 +166,11 @@ class MediaStoreDataSource(context: Context) {
             albumId = c.getColumnIndex(MediaStore.Audio.AudioColumns.ALBUM_ID),
             width = c.getColumnIndex(MediaStore.Video.VideoColumns.WIDTH),
             height = c.getColumnIndex(MediaStore.Video.VideoColumns.HEIGHT),
+            genre = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                c.getColumnIndex(MediaStore.MediaColumns.GENRE)
+            } else {
+                -1
+            },
         )
     }
 
@@ -174,10 +180,12 @@ class MediaStoreDataSource(context: Context) {
 
         fun audioProjection(): Array<String> = baseAudioProjection() +
             (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) arrayOf("relative_path") else emptyArray()) +
+            (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) arrayOf(MediaStore.MediaColumns.GENRE) else emptyArray()) +
             arrayOf(MediaStore.Audio.AudioColumns.ALBUM_ID)
 
         fun videoProjection(): Array<String> = baseVideoProjection() +
             (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) arrayOf("relative_path") else emptyArray()) +
+            (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) arrayOf(MediaStore.MediaColumns.GENRE) else emptyArray()) +
             arrayOf(MediaStore.Video.VideoColumns.WIDTH, MediaStore.Video.VideoColumns.HEIGHT)
 
         fun baseAudioProjection(): Array<String> = arrayOf(

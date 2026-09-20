@@ -193,6 +193,39 @@ class MediaLibraryRepository(
         if (filtered.isNotEmpty()) database.mediaItemDao().insertAll(filtered.map(MediaItem::asEntity))
     }
 
+    /**
+     * Backfills MediaStore-provided genre metadata for existing Room rows without replacing a
+     * genre that is already stored. This is intended as a one-time post-update task because older
+     * builds stored null genres even though modern MediaStore exposes indexed genre metadata.
+     */
+    suspend fun backfillMissingGenres(): Int = refreshMutex.withLock {
+        val audio = mediaStore.query(MediaType.AUDIO)
+        if (!audio.accessible) throw IllegalStateException("MediaStore audio collection is not accessible")
+        val video = mediaStore.query(MediaType.VIDEO)
+        val incoming = (audio.items + video.items)
+            .filter { !it.genre.isNullOrBlank() }
+            .associateBy { it.id }
+        if (incoming.isEmpty()) return@withLock 0
+
+        database.withTransaction {
+            val dao = database.mediaItemDao()
+            // Avoid a giant SQLite IN (...) query here. Large libraries can contain far more
+            // than the platform's bind-argument limit, so read the two typed MediaStore sets
+            // that the repository already owns and match them in memory.
+            val existing = (
+                dao.getMediaStoreByType(MediaType.AUDIO.value) +
+                    dao.getMediaStoreByType(MediaType.VIDEO.value)
+                ).associateBy { it.id }
+            val changed = incoming.values.mapNotNull { item ->
+                val old = existing[item.id] ?: return@mapNotNull null
+                if (!old.genre.isNullOrBlank() || item.genre.isNullOrBlank()) null
+                else old.copy(genre = item.genre)
+            }
+            if (changed.isNotEmpty()) dao.insertAll(changed)
+            changed.size
+        }
+    }
+
     suspend fun clearAll() = database.mediaItemDao().clearAll()
 
     companion object {

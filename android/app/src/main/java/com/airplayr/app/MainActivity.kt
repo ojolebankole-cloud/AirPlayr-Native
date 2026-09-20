@@ -2,6 +2,8 @@ package com.airplayr.app
 
 import android.content.Intent
 import android.os.Bundle
+import android.content.res.Configuration
+import com.airplayr.app.R
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -14,14 +16,22 @@ class MainActivity : ComponentActivity() {
     private val navViewModel: AirPlayrNavViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Must be installed before super.onCreate so Android 12+ and the compat
-        // library own the launch window from the first rendered frame.
+        // Read the launch theme from the synchronous mirror before installing the splash.
+        // The splash itself is never held on an asynchronous preference/database readiness gate.
+        val appContainer = (application as AirPlayrApplication).container
+        val mirroredTheme = getSharedPreferences("airplayr_startup", MODE_PRIVATE).getString("theme", null)
+        val dark = when (mirroredTheme) {
+            "dark" -> true
+            "light" -> false
+            else -> (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        }
+        setTheme(if (dark) R.style.Theme_App_SplashScreen_Dark else R.style.Theme_App_SplashScreen_Light)
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             AirPlayrApp(
-                container = (application as AirPlayrApplication).container,
+                container = appContainer,
                 initialViewModel = navViewModel,
                 launchIntent = intent,
             )

@@ -3,6 +3,7 @@ package com.airplayr.app.core.data
 import com.airplayr.app.core.data.db.*
 import com.airplayr.app.core.data.media.MediaItem
 import com.airplayr.app.core.data.media.MediaType
+import com.airplayr.app.core.data.media.asExternal
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -96,7 +97,11 @@ class PlaybackStatsRepository(private val databaseProvider: () -> AirPlayrDataba
         val from = periodStart(period, now)
         val events = db.userDataDao().playbackEvents(from, Long.MAX_VALUE)
         val history = db.userDataDao().history(500)
-        val itemMap = items.associateBy { it.id }
+        val eventIds = events.mapTo(mutableSetOf()) { it.mediaId }.filter { it.isNotBlank() }
+        val databaseItems = eventIds.chunked(900).flatMap { chunk ->
+            db.userDataDao().mediaItemsByIds(chunk).map { it.asExternal() }
+        }
+        val itemMap = (items + databaseItems).distinctBy { it.id }.associateBy { it.id }
         val favoriteCount = db.userDataDao().favoriteIds().size
         val musicEvents = events.filter { it.mediaType == MediaType.AUDIO.value }
         val videoEvents = events.filter { it.mediaType == MediaType.VIDEO.value }
@@ -117,7 +122,7 @@ class PlaybackStatsRepository(private val databaseProvider: () -> AirPlayrDataba
         val genres = genreMap.map { (name, counts) -> val total = counts.music + counts.video; GenreStat(name, total, counts.music, counts.video, total.toDouble() / genreTotal) }.sortedByDescending { it.plays }.take(12)
         val sessions = db.userDataDao().playbackSessions(from, Long.MAX_VALUE)
         val activity = db.userDataDao().playbackActivity(dayKey(from), dayKey(now))
-        val completionEvents = db.userDataDao().playbackEventsByType(VIDEO_COMPLETION_EVENT)
+        val completionEvents = db.userDataDao().playbackEventsByType(VIDEO_COMPLETION_EVENT).filter { it.playedAt in from..now }
         val completionCounts = completionEvents.groupingBy { it.mediaId }.eachCount()
         val completedInHistory = history.filter { it.mediaType == MediaType.VIDEO.value && it.completed }.associate { it.mediaId to 1 }
         val completedVideoCount = (completionCounts.keys + completedInHistory.keys).sumOf { id ->
@@ -171,8 +176,13 @@ class PlaybackStatsRepository(private val databaseProvider: () -> AirPlayrDataba
     private fun activityGrid(rows: List<PlaybackActivityEntity>, from: Long, now: Long): List<List<Long>> {
         val bucketOrder = listOf("Night", "Early", "Morn", "Midday", "Eve", "Late")
         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT)
-        val days = (0..6).map { Date(now - ((6 - it) * 86_400_000L)) }.map(sdf::format)
-        return days.map { dayKey -> bucketOrder.map { bucket -> rows.filter { it.dayKey == dayKey && it.bucket == bucket }.sumOf { it.seconds } } }
+        val start = if (from <= 0L) now else from
+        val dayCount = (((now - start) / 86_400_000L).toInt() + 1).coerceIn(1, 31)
+        val days = (0 until dayCount).map { offset ->
+            Date(now - ((dayCount - 1L - offset) * 86_400_000L))
+        }.map(sdf::format)
+        val rowMap = rows.groupBy { it.dayKey to it.bucket }
+        return days.map { dayKey -> bucketOrder.map { bucket -> rowMap[dayKey to bucket].orEmpty().sumOf { it.seconds } } }
     }
     private fun dayOfWeek(day: String): Int = runCatching { Calendar.getInstance().apply { time = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).parse(day)!! }.let { (it.get(Calendar.DAY_OF_WEEK) + 5) % 7 } }.getOrDefault(0)
     private fun dayKey(time: Long): String = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(Date(time))

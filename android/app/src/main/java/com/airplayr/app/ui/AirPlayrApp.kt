@@ -28,6 +28,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Snackbar
+import androidx.compose.material3.Scaffold
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -81,7 +82,10 @@ fun AirPlayrApp(
     launchIntent: Intent?,
 ) {
     val settings by container.preferences.settings.collectAsStateWithLifecycle(initialValue = null)
+    val startupTheme by container.startupTheme.collectAsStateWithLifecycle()
     val navController = rememberNavController()
+    var initialShellFrame by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { initialShellFrame = false }
     val playbackController: PlaybackController = viewModel(factory = PlaybackControllerFactory(container.appContext))
     val libraryViewModel: LibraryViewModel = viewModel(
         factory = LibraryViewModelFactory(container.mediaLibrary, container.structured),
@@ -116,9 +120,8 @@ fun AirPlayrApp(
         val initialized = container.preferences.hasCompletedInitialLibraryScan()
         if (initialized) {
             startupContentReady = true
-            // Let the first Home frame and cached MiniPlayer state render before MediaStore
-            // freshness work begins. Existing users should never pay the scan cost at launch.
-            kotlinx.coroutines.delay(700L)
+            // The Home frame and cached MiniPlayer state are already render-ready. Start the
+            // freshness check immediately on the application scope; it never blocks Compose.
             container.requestLibrarySynchronization()
         } else {
             runCatching { container.ensureInitialLibraryScan() }
@@ -169,7 +172,11 @@ fun AirPlayrApp(
         }
     }
 
-    val darkTheme = when (settings?.theme) {
+    // startupTheme is resolved while the Android splash is still visible. Using it here as the
+    // first-frame source means an existing user's saved light/dark choice is never rendered one
+    // frame behind the DataStore settings flow.
+    val configuredTheme = settings?.theme ?: startupTheme
+    val darkTheme = when (configuredTheme) {
         "light" -> false
         "dark" -> true
         else -> androidx.compose.foundation.isSystemInDarkTheme()
@@ -194,49 +201,74 @@ fun AirPlayrApp(
                 }
             }
         }
-        val entry by navController.currentBackStackEntryAsState()
-        val destination = entry?.destination
-        Box(Modifier.fillMaxSize()) {
-            val currentRoute = destination?.route
-            val isPrimaryDockScreen = currentRoute in primaryRoutes
-            val isVideoScreen = currentRoute == "video/{id}" || currentRoute == "external-video"
-            val isFullMusicPlayer = currentRoute == "player"
-            val showDock = isPrimaryDockScreen
-            val showMiniPlayer = !isPrimaryDockScreen && !isVideoScreen && !isFullMusicPlayer
-            val shellPlaybackState by playbackController.stableState.collectAsStateWithLifecycle()
-            val miniPlayerVisible = showMiniPlayer &&
-                shellPlaybackState.currentId != null &&
-                shellPlaybackState.currentMediaType == com.airplayr.app.core.data.media.MediaType.AUDIO
-            val reservedBottom = when {
-                showDock -> com.airplayr.app.ui.components.AIRPLAYR_BOTTOM_DOCK_BASE_HEIGHT.dp
-                miniPlayerVisible -> com.airplayr.app.ui.components.AIRPLAYR_MINI_PLAYER_ONLY_BASE_HEIGHT.dp
-                else -> 0.dp
-            }
-            // The shell owns only the bottom overlay reservation. Every screen draws behind the
-            // status bar; individual headers/lists consume WindowInsets.statusBars where needed.
-            // This keeps the window genuinely edge-to-edge without making Home a special case.
-            val contentModifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = reservedBottom)
+        val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+        val shellPlaybackState by playbackController.stableState.collectAsStateWithLifecycle()
+        val isPrimaryDockScreen = currentRoute in primaryRoutes
+        val isVideoScreen = currentRoute == "video/{id}" || currentRoute == "external-video"
+        val isFullMusicPlayer = currentRoute == "player"
+        val showDock = isPrimaryDockScreen
+        val showMiniPlayer = !isPrimaryDockScreen && !isVideoScreen && !isFullMusicPlayer
+        val miniPlayerVisible = showMiniPlayer &&
+            shellPlaybackState.currentId != null &&
+            shellPlaybackState.currentMediaType == com.airplayr.app.core.data.media.MediaType.AUDIO
+
+        // Scaffold owns the shell's bottom layout slot. This is intentionally not an overlay
+        // sibling: screen content is measured against the actual dock/MiniPlayer height, so no
+        // opaque layer can sit on top of the last rows of a screen.
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = androidx.compose.ui.graphics.Color.Transparent,
+            snackbarHost = { host ->
+                SnackbarHost(
+                    hostState = host,
+                    snackbar = { data ->
+                        Snackbar(
+                            snackbarData = data,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+                            containerColor = com.airplayr.app.ui.theme.LocalAirPlayrColors.current.primaryContainer,
+                            contentColor = com.airplayr.app.ui.theme.LocalAirPlayrColors.current.textPrimary,
+                        )
+                    },
+                )
+            },
+            bottomBar = {
+                if (showDock) {
+                    AirPlayrBottomDock(
+                        currentRoute = currentRoute,
+                        playbackState = shellPlaybackState,
+                        playback = playbackController,
+                        showMiniPlayer = true,
+                        onOpenPlayer = { navigate("player") },
+                        onNavigate = { route -> navigate(route) },
+                    )
+                } else if (showMiniPlayer && miniPlayerVisible) {
+                    AirPlayrMiniPlayerOnly(
+                        playbackState = shellPlaybackState,
+                        playback = playbackController,
+                        onOpenPlayer = { navigate("player") },
+                    )
+                }
+            },
+        ) { scaffoldPadding ->
             NavHost(
                 navController = navController,
                 startDestination = "home",
-                modifier = contentModifier,
+                modifier = Modifier.fillMaxSize().padding(scaffoldPadding),
                 enterTransition = {
-                    if (settings?.reduceMotion == true) fadeIn(tween(1))
-                    else fadeIn(tween(180)) + scaleIn(initialScale = 0.985f, animationSpec = tween(180))
+                    if (initialShellFrame || settings?.reduceMotion == true) fadeIn(tween(1))
+                    else fadeIn(tween(140)) + scaleIn(initialScale = 0.99f, animationSpec = tween(140))
                 },
                 exitTransition = {
-                    if (settings?.reduceMotion == true) fadeOut(tween(1))
-                    else fadeOut(tween(140)) + scaleOut(targetScale = 0.985f, animationSpec = tween(140))
+                    if (initialShellFrame || settings?.reduceMotion == true) fadeOut(tween(1))
+                    else fadeOut(tween(100)) + scaleOut(targetScale = 0.99f, animationSpec = tween(100))
                 },
                 popEnterTransition = {
-                    if (settings?.reduceMotion == true) fadeIn(tween(1))
-                    else fadeIn(tween(180)) + scaleIn(initialScale = 0.985f, animationSpec = tween(180))
+                    if (initialShellFrame || settings?.reduceMotion == true) fadeIn(tween(1))
+                    else fadeIn(tween(140)) + scaleIn(initialScale = 0.99f, animationSpec = tween(140))
                 },
                 popExitTransition = {
-                    if (settings?.reduceMotion == true) fadeOut(tween(1))
-                    else fadeOut(tween(140)) + scaleOut(targetScale = 0.985f, animationSpec = tween(140))
+                    if (initialShellFrame || settings?.reduceMotion == true) fadeOut(tween(1))
+                    else fadeOut(tween(100)) + scaleOut(targetScale = 0.99f, animationSpec = tween(100))
                 },
             ) {
                 composable("home") {
@@ -352,42 +384,6 @@ fun AirPlayrApp(
                 }
             }
 
-            SnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier
-                    .align(androidx.compose.ui.Alignment.BottomCenter)
-                    .padding(bottom = if (reservedBottom > 0.dp) reservedBottom + 12.dp else 20.dp),
-                snackbar = { data ->
-                    Snackbar(
-                        snackbarData = data,
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
-                        containerColor = com.airplayr.app.ui.theme.LocalAirPlayrColors.current.primaryContainer,
-                        contentColor = com.airplayr.app.ui.theme.LocalAirPlayrColors.current.textPrimary,
-                    )
-                },
-            )
-
-            if (showDock) {
-                AirPlayrBottomDock(
-                    modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter),
-                    currentRoute = currentRoute,
-                    playbackState = shellPlaybackState,
-                    playback = playbackController,
-                    showMiniPlayer = true,
-                    onOpenPlayer = { navigate("player") },
-                    onNavigate = { route -> navigate(route) },
-                )
-            } else if (showMiniPlayer && miniPlayerVisible) {
-                AirPlayrMiniPlayerOnly(
-                    playbackState = shellPlaybackState,
-                    playback = playbackController,
-                    onOpenPlayer = { navigate("player") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(androidx.compose.ui.Alignment.BottomCenter),
-                )
-            }
-
             androidx.compose.runtime.LaunchedEffect(currentRoute) {
                 if (currentRoute != "home") menuOpen = false
             }
@@ -428,7 +424,9 @@ fun AirPlayrApp(
                 ModalBottomSheet(
                     onDismissRequest = { castOpen = false },
                     containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    scrimColor = MaterialTheme.colorScheme.scrim,
+                    // The cast sheet is an app surface, not a modal blackout over the current
+                    // screen. Keep the underlying Home/library content fully visible.
+                    scrimColor = androidx.compose.ui.graphics.Color.Transparent,
                 ) {
                     CastPickerSheet(
                         controller = container.cast,

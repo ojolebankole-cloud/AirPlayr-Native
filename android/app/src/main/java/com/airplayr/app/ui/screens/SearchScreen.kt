@@ -509,6 +509,7 @@ private fun SearchResultRow(
                     "video" -> AirPlayrIcons.Video
                     else -> AirPlayrIcons.Music
                 },
+                fallbackIconTint = colors.onSurfaceVariant.copy(alpha = com.airplayr.app.ui.theme.AirPlayrArtworkTokens.fallbackIconAlpha),
                 playing = playing,
                 onPlay = if (entry.type == "song" || entry.type == "video") onClick else null,
                 onMore = if (entry.type == "song" || entry.type == "video") onMore else null,
@@ -527,7 +528,7 @@ private fun SearchResultRow(
                         else -> AirPlayrIcons.Music
                     },
                     null,
-                    tint = colors.primary,
+                    tint = colors.onSurfaceVariant.copy(alpha = com.airplayr.app.ui.theme.AirPlayrArtworkTokens.fallbackIconAlpha),
                     modifier = Modifier.size(28.dp),
                 )
             }

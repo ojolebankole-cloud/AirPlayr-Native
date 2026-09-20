@@ -2,6 +2,7 @@ package com.airplayr.app.core.data.media
 
 import android.content.Context
 import android.net.Uri
+import android.media.MediaMetadataRetriever
 import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -50,6 +51,7 @@ class SafMediaScanner(private val context: Context) {
             } ?: continue
             val id = "${mediaType.value}:saf:${stableId(child.uri)}"
             val relative = relativePath.ifBlank { null }
+            val genre = extractGenre(child.uri)
             output += MediaItem(
                 id = id,
                 mediaStoreId = null,
@@ -70,7 +72,7 @@ class SafMediaScanner(private val context: Context) {
                 albumId = null,
                 artworkUri = null,
                 thumbnailUri = if (mediaType == MediaType.VIDEO) child.uri.toString() else null,
-                genre = null,
+                genre = genre,
                 sourceDirectoryUri = rootUri,
                 folderId = stableId(node.uri),
                 folder = relative,
@@ -78,6 +80,19 @@ class SafMediaScanner(private val context: Context) {
                 relativePath = relative,
             )
             if (output.size >= MediaLibraryRepository.MAX_LIBRARY_ITEMS) return
+        }
+    }
+
+    private fun extractGenre(uri: Uri): String? {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(context, uri)
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE)
+                ?.trim()?.takeIf { it.isNotBlank() }
+        } catch (_: Throwable) {
+            null
+        } finally {
+            runCatching { retriever.release() }
         }
     }
 

@@ -34,12 +34,15 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
 import com.airplayr.app.di.AppContainer
+import com.airplayr.app.core.data.VIDEO_COMPLETION_FRACTION
 import com.airplayr.app.ui.video.VideoPlayerViewModel
 import com.airplayr.app.ui.video.VideoPlayerViewModelFactory
 
 @OptIn(UnstableApi::class)
 @Composable fun VideoScreen(container: AppContainer, id: String) {
-    val vm: VideoPlayerViewModel = viewModel(factory = VideoPlayerViewModelFactory(container.mediaLibrary, container.structured))
+    val vm: VideoPlayerViewModel = viewModel(
+        factory = VideoPlayerViewModelFactory(container.mediaLibrary, container.structured, container.stats),
+    )
     val settingsState by container.preferences.settings.collectAsStateWithLifecycle(initialValue = null)
     val settings = settingsState ?: return
     val video by vm.video.collectAsStateWithLifecycle(); val resume by vm.resume.collectAsStateWithLifecycle(); val context=LocalContext.current
@@ -61,13 +64,31 @@ import com.airplayr.app.ui.video.VideoPlayerViewModelFactory
             if(item.id==video?.id){
                 controller=c
                 c.addListener(object : Player.Listener {
-                    override fun onPlayerError(error: PlaybackException) { playerError = error.errorCodeName.ifBlank { error.message ?: "Video playback failed" } }
+                    override fun onPlayerError(error: PlaybackException) {
+                        playerError = error.errorCodeName.ifBlank { error.message ?: "Video playback failed" }
+                    }
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        if (playbackState == Player.STATE_ENDED) vm.completePlayback(item)
+                    }
                 })
                 container.videoController.playVideo(c,item,resume)
+                vm.beginPlayback(item, settings.savePlaybackHistory)
             }
         }
     }
-    LaunchedEffect(controller, repeatA, repeatB){ while(controller!=null){ val c=controller!!; if(repeatA!=null && repeatB!=null && c.currentPosition>=repeatB!!) c.seekTo(repeatA!!); vm.saveProgress(id,c.currentPosition,c.duration.takeIf{it>0}?:video?.durationMs?:0); kotlinx.coroutines.delay(3000) } }
+    LaunchedEffect(controller, repeatA, repeatB, video?.id){
+        val item = video ?: return@LaunchedEffect
+        while(controller!=null){
+            val c=controller!!
+            if(repeatA!=null && repeatB!=null && c.currentPosition>=repeatB!!) c.seekTo(repeatA!!)
+            val duration = c.duration.takeIf{it>0} ?: item.durationMs
+            vm.trackPlayback(item, c.currentPosition, duration, c.isPlaying)
+            if (duration > 0L && c.currentPosition.toDouble() / duration.toDouble() >= VIDEO_COMPLETION_FRACTION) {
+                vm.completePlayback(item)
+            }
+            kotlinx.coroutines.delay(3000)
+        }
+    }
     if(Build.VERSION.SDK_INT>=26){
         SideEffect{
             val w=(video?.width?:16).coerceAtLeast(1); val h=(video?.height?:9).coerceAtLeast(1)
@@ -84,9 +105,19 @@ import com.airplayr.app.ui.video.VideoPlayerViewModelFactory
             onDispose { activity?.lifecycle?.removeObserver(observer) }
         }
     }
-    DisposableEffect(Unit){
+    DisposableEffect(video?.id){
         onDispose {
-            controller?.pause()
+            val item = video
+            val c = controller
+            if (item != null && c != null) {
+                vm.finishPlayback(
+                    item = item,
+                    positionMs = c.currentPosition,
+                    durationMs = c.duration.takeIf { it > 0 } ?: item.durationMs,
+                    isPlaying = c.isPlaying,
+                )
+            }
+            c?.pause()
             container.videoController.release()
         }
     }

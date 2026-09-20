@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -119,6 +120,7 @@ fun AirPlayrMediaArtwork(
     },
     playing: Boolean = false,
     fallbackIconSize: Dp = 22.dp,
+    fallbackIconTint: Color? = null,
     onPlay: (() -> Unit)? = null,
     onMore: (() -> Unit)? = null,
 ) {
@@ -132,21 +134,32 @@ fun AirPlayrMediaArtwork(
             mediaType = mediaType,
             fallbackIcon = fallbackIcon,
             fallbackIconSize = fallbackIconSize,
+            fallbackIconTint = fallbackIconTint ?: c.onSurfaceVariant.copy(alpha = com.airplayr.app.ui.theme.AirPlayrArtworkTokens.fallbackIconAlpha),
             isPlaying = playing,
         )
 
         if (onMore != null) {
-            Surface(
-                onClick = onMore,
-                modifier = Modifier.align(Alignment.TopEnd).padding(5.dp).size(36.dp),
-                shape = CircleShape,
-                color = c.scrim.copy(alpha = 0.46f),
-                tonalElevation = 0.dp,
-                shadowElevation = 0.dp,
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(5.dp)
+                    .size(36.dp)
+                    .graphicsLayer {
+                        // Keep the hit target completely transparent; only a tiny shadow gives
+                        // the vertical-dot glyph enough contrast over bright artwork.
+                        shadowElevation = 2.0.dp.toPx()
+                        shape = CircleShape
+                        clip = false
+                    }
+                    .clickable(onClick = onMore),
+                contentAlignment = Alignment.Center,
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.MoreVert, "More options", tint = Color.White, modifier = Modifier.size(21.dp))
-                }
+                Icon(
+                    Icons.Default.MoreVert,
+                    "More options",
+                    tint = Color.White,
+                    modifier = Modifier.size(21.dp),
+                )
             }
         }
 

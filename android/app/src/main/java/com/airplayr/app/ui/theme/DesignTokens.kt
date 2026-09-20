@@ -48,4 +48,5 @@ object AirPlayrArtworkTokens {
     val row: Dp = 64.dp
     val compactRow: Dp = 58.dp
     val feature: Dp = 82.dp
+    const val fallbackIconAlpha: Float = 0.52f
 }

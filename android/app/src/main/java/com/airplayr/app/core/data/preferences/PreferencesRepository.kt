@@ -69,6 +69,9 @@ private val WHATS_NEW_SEEN_VERSION = stringPreferencesKey("whats_new_seen_versio
 private val INITIAL_LIBRARY_SCAN_DONE = booleanPreferencesKey("initial_library_scan_done")
 private val MEDIASTORE_VERSION = stringPreferencesKey("mediastore_version")
 private val MEDIASTORE_LAST_REFRESH_MS = androidx.datastore.preferences.core.longPreferencesKey("mediastore_last_refresh_ms")
+private val GENRE_METADATA_VERSION = stringPreferencesKey("genre_metadata_version")
+private const val STARTUP_PREFS = "airplayr_startup"
+private const val STARTUP_THEME = "theme"
 
 class PreferencesRepository(private val context: Context) {
     val settings: Flow<AirPlayrSettings> = context.airPlayrDataStore.data.map { p ->
@@ -126,7 +129,16 @@ class PreferencesRepository(private val context: Context) {
         )
     }
 
-    suspend fun setTheme(v: String) = context.airPlayrDataStore.edit { it[THEME] = v.coerceTheme() }
+    suspend fun setTheme(v: String) {
+        val theme = v.coerceTheme()
+        // Commit the tiny startup mirror synchronously so a process death immediately after a
+        // theme change can never relaunch into the previous light/dark mode for one frame.
+        context.getSharedPreferences(STARTUP_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(STARTUP_THEME, theme)
+            .commit()
+        context.airPlayrDataStore.edit { it[THEME] = theme }
+    }
     suspend fun setHighContrast(v: Boolean) = editBool(HIGH_CONTRAST, v)
     suspend fun setReduceMotion(v: Boolean) = editBool(REDUCE_MOTION, v)
     suspend fun setHapticFeedback(v: Boolean) = editBool(HAPTIC, v)
@@ -200,6 +212,13 @@ class PreferencesRepository(private val context: Context) {
             prefs[MEDIASTORE_LAST_REFRESH_MS] = System.currentTimeMillis()
         }
     }
+
+    suspend fun needsGenreMetadataBackfill(version: String = "1"): Boolean =
+        context.airPlayrDataStore.data.map { it[GENRE_METADATA_VERSION] != version }.first()
+
+    suspend fun markGenreMetadataBackfillDone(version: String = "1") {
+        context.airPlayrDataStore.edit { it[GENRE_METADATA_VERSION] = version }
+    }
     suspend fun addSafRoot(uri: String) { context.airPlayrDataStore.edit { it[SAF_ROOTS] = (it[SAF_ROOTS] ?: emptySet()) + uri } }
     suspend fun removeSafRoot(uri: String) { context.airPlayrDataStore.edit { it[SAF_ROOTS] = (it[SAF_ROOTS] ?: emptySet()) - uri } }
 
@@ -229,7 +248,13 @@ class PreferencesRepository(private val context: Context) {
         }
     }
 
-    suspend fun resetToDefaults() { context.airPlayrDataStore.edit { it.clear() } }
+    suspend fun resetToDefaults() {
+        context.airPlayrDataStore.edit { it.clear() }
+        context.getSharedPreferences(STARTUP_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(STARTUP_THEME, "system")
+            .commit()
+    }
 
     private suspend fun editBool(key: androidx.datastore.preferences.core.Preferences.Key<Boolean>, value: Boolean) { context.airPlayrDataStore.edit { it[key] = value } }
 }

@@ -88,6 +88,7 @@ fun Artwork(
     mediaType: MediaType? = null,
     fallbackIcon: ImageVector = when (mediaType) { MediaType.VIDEO -> AirPlayrIcons.Video; else -> AirPlayrIcons.Music },
     fallbackIconSize: Dp = 22.dp,
+    fallbackIconTint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = com.airplayr.app.ui.theme.AirPlayrArtworkTokens.fallbackIconAlpha),
     isPlaying: Boolean = false,
 ) {
     val context = LocalContext.current
@@ -114,7 +115,7 @@ fun Artwork(
         contentAlignment = Alignment.Center,
     ) {
         if (bitmap != null) Image(bitmap!!, contentDescription, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
-        else Icon(fallbackIcon, contentDescription, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(fallbackIconSize))
+        else Icon(fallbackIcon, contentDescription, tint = fallbackIconTint, modifier = Modifier.size(fallbackIconSize))
         if (isPlaying) PlayingWaveIndicator()
     }
 }

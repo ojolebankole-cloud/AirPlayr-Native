@@ -78,8 +78,11 @@ fun HomeScreen(
     val recentlyPlayedVideos = homeState.recentlyPlayedVideos
     val audioHistory = statsHistory.filter { it.mediaType == MediaType.AUDIO.value }
     val videoHistory = statsHistory.filter { it.mediaType == MediaType.VIDEO.value }
-    val musicPlays = audioHistory.sumOf { it.playCount }
-    val videoPlays = videoHistory.sumOf { it.playCount }
+    // The stats card is backed by the durable playback-event aggregates rather than the bounded
+    // history rail. This keeps video/listening counts correct even when history contains only the
+    // most recent 100 media rows.
+    val musicPlays = stats?.musicPlays ?: audioHistory.sumOf { it.playCount }
+    val videoPlays = stats?.videoPlays ?: videoHistory.sumOf { it.playCount }
 
     // Match Expo exactly: refresh the time-of-day card every 30 seconds while
     // Home is mounted, so crossing a time boundary updates without reopening Home.
@@ -224,11 +227,12 @@ fun HomeScreen(
                 item {
                     ListeningWatchingStatsCard(
                         listeningSeconds = stats?.listeningSeconds ?: 0L,
+                        watchingSeconds = stats?.watchingSeconds ?: 0L,
                         musicPlays = musicPlays,
                         videoPlays = videoPlays,
                         completedVideos = stats?.completedVideos ?: videoHistory.count { it.completed },
-                        topTrack = audioHistory.maxWithOrNull(compareBy<com.airplayr.app.core.data.db.PlaybackHistoryEntity> { it.playCount }.thenBy { it.playedAt })?.title ?: "—",
-                        topVideo = videoHistory.maxWithOrNull(compareBy<com.airplayr.app.core.data.db.PlaybackHistoryEntity> { it.playCount }.thenBy { it.playedAt })?.title ?: "—",
+                        topTrack = stats?.topTrack ?: audioHistory.maxWithOrNull(compareBy<com.airplayr.app.core.data.db.PlaybackHistoryEntity> { it.playCount }.thenBy { it.playedAt })?.title ?: "—",
+                        topVideo = stats?.topVideo ?: videoHistory.maxWithOrNull(compareBy<com.airplayr.app.core.data.db.PlaybackHistoryEntity> { it.playCount }.thenBy { it.playedAt })?.title ?: "—",
                         onNavigate = onNavigate,
                     )
                 }
@@ -337,6 +341,7 @@ private fun QuickActions(colors: AirPlayrColors, onHistory: () -> Unit, onFavori
 @Composable
 private fun ListeningWatchingStatsCard(
     listeningSeconds: Long,
+    watchingSeconds: Long,
     musicPlays: Int,
     videoPlays: Int,
     completedVideos: Int,
@@ -351,7 +356,7 @@ private fun ListeningWatchingStatsCard(
         onClick = { onNavigate("listening-watching-stats") },
         modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
         shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer),
+        colors = CardDefaults.cardColors(containerColor = colors.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.padding(22.dp)) {
@@ -369,10 +374,11 @@ private fun ListeningWatchingStatsCard(
                     Icon(Icons.Default.BarChart, "Statistics", tint = colors.primary, modifier = Modifier.size(22.dp))
                 }
             }
-            Row(Modifier.fillMaxWidth().padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth().padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 PremiumStatTile(Icons.Default.Headphones, formatExpoListeningTime(listeningSeconds), "LISTENING", Modifier.weight(1f))
+                PremiumStatTile(Icons.Default.Visibility, formatExpoListeningTime(watchingSeconds), "WATCHING", Modifier.weight(1f))
                 PremiumStatTile(Icons.Default.MusicNote, "$musicPlays", "MUSIC PLAYS", Modifier.weight(1f))
-                PremiumStatTile(Icons.Default.Visibility, "$videoPlays", "VIDEO PLAYS", Modifier.weight(1f))
+                PremiumStatTile(Icons.Default.VideoLibrary, "$videoPlays", "VIDEO PLAYS", Modifier.weight(1f))
             }
             HorizontalDivider(color = colors.outlineVariant.copy(alpha = .55f), thickness = 0.5.dp, modifier = Modifier.padding(vertical = 16.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -486,7 +492,7 @@ private fun formatExpoListeningTime(totalSeconds: Long): String {
     Card(
         modifier = modifier.heightIn(min = 72.dp),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = c.surfaceContainer),
+        colors = CardDefaults.cardColors(containerColor = c.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         onClick = onClick,
     ) {
@@ -577,7 +583,7 @@ private fun RepeatRailCard(item: MediaItem, modifier: Modifier = Modifier, playi
     Card(
         modifier = modifier.height(72.dp),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer),
+        colors = CardDefaults.cardColors(containerColor = colors.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         onClick = onClick,
     ) {
@@ -609,7 +615,7 @@ private fun RepeatRailCard(item: MediaItem, modifier: Modifier = Modifier, playi
                     .clickable { onNavigate("artist/${java.net.URLEncoder.encode(name, "UTF-8")}") },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Artwork(songs.firstOrNull()?.artworkUri, Modifier.size(AirPlayrArtworkTokens.artistRail), 82.dp, name, MediaType.AUDIO, AirPlayrIcons.Artist, fallbackIconSize = AirPlayrArtworkTokens.artistFallbackIcon)
+                Artwork(songs.firstOrNull()?.artworkUri, Modifier.size(AirPlayrArtworkTokens.artistRail), 82.dp, name, MediaType.AUDIO, AirPlayrIcons.Artist, fallbackIconSize = AirPlayrArtworkTokens.artistFallbackIcon, fallbackIconTint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = com.airplayr.app.ui.theme.AirPlayrArtworkTokens.fallbackIconAlpha))
                 Text(name, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 13.sp, color = LocalAirPlayrColors.current.textPrimary, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
             }
         }

@@ -11,6 +11,7 @@ import com.airplayr.app.core.data.db.AirPlayrDatabase
 import com.airplayr.app.core.data.media.MediaLibraryRepository
 import com.airplayr.app.core.data.media.MediaPermission
 import com.airplayr.app.core.data.media.MediaStoreDataSource
+import com.airplayr.app.core.data.media.MediaStoreChangeObserver
 import com.airplayr.app.core.data.media.SafMediaScanner
 import com.airplayr.app.core.data.preferences.PreferencesRepository
 import com.airplayr.app.core.work.LibraryRefreshWorker
@@ -30,6 +31,7 @@ import com.airplayr.app.core.metadata.MetadataRepository
 import com.airplayr.app.core.cast.CastController
 import com.airplayr.app.ui.navigation.HomeRepository
 import com.airplayr.app.ui.navigation.HomeStatsCache
+import com.airplayr.app.ui.navigation.HomeSnapshotStore
 
 class AppContainer(context: Context) {
     val appContext: Context = context.applicationContext
@@ -39,6 +41,17 @@ class AppContainer(context: Context) {
     val syncState: StateFlow<LibrarySyncState> = _syncState
     private val _syncProgress = MutableStateFlow(LibrarySyncProgress())
     val syncProgress: StateFlow<LibrarySyncProgress> = _syncProgress
+
+    // The launch theme is mirrored in SharedPreferences so it can be read synchronously before
+    // Android releases the splash screen. DataStore remains the authoritative settings stream
+    // after the first frame, but it must never block startup/re-entry.
+    private val _startupTheme = MutableStateFlow(
+        appContext.getSharedPreferences("airplayr_startup", Context.MODE_PRIVATE)
+            .getString("theme", "system")
+            ?.takeIf { it == "light" || it == "dark" || it == "system" }
+            ?: "system"
+    )
+    val startupTheme: StateFlow<String> = _startupTheme
 
     private val migration1To2 = object : Migration(1, 2) {
         override fun migrate(db: SupportSQLiteDatabase) {
@@ -97,6 +110,11 @@ class AppContainer(context: Context) {
 
     val preferences = PreferencesRepository(appContext)
     val mediaStore = MediaStoreDataSource(appContext)
+    private val mediaStoreChangeObserver = MediaStoreChangeObserver(
+        resolver = appContext.contentResolver,
+        scope = applicationScope,
+        refresh = { refreshLibraryAfterMediaStoreChange() },
+    )
     val metadata: MetadataRepository by lazy { MetadataRepository(appContext) }
     val mediaLibrary: MediaLibraryRepository by lazy { MediaLibraryRepository({ database }, mediaStore, { metadata }) }
     val safMediaScanner = SafMediaScanner(appContext)
@@ -104,8 +122,9 @@ class AppContainer(context: Context) {
     val stats: com.airplayr.app.core.data.PlaybackStatsRepository by lazy { com.airplayr.app.core.data.PlaybackStatsRepository { database } }
     // HomeRepository construction is cheap; starting it here lets its Room observer warm
     // on the application IO scope before the first Home composition.
-    val homeRepository: HomeRepository by lazy { HomeRepository({ mediaLibrary }, { structured }, applicationScope) }
-    val homeStats: HomeStatsCache by lazy { HomeStatsCache { structured } }
+    private val homeSnapshotStore = HomeSnapshotStore(appContext)
+    val homeRepository: HomeRepository = HomeRepository({ mediaLibrary }, { structured }, applicationScope, homeSnapshotStore)
+    val homeStats: HomeStatsCache by lazy { HomeStatsCache(appContext) { structured } }
     val search: com.airplayr.app.core.data.search.SearchRepository by lazy { com.airplayr.app.core.data.search.SearchRepository { database } }
     val collections: com.airplayr.app.core.intelligence.CollectionsRepository by lazy { com.airplayr.app.core.intelligence.CollectionsRepository(mediaLibrary, structured) }
     val dsp: com.airplayr.app.core.playback.dsp.DspRepository by lazy { com.airplayr.app.core.playback.dsp.DspRepository(appContext) }
@@ -113,9 +132,15 @@ class AppContainer(context: Context) {
     val cast: CastController by lazy { CastController(appContext) }
 
     init {
-        // Home has first priority: start its app-scoped observer before background refresh/SAF
-        // jobs so an existing user's Room snapshot is warm as early as possible.
-        homeRepository.start()
+        // Home has first priority, but its Room-backed observer must not open Room while the
+        // Application object is still being created on the main thread. Start the warm-up from
+        // the existing application IO scope instead.
+        applicationScope.launch { homeRepository.start() }
+
+        // Keep the library fresh while the app process is alive. Registration is cheap and the
+        // observer performs no MediaStore query on its callback thread; actual reconciliation is
+        // debounced and runs on the existing application IO scope.
+        mediaStoreChangeObserver.register()
 
         // WorkManager setup and SAF roots are never part of the Activity's critical startup path.
         applicationScope.launch {
@@ -139,12 +164,34 @@ class AppContainer(context: Context) {
                 runCatching { homeRepository.prewarm() }
             }
         }
+        applicationScope.launch {
+            // Genre backfill is upgrade maintenance, not first-frame work. Run it only for an
+            // existing initialized library and only once per metadata schema version.
+            if (preferences.hasCompletedInitialLibraryScan() && preferences.needsGenreMetadataBackfill()) {
+                kotlinx.coroutines.delay(1_800L)
+                runCatching { mediaLibrary.backfillMissingGenres() }
+                    .onSuccess { preferences.markGenreMetadataBackfillDone() }
+            }
+        }
     }
 
     /**
      * Requests startup synchronization from an application-owned scope. Existing users receive
      * a normal delta refresh; only an uninitialized library receives the one-time full scan.
      */
+    private suspend fun refreshLibraryAfterMediaStoreChange() {
+        if (!MediaPermission.granted(appContext)) return
+        if (!preferences.hasCompletedInitialLibraryScan()) return
+
+        _syncState.value = LibrarySyncState.DELTA
+        runCatching { mediaLibrary.deltaRefresh() }
+            .onFailure { _syncState.value = LibrarySyncState.FAILED }
+            .onSuccess {
+                preferences.markMediaStoreRefresh(mediaStore.externalLibraryVersion())
+                _syncState.value = LibrarySyncState.IDLE
+            }
+    }
+
     fun requestLibrarySynchronization(startupDelayMs: Long = 3_000L) {
         applicationScope.launch {
             if (startupDelayMs > 0L) kotlinx.coroutines.delay(startupDelayMs)

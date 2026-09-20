@@ -19,6 +19,7 @@ interface UserDataDao {
     @Query("SELECT * FROM playback_history WHERE playCount >= 2 ORDER BY playCount DESC, playedAt DESC LIMIT :limit") fun observeRepeated(limit: Int): Flow<List<PlaybackHistoryEntity>>
     @Query("SELECT * FROM playback_history ORDER BY playedAt DESC LIMIT :limit") suspend fun history(limit: Int): List<PlaybackHistoryEntity>
     @Query("SELECT * FROM playback_history WHERE mediaId = :mediaId LIMIT 1") suspend fun historyById(mediaId: String): PlaybackHistoryEntity?
+    @Query("SELECT * FROM media_items WHERE id IN (:ids)") suspend fun mediaItemsByIds(ids: List<String>): List<com.airplayr.app.core.data.media.MediaItemEntity>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertHistory(item: PlaybackHistoryEntity)
     @Query("UPDATE playback_history SET completed = 1, completedAt = :at WHERE mediaId = :mediaId") suspend fun markCompleted(mediaId: String, at: Long)
     @Query("DELETE FROM playback_history") suspend fun clearHistory()
@@ -35,7 +36,19 @@ interface UserDataDao {
     @Insert suspend fun insertPlaybackEvent(event: PlaybackEventEntity)
     @Query("SELECT * FROM playback_events WHERE playedAt >= :since AND playedAt <= :until ORDER BY playedAt DESC") suspend fun playbackEvents(since: Long, until: Long): List<PlaybackEventEntity>
     @Query("SELECT * FROM playback_events WHERE mediaType = :mediaType ORDER BY playedAt ASC") suspend fun playbackEventsByType(mediaType: String): List<PlaybackEventEntity>
+    @Query("SELECT COUNT(*) FROM playback_events WHERE mediaType = :mediaType AND mediaId = :mediaId") suspend fun playbackEventCount(mediaType: String, mediaId: String): Int
     @Query("SELECT * FROM playback_events ORDER BY playedAt DESC LIMIT :limit") suspend fun playbackEvents(limit: Int): List<PlaybackEventEntity>
+    data class PlaybackMediaAggregate(val mediaId: String, val plays: Int, val title: String)
+
+    @Query("SELECT COUNT(*) FROM playback_events WHERE mediaType = :mediaType") suspend fun playbackEventCountByType(mediaType: String): Int
+
+    @Query("""SELECT pe.mediaId AS mediaId, COUNT(*) AS plays, COALESCE(mi.title, pe.mediaId) AS title
+        FROM playback_events pe LEFT JOIN media_items mi ON mi.id = pe.mediaId
+        WHERE pe.mediaType = :mediaType
+        GROUP BY pe.mediaId
+        ORDER BY plays DESC
+        LIMIT :limit""")
+    suspend fun topPlaybackMedia(mediaType: String, limit: Int): List<PlaybackMediaAggregate>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertPlaybackSession(session: PlaybackSessionEntity)
     @Query("SELECT * FROM playback_sessions WHERE sessionId = :id") suspend fun playbackSession(id: String): PlaybackSessionEntity?
     @Query("SELECT * FROM playback_sessions WHERE startedAt >= :since AND startedAt <= :until ORDER BY startedAt DESC") suspend fun playbackSessions(since: Long, until: Long): List<PlaybackSessionEntity>

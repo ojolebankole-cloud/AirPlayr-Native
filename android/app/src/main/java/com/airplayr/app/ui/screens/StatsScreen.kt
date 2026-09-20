@@ -124,7 +124,9 @@ fun StatsScreen(container: AppContainer, libraryViewModel: LibraryViewModel, pla
                     items = s.topVideos,
                     lookup = video.associateBy { it.id },
                     colors = colors,
-                    onOpen = { item -> onOpenMedia(item) },
+                    onOpen = { item ->
+                        if (item.mediaType == MediaType.VIDEO) onOpenVideo(item.id) else onOpenMedia(item)
+                    },
                     playingId = playbackState.takeIf { it.isPlaying }?.currentId,
                     fallback = "Your most-watched videos will appear here.",
                 )
@@ -269,7 +271,7 @@ private fun ActivityCard(title: String, caption: String, data: List<List<Long>>,
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 26.sp, lineHeight = 30.sp, color = colors.textPrimary)
-                    Text("Weekly activity by time of day", fontFamily = AirPlayrFonts.OpenSans, fontSize = 11.sp, color = colors.textSecondary, modifier = Modifier.padding(top = 2.dp))
+                    Text(if (mode == "music") "Listening activity by time of day" else "Watching activity by time of day", fontFamily = AirPlayrFonts.OpenSans, fontSize = 11.sp, color = colors.textSecondary, modifier = Modifier.padding(top = 2.dp))
                 }
                 Text(caption, fontFamily = AirPlayrFonts.OpenSansBold, fontSize = 11.sp, letterSpacing = 1.5.sp, color = colors.textPrimary)
             }
@@ -364,13 +366,20 @@ private fun TopMediaCard(title: String, items: List<PlaybackStatsRepository.TopI
                 Text(fallback, fontFamily = AirPlayrFonts.OpenSans, fontSize = 14.sp, lineHeight = 20.sp, color = colors.textPrimary, modifier = Modifier.padding(vertical = 14.dp))
             } else {
                 items.forEachIndexed { index, top ->
-                    val media = lookup[top.id]
-                    if (media != null) {
-                        Row(Modifier.fillMaxWidth().padding(top = if (index == 0) 12.dp else 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("${index + 1}", fontFamily = AirPlayrFonts.OpenSansBold, fontSize = 20.sp, color = colors.textPrimary, modifier = Modifier.width(26.dp))
-                            Box(Modifier.weight(1f).clickable { onOpen(media) }) { AirPlayrMediaRow(media, onOpen = { onOpen(media) }, playing = playingId == media.id, compact = true) }
-                            Text(top.periodPlays.toString(), fontFamily = AirPlayrFonts.OpenSansBold, fontSize = 14.sp, color = colors.textPrimary, modifier = Modifier.width(30.dp), textAlign = TextAlign.End)
+                    val media = lookup[top.id] ?: MediaItem(
+                        id = top.id, mediaStoreId = null, uri = top.id, title = top.title, filename = top.title,
+                        artist = top.artist, album = top.album, albumArtist = top.artist, durationMs = 0L, width = 0, height = 0,
+                        sizeBytes = 0L, dateModified = 0L, dateAdded = 0L,
+                        mediaType = MediaType.from(top.mediaType), mimeType = null, albumId = null, artworkUri = top.artworkUri,
+                        thumbnailUri = top.artworkUri, genre = null, sourceDirectoryUri = null, folderId = null, folder = null,
+                        path = null, relativePath = null,
+                    )
+                    Row(Modifier.fillMaxWidth().padding(top = if (index == 0) 12.dp else 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("${index + 1}", fontFamily = AirPlayrFonts.OpenSansBold, fontSize = 20.sp, color = colors.textPrimary, modifier = Modifier.width(26.dp))
+                        Box(Modifier.weight(1f).then(if (lookup[top.id] != null) Modifier.clickable { onOpen(media) } else Modifier)) {
+                            AirPlayrMediaRow(media, onOpen = { if (lookup[top.id] != null) onOpen(media) }, playing = playingId == media.id, compact = true)
                         }
+                        Text(top.periodPlays.toString(), fontFamily = AirPlayrFonts.OpenSansBold, fontSize = 14.sp, color = colors.textPrimary, modifier = Modifier.width(30.dp), textAlign = TextAlign.End)
                     }
                 }
             }

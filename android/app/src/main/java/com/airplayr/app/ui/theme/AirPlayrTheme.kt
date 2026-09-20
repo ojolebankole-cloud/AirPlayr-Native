@@ -1,6 +1,9 @@
 package com.airplayr.app.ui.theme
 
+import android.app.WallpaperManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ColorScheme
@@ -12,14 +15,9 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 
@@ -78,9 +76,9 @@ private val AirPlayrLightFallback = lightColorScheme(
     onError = Color.White,
     errorContainer = Color(0xFFFFDAD6),
     onErrorContainer = Color(0xFF410002),
-    background = Color(0xFFF9F4F7),
+    background = Color(0xFFF2FBF8),
     onBackground = Color(0xFF1D1B20),
-    surface = Color(0xFFFDF8FB),
+    surface = Color(0xFFFFFFFF),
     onSurface = Color(0xFF1D1B20),
     surfaceVariant = Color(0xFFE7E0EC),
     onSurfaceVariant = Color(0xFF49454F),
@@ -90,13 +88,13 @@ private val AirPlayrLightFallback = lightColorScheme(
     inverseOnSurface = Color(0xFFF5EFF7),
     inversePrimary = Color(0xFFD0BCFF),
     scrim = Color(0x59000000),
-    surfaceDim = Color(0xFFE6E0E9),
-    surfaceBright = Color(0xFFFDF8FB),
-    surfaceContainerLowest = Color(0xFFF8F2F6),
-    surfaceContainerLow = Color(0xFFF7F2FA),
-    surfaceContainer = Color(0xFFF3EDF7),
-    surfaceContainerHigh = Color(0xFFECE6F0),
-    surfaceContainerHighest = Color(0xFFE6E0E9),
+    surfaceDim = Color(0xFFD6E9E3),
+    surfaceBright = Color(0xFFFFFFFF),
+    surfaceContainerLowest = Color(0xFFF7FCFA),
+    surfaceContainerLow = Color(0xFFEDF7F3),
+    surfaceContainer = Color(0xFFDEEFE9),
+    surfaceContainerHigh = Color(0xFFD5E8E1),
+    surfaceContainerHighest = Color(0xFFCCDCD6),
 )
 
 
@@ -109,16 +107,22 @@ private fun arrangeLightScheme(scheme: ColorScheme): ColorScheme {
             alpha = from.alpha + (to.alpha - from.alpha) * amount,
         )
 
-    val background = blend(scheme.background, scheme.surfaceContainerLow, 0.24f)
-    val surface = blend(scheme.surface, scheme.surfaceContainerLow, 0.12f)
-    val surfaceBright = blend(scheme.surfaceBright, scheme.surfaceContainerLow, 0.08f)
+    // The reference uses the Material You relationship of:
+    //   pale dynamic canvas -> near-white cards -> visibly tinted containers.
+    // The old implementation pushed the background toward surfaceContainerLow only weakly and
+    // also pulled the base surface toward that same low container, which could collapse both into
+    // an almost-white canvas. Keep the wallpaper-derived roles, but deliberately restore tonal
+    // separation so the light theme behaves like the reference image.
+    val background = blend(scheme.background, scheme.surfaceContainer, 0.66f)
+    val surface = blend(scheme.surface, Color.White, 0.88f)
+    val surfaceBright = blend(scheme.surfaceBright, Color.White, 0.60f)
     return scheme.copy(
         background = background,
         surface = surface,
         surfaceBright = surfaceBright,
-        surfaceContainerLowest = blend(scheme.surfaceContainerLowest, background, 0.18f),
     )
 }
+
 
 @Composable
 fun AirPlayrTheme(
@@ -128,32 +132,60 @@ fun AirPlayrTheme(
     content: @Composable () -> Unit,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
+    // Configuration changes (including Android's dynamic color resource updates) naturally
+    // invalidate this composition. WallpaperManager below covers the case where the wallpaper
+    // colors change while the Activity stays alive without recreating the configuration.
     LocalConfiguration.current
 
-    var refreshTick by remember { mutableIntStateOf(0) }
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) refreshTick++
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    // Reading the value makes lifecycle-driven refreshes invalidate the dynamic palette.
-    refreshTick
     val useDynamicColor = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-    val baseScheme: ColorScheme = when {
-        useDynamicColor && darkTheme -> dynamicDarkColorScheme(context)
-        useDynamicColor && !darkTheme -> dynamicLightColorScheme(context)
-        darkTheme -> AirPlayrDarkFallback
-        else -> AirPlayrLightFallback
+
+    // Do not invalidate the entire app on every ON_RESUME. That used to make warm re-entry do a
+    // global theme rebuild. Listen specifically for wallpaper color changes instead, so dynamic
+    // Material You updates are ready before the next visible frame after a wallpaper change.
+    val dynamicColorRefresh = remember { mutableIntStateOf(0) }
+    DisposableEffect(context, useDynamicColor) {
+        if (!useDynamicColor) {
+            return@DisposableEffect onDispose { }
+        }
+        val wallpaperManager = WallpaperManager.getInstance(context)
+        val handler = Handler(Looper.getMainLooper())
+        var pendingRefresh: Runnable? = null
+        val listener = object : WallpaperManager.OnColorsChangedListener {
+            override fun onColorsChanged(colors: android.app.WallpaperColors?, which: Int) {
+                pendingRefresh?.let(handler::removeCallbacks)
+                val refresh = Runnable {
+                    pendingRefresh = null
+                    dynamicColorRefresh.intValue++
+                }
+                pendingRefresh = refresh
+                // Coalesce duplicate Android wallpaper callbacks without adding a visible delay.
+                // The increment happens on the next main-looper turn, allowing the new Material
+                // You palette to be read before the next rendered frame.
+                handler.post(refresh)
+            }
+        }
+        wallpaperManager.addOnColorsChangedListener(listener, handler)
+        onDispose {
+            wallpaperManager.removeOnColorsChangedListener(listener)
+            pendingRefresh?.let(handler::removeCallbacks)
+            handler.removeCallbacksAndMessages(null)
+        }
+    }
+    val baseScheme: ColorScheme = remember(darkTheme, useDynamicColor, dynamicColorRefresh.intValue) {
+        when {
+            useDynamicColor && darkTheme -> dynamicDarkColorScheme(context)
+            useDynamicColor && !darkTheme -> dynamicLightColorScheme(context)
+            darkTheme -> AirPlayrDarkFallback
+            else -> AirPlayrLightFallback
+        }
     }
 
     // Keep Material You's wallpaper-derived hue while giving the light app a visibly tinted
     // background/surface hierarchy instead of an almost-white canvas. Containers remain the
     // system-derived Material roles so cards, sheets and controls retain tonal separation.
-    val scheme = if (darkTheme) baseScheme else arrangeLightScheme(baseScheme)
+    val scheme = remember(baseScheme, darkTheme) {
+        if (darkTheme) baseScheme else arrangeLightScheme(baseScheme)
+    }
 
     val accessibleScheme = if (highContrast) {
         scheme.copy(
