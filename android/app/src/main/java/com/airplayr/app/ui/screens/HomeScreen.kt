@@ -117,11 +117,13 @@ fun HomeScreen(
 
     Box(Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.HOME).fillMaxSize().background(colors.background)) {
         val homeListState = rememberSaveable(saver = androidx.compose.foundation.lazy.LazyListState.Saver) { androidx.compose.foundation.lazy.LazyListState(0) }
-        val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         LazyColumn(
             state = homeListState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = topInset, bottom = 24.dp),
+            contentPadding = PaddingValues(
+                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+                bottom = 24.dp,
+            ),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             item {

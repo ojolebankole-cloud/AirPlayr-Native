@@ -28,7 +28,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Snackbar
-import androidx.compose.material3.Scaffold
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -211,49 +210,23 @@ fun AirPlayrApp(
         val miniPlayerVisible = showMiniPlayer &&
             shellPlaybackState.currentId != null &&
             shellPlaybackState.currentMediaType == com.airplayr.app.core.data.media.MediaType.AUDIO
+        val reservedBottom = when {
+            showDock -> com.airplayr.app.ui.components.AIRPLAYR_BOTTOM_DOCK_BASE_HEIGHT.dp
+            miniPlayerVisible -> com.airplayr.app.ui.components.AIRPLAYR_MINI_PLAYER_ONLY_BASE_HEIGHT.dp
+            else -> 0.dp
+        }
 
-        // Scaffold owns the shell's bottom layout slot. This is intentionally not an overlay
-        // sibling: screen content is measured against the actual dock/MiniPlayer height, so no
-        // opaque layer can sit on top of the last rows of a screen.
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            containerColor = androidx.compose.ui.graphics.Color.Transparent,
-            snackbarHost = {
-                SnackbarHost(
-                    hostState = snackbarHostState,
-                    snackbar = { data ->
-                        Snackbar(
-                            snackbarData = data,
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
-                            containerColor = com.airplayr.app.ui.theme.LocalAirPlayrColors.current.primaryContainer,
-                            contentColor = com.airplayr.app.ui.theme.LocalAirPlayrColors.current.textPrimary,
-                        )
-                    },
-                )
-            },
-            bottomBar = {
-                if (showDock) {
-                    AirPlayrBottomDock(
-                        currentRoute = currentRoute,
-                        playbackState = shellPlaybackState,
-                        playback = playbackController,
-                        showMiniPlayer = true,
-                        onOpenPlayer = { navigate("player") },
-                        onNavigate = { route -> navigate(route) },
-                    )
-                } else if (showMiniPlayer && miniPlayerVisible) {
-                    AirPlayrMiniPlayerOnly(
-                        playbackState = shellPlaybackState,
-                        playback = playbackController,
-                        onOpenPlayer = { navigate("player") },
-                    )
-                }
-            },
-        ) { scaffoldPadding ->
+        // Keep the shell edge-to-edge. The persistent bottom controls are an overlay surface,
+        // while each screen owns any status-bar inset it actually needs. Home intentionally draws
+        // behind the transparent status bar so its content can scroll underneath it.
+        Box(Modifier.fillMaxSize()) {
+            val contentModifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = reservedBottom)
             NavHost(
                 navController = navController,
                 startDestination = "home",
-                modifier = Modifier.fillMaxSize().padding(scaffoldPadding),
+                modifier = contentModifier,
                 enterTransition = {
                     if (initialShellFrame || settings?.reduceMotion == true) fadeIn(tween(1))
                     else fadeIn(tween(140)) + scaleIn(initialScale = 0.99f, animationSpec = tween(140))
@@ -388,6 +361,8 @@ fun AirPlayrApp(
                 if (currentRoute != "home") menuOpen = false
             }
 
+            // Keep the drawer behind the persistent bottom controls, but give its scroll content
+            // enough trailing room to reach the final items without those controls covering them.
             if (menuOpen && currentRoute == "home") {
                 val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
                 MenuDrawer(
@@ -396,11 +371,48 @@ fun AirPlayrApp(
                     videoCount = snapshot.video.size,
                     folderCount = libraryViewModel.folderCount.collectAsStateWithLifecycle().value,
                     container = container,
+                    bottomContentPadding = reservedBottom,
                     onClose = { menuOpen = false },
                     onNavigate = { route -> navigate(route) },
                     onScanMedia = { libraryViewModel.refresh() },
                     onAbout = {},
                     onSupport = {},
+                )
+            }
+
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(androidx.compose.ui.Alignment.BottomCenter)
+                    .padding(bottom = if (reservedBottom > 0.dp) reservedBottom + 12.dp else 20.dp),
+                snackbar = { data ->
+                    Snackbar(
+                        snackbarData = data,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+                        containerColor = com.airplayr.app.ui.theme.LocalAirPlayrColors.current.primaryContainer,
+                        contentColor = com.airplayr.app.ui.theme.LocalAirPlayrColors.current.textPrimary,
+                    )
+                },
+            )
+
+            if (showDock) {
+                AirPlayrBottomDock(
+                    modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter),
+                    currentRoute = currentRoute,
+                    playbackState = shellPlaybackState,
+                    playback = playbackController,
+                    showMiniPlayer = true,
+                    onOpenPlayer = { navigate("player") },
+                    onNavigate = { route -> navigate(route) },
+                )
+            } else if (showMiniPlayer && miniPlayerVisible) {
+                AirPlayrMiniPlayerOnly(
+                    playbackState = shellPlaybackState,
+                    playback = playbackController,
+                    onOpenPlayer = { navigate("player") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(androidx.compose.ui.Alignment.BottomCenter),
                 )
             }
 

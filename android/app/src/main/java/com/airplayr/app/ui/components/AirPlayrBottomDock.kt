@@ -25,6 +25,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -57,34 +58,34 @@ fun AirPlayrBottomDock(
     showMiniPlayer: Boolean = true,
 ) {
     val miniVisible = showMiniPlayer && playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO
-    // This is deliberately a transparent overlay. The previous implementation wrapped both the
-    // mini-player and bottom navigation in one large Material Surface, which created the opaque
-    // full-width layer users could see sitting on top of every screen. Individual controls own
-    // their own visual treatment; the shell itself does not paint a background.
-    Column(
+    Surface(
         modifier = modifier
             .fillMaxWidth()
             .wrapContentHeight()
             .navigationBarsPadding()
-            .padding(horizontal = 10.dp, vertical = 8.dp)
             .testTag(AirPlayrQaTags.DOCK),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
     ) {
-        if (miniVisible) {
-            MiniPlayerSection(playback, onOpenPlayer)
-        }
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .height(72.dp)
-                .padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            DockItem(AirPlayrIcons.Home, currentRoute == "home", "Home") { onNavigate("home") }
-            DockItem(AirPlayrIcons.Music, currentRoute == "music", "Music") { onNavigate("music") }
-            Spacer(Modifier.size(1.dp))
-            DockItem(AirPlayrIcons.Video, currentRoute == "videos", "Videos") { onNavigate("videos") }
-            DockItem(AirPlayrIcons.Settings, currentRoute == "settings", "Settings") { onNavigate("settings") }
+        Column(Modifier.fillMaxWidth()) {
+            if (miniVisible) {
+                MiniPlayerSection(playback, onOpenPlayer)
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .height(72.dp)
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                DockItem(AirPlayrIcons.Home, currentRoute == "home", "Home") { onNavigate("home") }
+                DockItem(AirPlayrIcons.Music, currentRoute == "music", "Music") { onNavigate("music") }
+                Spacer(Modifier.size(1.dp))
+                DockItem(AirPlayrIcons.Video, currentRoute == "videos", "Videos") { onNavigate("videos") }
+                DockItem(AirPlayrIcons.Settings, currentRoute == "settings", "Settings") { onNavigate("settings") }
+            }
         }
     }
 }
@@ -97,14 +98,14 @@ fun AirPlayrMiniPlayerOnly(
     modifier: Modifier = Modifier,
 ) {
     if (playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO) {
-        // Standalone MiniPlayer is also intentionally transparent at the shell level. This keeps
-        // the current screen visible behind the control instead of introducing a second opaque bar.
-        Column(
+        Surface(
             modifier = modifier
                 .fillMaxWidth()
                 .wrapContentHeight()
-                .navigationBarsPadding()
-                .padding(horizontal = 10.dp, vertical = 8.dp),
+                .navigationBarsPadding(),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
         ) {
             MiniPlayerSection(playback, onOpenPlayer)
         }

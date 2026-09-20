@@ -54,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -83,6 +84,7 @@ fun MenuDrawer(
     container: AppContainer,
     onClose: () -> Unit,
     onNavigate: (String) -> Unit,
+    bottomContentPadding: Dp = 0.dp,
     onScanMedia: () -> Unit,
     onAbout: () -> Unit,
     onSupport: () -> Unit,
@@ -196,7 +198,11 @@ fun MenuDrawer(
                 LazyColumn(
                     state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
                     modifier = Modifier.fillMaxWidth().weight(1f),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 14.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        horizontal = 10.dp,
+                        top = 14.dp,
+                        bottom = 14.dp + bottomContentPadding,
+                    ),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     section(entriesLibrary, "YOUR LIBRARY", colors, onClose, onNavigate, onScanMedia, { showAbout = true }, { showSupport = true })
