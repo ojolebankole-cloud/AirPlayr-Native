@@ -78,9 +78,9 @@ private val AirPlayrLightFallback = lightColorScheme(
     onError = Color.White,
     errorContainer = Color(0xFFFFDAD6),
     onErrorContainer = Color(0xFF410002),
-    background = Color(0xFFFFFBFE),
+    background = Color(0xFFF9F4F7),
     onBackground = Color(0xFF1D1B20),
-    surface = Color(0xFFFFFBFE),
+    surface = Color(0xFFFDF8FB),
     onSurface = Color(0xFF1D1B20),
     surfaceVariant = Color(0xFFE7E0EC),
     onSurfaceVariant = Color(0xFF49454F),
@@ -91,13 +91,34 @@ private val AirPlayrLightFallback = lightColorScheme(
     inversePrimary = Color(0xFFD0BCFF),
     scrim = Color(0x59000000),
     surfaceDim = Color(0xFFE6E0E9),
-    surfaceBright = Color(0xFFFFFBFE),
-    surfaceContainerLowest = Color.White,
+    surfaceBright = Color(0xFFFDF8FB),
+    surfaceContainerLowest = Color(0xFFF8F2F6),
     surfaceContainerLow = Color(0xFFF7F2FA),
     surfaceContainer = Color(0xFFF3EDF7),
     surfaceContainerHigh = Color(0xFFECE6F0),
     surfaceContainerHighest = Color(0xFFE6E0E9),
 )
+
+
+private fun arrangeLightScheme(scheme: ColorScheme): ColorScheme {
+    fun blend(from: Color, to: Color, amount: Float): Color =
+        Color(
+            red = from.red + (to.red - from.red) * amount,
+            green = from.green + (to.green - from.green) * amount,
+            blue = from.blue + (to.blue - from.blue) * amount,
+            alpha = from.alpha + (to.alpha - from.alpha) * amount,
+        )
+
+    val background = blend(scheme.background, scheme.surfaceContainerLow, 0.24f)
+    val surface = blend(scheme.surface, scheme.surfaceContainerLow, 0.12f)
+    val surfaceBright = blend(scheme.surfaceBright, scheme.surfaceContainerLow, 0.08f)
+    return scheme.copy(
+        background = background,
+        surface = surface,
+        surfaceBright = surfaceBright,
+        surfaceContainerLowest = blend(scheme.surfaceContainerLowest, background, 0.18f),
+    )
+}
 
 @Composable
 fun AirPlayrTheme(
@@ -122,12 +143,17 @@ fun AirPlayrTheme(
     // Reading the value makes lifecycle-driven refreshes invalidate the dynamic palette.
     refreshTick
     val useDynamicColor = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-    val scheme: ColorScheme = when {
+    val baseScheme: ColorScheme = when {
         useDynamicColor && darkTheme -> dynamicDarkColorScheme(context)
         useDynamicColor && !darkTheme -> dynamicLightColorScheme(context)
         darkTheme -> AirPlayrDarkFallback
         else -> AirPlayrLightFallback
     }
+
+    // Keep Material You's wallpaper-derived hue while giving the light app a visibly tinted
+    // background/surface hierarchy instead of an almost-white canvas. Containers remain the
+    // system-derived Material roles so cards, sheets and controls retain tonal separation.
+    val scheme = if (darkTheme) baseScheme else arrangeLightScheme(baseScheme)
 
     val accessibleScheme = if (highContrast) {
         scheme.copy(

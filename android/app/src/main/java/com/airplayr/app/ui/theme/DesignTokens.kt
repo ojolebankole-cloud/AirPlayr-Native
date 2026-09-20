@@ -37,3 +37,15 @@ object AirPlayrMotion {
     const val sheetCloseMs = 220
     const val fadeMs = 180
 }
+
+/** Shared media artwork geometry used across rails, grids and secondary screens. */
+object AirPlayrArtworkTokens {
+    val albumRail: Dp = 164.dp
+    val artistRail: Dp = 164.dp
+    val albumCorner: Dp = 22.dp
+    val albumFallbackIcon: Dp = 76.dp
+    val artistFallbackIcon: Dp = 68.dp
+    val row: Dp = 64.dp
+    val compactRow: Dp = 58.dp
+    val feature: Dp = 82.dp
+}

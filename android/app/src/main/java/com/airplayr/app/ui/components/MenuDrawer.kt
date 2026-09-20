@@ -181,7 +181,7 @@ fun MenuDrawer(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(Modifier.size(58.dp).clip(RoundedCornerShape(14.dp)).background(colors.primaryContainer), contentAlignment = Alignment.Center) {
-                            Artwork(artwork, Modifier.fillMaxSize(), 14.dp, title, MediaType.AUDIO, AirPlayrIcons.Music, isPlaying)
+                            Artwork(artwork, Modifier.fillMaxSize(), 14.dp, title, MediaType.AUDIO, AirPlayrIcons.Music, isPlaying = isPlaying)
                         }
                         Column(Modifier.weight(1f).padding(start = 13.dp)) {
                             Text(if (isPlaying) "CURRENTLY PLAYING" else "LAST PLAYED", style = MaterialTheme.typography.labelSmall, color = colors.textPrimary)

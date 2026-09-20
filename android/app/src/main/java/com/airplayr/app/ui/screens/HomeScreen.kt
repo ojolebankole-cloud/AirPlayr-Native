@@ -18,7 +18,6 @@ import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -38,6 +37,7 @@ import com.airplayr.app.ui.navigation.HomeViewModel
 import com.airplayr.app.ui.navigation.HomeViewModelFactory
 import com.airplayr.app.ui.playback.PlaybackController
 import com.airplayr.app.ui.theme.AirPlayrColors
+import com.airplayr.app.ui.theme.AirPlayrArtworkTokens
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.AirPlayrIcons
@@ -49,6 +49,7 @@ fun HomeScreen(
     libraryViewModel: LibraryViewModel,
     playback: PlaybackController,
     onNavigate: (String) -> Unit,
+    onMenu: () -> Unit = {},
     onCast: () -> Unit = {},
 ) {
     val colors = LocalAirPlayrColors.current
@@ -57,7 +58,6 @@ fun HomeScreen(
     )
     val homeState by homeViewModel.state.collectAsStateWithLifecycle()
     val syncState by container.syncState.collectAsStateWithLifecycle()
-    var menuOpen by rememberSaveable { mutableStateOf(false) }
     val stats by container.homeStats.summary.collectAsStateWithLifecycle()
     val syncProgress by container.syncProgress.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
@@ -103,11 +103,11 @@ fun HomeScreen(
     val featureSessionSeed = rememberSaveable { java.util.UUID.randomUUID().toString() }
     val features = remember(timeCard, featureSessionSeed) {
         val list = listOf(
-            FeatureSpec("For you now", "Press play & tuned in", "for-you", "for-you", R.drawable.headphone_amico, listOf(Color(0xFFF6D7E8), Color(0xFFE9D8FA), Color(0xFFD7E8F7))),
-            FeatureSpec(timeCard.first, timeCard.second, "tuned-in", when (hour) { in 5..11 -> "morning"; in 12..16 -> "afternoon"; else -> "night" }, timeCard.third, listOf(Color(0xFFFFE0B5), Color(0xFFD9F0D8), Color(0xFFD7E9F8))),
-            FeatureSpec("Rediscover", "From your previous plays.", "rediscover", "rediscover", R.drawable.media_player_bro, listOf(Color(0xFFCDEDE4), Color(0xFFD8E1F7), Color(0xFFFFE0D1))),
-            FeatureSpec("Rock your world", "Turn it up.", "rock-your-world", "rock", R.drawable.playing_music_bro, listOf(Color(0xFFFFD1C5), Color(0xFFD6D8F7), Color(0xFFCBE9F0))),
-            FeatureSpec("My playlists", "Your Archive", "my-playlists", "playlists", R.drawable.playlist_pana, listOf(Color(0xFFF3D1E2), Color(0xFFD5DDF6), Color(0xFFD2EBD9))),
+            FeatureSpec("For you now", "Press play & tuned in", "for-you", "for-you", R.drawable.headphone_amico),
+            FeatureSpec(timeCard.first, timeCard.second, "tuned-in", when (hour) { in 5..11 -> "morning"; in 12..16 -> "afternoon"; else -> "night" }, timeCard.third),
+            FeatureSpec("Rediscover", "From your previous plays.", "rediscover", "rediscover", R.drawable.media_player_bro),
+            FeatureSpec("Rock your world", "Turn it up.", "rock-your-world", "rock", R.drawable.playing_music_bro),
+            FeatureSpec("My playlists", "Your Archive", "my-playlists", "playlists", R.drawable.playlist_pana),
         )
         list.shuffled(java.util.Random(featureSessionSeed.hashCode().toLong()))
     }
@@ -124,7 +124,7 @@ fun HomeScreen(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     HomeHeader(
-                        onMenu = { menuOpen = true },
+                        onMenu = onMenu,
                         onSearch = { onNavigate("search") },
                         onCast = onCast,
                         scanProgress = syncProgress,
@@ -159,7 +159,7 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         features.forEach { f ->
-                            AirPlayrFeatureCard(f.eyebrow, f.title, f.image, f.gradient, { onNavigate(f.route) }, f.kind, hour, featureSessionSeed)
+                            AirPlayrFeatureCard(f.eyebrow, f.title, f.image, { onNavigate(f.route) }, f.kind, hour, featureSessionSeed)
                         }
                     }
                 }
@@ -237,11 +237,10 @@ fun HomeScreen(
                 CurrentPlaybackHost(playback)
             }
         }
-        MenuDrawer(visible = menuOpen, musicCount = homeState.audioCount, videoCount = homeState.videoCount, folderCount = homeState.folderCount, container = container, onClose = { menuOpen = false }, onNavigate = onNavigate, onAbout = {}, onSupport = {}, onScanMedia = { libraryViewModel.refresh() })
     }
 }
 
-private data class FeatureSpec(val title: String, val eyebrow: String, val route: String, val kind: String, val image: Int, val gradient: List<Color>)
+private data class FeatureSpec(val title: String, val eyebrow: String, val route: String, val kind: String, val image: Int)
 
 @Composable
 private fun HomeHeader(
@@ -294,14 +293,18 @@ private fun HomeHeader(
                         )
                     }
                 } else {
-                    Text(
-                        if (showSearchPrompt) "Search your music" else "AIR PLAYR",
-                        fontFamily = if (showSearchPrompt) AirPlayrFonts.SmoochSans else AirPlayrFonts.OpenSans,
-                        fontSize = if (showSearchPrompt) 14.sp else 24.sp,
-                        color = colors.textPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    if (showSearchPrompt) {
+                        Text(
+                            "Search your music",
+                            fontFamily = AirPlayrFonts.SmoochSans,
+                            fontSize = 14.sp,
+                            color = colors.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    } else {
+                        AirPlayrWordmark()
+                    }
                 }
             }
             IconButton(onClick = onCast, modifier = Modifier.size(42.dp)) {
@@ -463,6 +466,7 @@ private fun formatExpoListeningTime(totalSeconds: Long): String {
 @Composable private fun TwoRowSongRail(items: List<MediaItem>, playback: PlaybackController) {
     val columns = items.chunked(2)
     val railState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
+    val playbackState by playback.stableState.collectAsStateWithLifecycle()
     Row(
         Modifier.horizontalScroll(railState).padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -470,14 +474,14 @@ private fun formatExpoListeningTime(totalSeconds: Long): String {
         columns.forEach { pair ->
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.width(300.dp)) {
                 pair.forEach { item ->
-                    SongRailCard(item, Modifier.fillMaxWidth()) { playback.play(item) }
+                    SongRailCard(item, Modifier.fillMaxWidth(), playing = playbackState.isPlaying && playbackState.currentId == item.id) { playback.play(item) }
                 }
             }
         }
     }
 }
 
-@Composable private fun SongRailCard(item: MediaItem, modifier: Modifier = Modifier, onClick: () -> Unit) {
+@Composable private fun SongRailCard(item: MediaItem, modifier: Modifier = Modifier, playing: Boolean = false, onClick: () -> Unit) {
     val c = LocalAirPlayrColors.current
     Card(
         modifier = modifier.heightIn(min = 72.dp),
@@ -487,7 +491,7 @@ private fun formatExpoListeningTime(totalSeconds: Long): String {
         onClick = onClick,
     ) {
         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Artwork(item.artworkUri, Modifier.size(58.dp), 14.dp, item.title)
+            Artwork(item.artworkUri, Modifier.size(58.dp), 14.dp, item.title, MediaType.AUDIO, AirPlayrIcons.Music, isPlaying = playing)
             Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                 Text(item.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 17.sp, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(item.artist ?: "Unknown artist", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
@@ -503,7 +507,7 @@ private fun HorizontalAlbumRail(
     onNavigate: (String) -> Unit,
 ) {
     val railState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
-    val colors = LocalAirPlayrColors.current
+    val playbackState by playback.stableState.collectAsStateWithLifecycle()
     Row(
         Modifier.horizontalScroll(railState).padding(horizontal = 24.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -511,53 +515,27 @@ private fun HorizontalAlbumRail(
         groups.forEach { (name, songs) ->
             var menuOpen by rememberSaveable(name) { mutableStateOf(false) }
             val albumRoute = "album/${java.net.URLEncoder.encode(name, "UTF-8")}"
-            Column(Modifier.width(164.dp)) {
-                Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
-                    Artwork(songs.firstOrNull()?.artworkUri, Modifier.fillMaxSize(), 18.dp, name, MediaType.AUDIO, AirPlayrIcons.ArtTrack)
-
-                    IconButton(
-                        onClick = { menuOpen = true },
-                        modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(36.dp),
-                    ) {
-                        Icon(Icons.Default.MoreVert, "Album options", tint = Color.White, modifier = Modifier.size(22.dp))
-                    }
-
-                    Surface(
-                        onClick = { if (songs.isNotEmpty()) playback.playQueue(songs) },
-                        modifier = Modifier.align(Alignment.BottomStart).padding(10.dp).size(40.dp),
-                        shape = CircleShape,
-                        color = colors.primary,
-                        tonalElevation = 0.dp,
-                        shadowElevation = 0.dp,
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(AirPlayrIcons.Play, "Play album", tint = colors.onPrimary, modifier = Modifier.size(19.dp))
-                        }
-                    }
-
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Play album") },
-                            leadingIcon = { Icon(AirPlayrIcons.Play, null) },
-                            onClick = {
-                                menuOpen = false
-                                if (songs.isNotEmpty()) playback.playQueue(songs)
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Open album") },
-                            leadingIcon = { Icon(Icons.Default.Album, null) },
-                            onClick = {
-                                menuOpen = false
-                                onNavigate(albumRoute)
-                            },
-                        )
-                    }
-                }
-                Column(Modifier.clickable { onNavigate(albumRoute) }.padding(top = 6.dp)) {
-                    Text(name, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 17.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(songs.firstOrNull()?.artist ?: "Unknown artist", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
+            val playing = playbackState.isPlaying && songs.any { it.id == playbackState.currentId }
+            AirPlayrAlbumRailCard(
+                artworkUri = songs.firstOrNull()?.artworkUri,
+                albumTitle = name,
+                artist = songs.firstOrNull()?.artist,
+                onOpen = { onNavigate(albumRoute) },
+                onPlay = { if (songs.isNotEmpty()) playback.playQueue(songs) },
+                onMore = { menuOpen = true },
+                playing = playing,
+            )
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text("Play album") },
+                    leadingIcon = { Icon(AirPlayrIcons.Play, null) },
+                    onClick = { menuOpen = false; if (songs.isNotEmpty()) playback.playQueue(songs) },
+                )
+                DropdownMenuItem(
+                    text = { Text("Open album") },
+                    leadingIcon = { Icon(Icons.Default.Album, null) },
+                    onClick = { menuOpen = false; onNavigate(albumRoute) },
+                )
             }
         }
     }
@@ -570,6 +548,7 @@ private fun OnRepeatRail(
     onNavigate: (String) -> Unit,
 ) {
     val railState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
+    val playbackState by playback.stableState.collectAsStateWithLifecycle()
     Row(
         Modifier.horizontalScroll(railState).padding(horizontal = 36.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -580,6 +559,7 @@ private fun OnRepeatRail(
                     RepeatRailCard(
                         item = item,
                         modifier = Modifier.fillMaxWidth(),
+                        playing = playbackState.isPlaying && playbackState.currentId == item.id,
                         onClick = {
                             if (item.mediaType == MediaType.AUDIO) playback.play(item)
                             else onNavigate("video/${item.id}")
@@ -592,7 +572,7 @@ private fun OnRepeatRail(
 }
 
 @Composable
-private fun RepeatRailCard(item: MediaItem, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun RepeatRailCard(item: MediaItem, modifier: Modifier = Modifier, playing: Boolean = false, onClick: () -> Unit) {
     val colors = LocalAirPlayrColors.current
     Card(
         modifier = modifier.height(72.dp),
@@ -609,6 +589,7 @@ private fun RepeatRailCard(item: MediaItem, modifier: Modifier = Modifier, onCli
                 item.title,
                 item.mediaType,
                 if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music,
+                isPlaying = playing,
             )
             Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                 Text(item.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 17.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -624,12 +605,12 @@ private fun RepeatRailCard(item: MediaItem, modifier: Modifier = Modifier, onCli
         groups.forEach { (name, songs) ->
             Column(
                 Modifier
-                    .width(132.dp)
+                    .width(AirPlayrArtworkTokens.artistRail)
                     .clickable { onNavigate("artist/${java.net.URLEncoder.encode(name, "UTF-8")}") },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Artwork(songs.firstOrNull()?.artworkUri, Modifier.size(120.dp), 60.dp, name, MediaType.AUDIO, AirPlayrIcons.Artist)
-                Text(name, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 13.sp, color = LocalAirPlayrColors.current.textPrimary, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+                Artwork(songs.firstOrNull()?.artworkUri, Modifier.size(AirPlayrArtworkTokens.artistRail), 82.dp, name, MediaType.AUDIO, AirPlayrIcons.Artist, fallbackIconSize = AirPlayrArtworkTokens.artistFallbackIcon)
+                Text(name, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 13.sp, color = LocalAirPlayrColors.current.textPrimary, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
             }
         }
     }

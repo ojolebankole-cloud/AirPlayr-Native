@@ -192,7 +192,7 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
             // Header: back chevron pinned left, Lyrics pill + more menu pinned right.
             // and the right-hand cluster is now wrap-content (not a fixed 142.dp width) so it
             // can never get pushed past the screen edge on narrow devices or larger font scales.
-            Row(Modifier.fillMaxWidth().height(54.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().statusBarsPadding().height(54.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_BACK).size(54.dp)) {
                     Surface(
                         modifier = Modifier.size(44.dp),
@@ -232,7 +232,7 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
                 state.currentTitle,
                 com.airplayr.app.core.data.media.MediaType.AUDIO,
                 com.airplayr.app.ui.theme.AirPlayrIcons.Music,
-                state.isPlaying,
+                isPlaying = state.isPlaying,
             )
 
             Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {

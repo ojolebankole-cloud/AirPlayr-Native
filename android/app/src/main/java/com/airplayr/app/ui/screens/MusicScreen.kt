@@ -99,11 +99,12 @@ private val MUSIC_CATEGORIES = listOf(
 fun MusicScreen(libraryViewModel: LibraryViewModel, appContext: android.content.Context, container: AppContainer, onNavigate: (String) -> Unit = {}) {
     val colors = LocalAirPlayrColors.current
     val settings by container.preferences.settings.collectAsStateWithLifecycle(initialValue = null)
-    val songs by libraryViewModel.audio.collectAsStateWithLifecycle()
-    val favorites by container.structured.favorites().collectAsStateWithLifecycle(initialValue = emptyList())
-    val playlists by container.structured.playlists().collectAsStateWithLifecycle(initialValue = emptyList())
+    val librarySnapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
+    val songs = librarySnapshot.audio
+    val favorites = librarySnapshot.favorites
+    val playlists = librarySnapshot.playlists
     val playback: PlaybackController = viewModel(factory = PlaybackControllerFactory(appContext))
-    val playbackState by playback.state.collectAsStateWithLifecycle()
+    val playbackState by playback.stableState.collectAsStateWithLifecycle()
     var category by rememberSaveable { mutableStateOf("songs") }
     var query by rememberSaveable { mutableStateOf("") }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
@@ -142,6 +143,12 @@ fun MusicScreen(libraryViewModel: LibraryViewModel, appContext: android.content.
     fun play(items: List<MediaItem>, start: MediaItem? = items.firstOrNull()) { if (items.isNotEmpty() && start != null) playback.playQueue(items, items.indexOfFirst { it.id == start.id }.coerceAtLeast(0)) }
 
     Column(Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.MUSIC).fillMaxSize().background(colors.background)) {
+        if (!librarySnapshot.ready) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                androidx.compose.material3.CircularProgressIndicator(color = colors.primary)
+            }
+            return@Column
+        }
         MusicHeader(searchOpen, query, { query = it }, { searchOpen = !searchOpen; if (searchOpen) query = "" }, { onNavigate("home") }, grid, { value -> grid = value; scope.launch { container.preferences.setLibraryLayout(if (value) "grid" else "list") } })
         Row(Modifier.horizontalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             MUSIC_CATEGORIES.forEach { (key,label) -> FilterChip(selected = category == key, onClick = { category = key; selected = emptySet() }, label = { Text(label) }) }
@@ -169,7 +176,7 @@ fun MusicScreen(libraryViewModel: LibraryViewModel, appContext: android.content.
                     LazyVerticalGrid(state = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() },
                         columns = GridCells.Fixed(2),
                         modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp, bottom = 24.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
@@ -193,7 +200,7 @@ fun MusicScreen(libraryViewModel: LibraryViewModel, appContext: android.content.
                     LazyColumn(
                         modifier = Modifier.weight(1f),
                         state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp, bottom = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         if (filteredSongs.isEmpty()) item { EmptyMusic("No songs found", if (category == "likes") "Like a song to see it here." else "Music on this device will appear here.") }
@@ -240,7 +247,7 @@ private data class CollectionGroup(val name: String, val songs: List<MediaItem>)
 @Composable private fun MusicHeader(searchOpen: Boolean, query: String, onQuery: (String) -> Unit, onSearch: () -> Unit, onBack: () -> Unit, grid: Boolean, onGrid: (Boolean) -> Unit) {
     val colors = LocalAirPlayrColors.current
     Column {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.Close, "Home", tint = colors.primary) }
             Column(Modifier.weight(1f).padding(horizontal = 4.dp)) { Text("AIR PLAYR", style = MaterialTheme.typography.labelLarge, color = colors.textPrimary); Text("Music", style = MaterialTheme.typography.displaySmall, color = colors.textPrimary) }
             IconButton(onClick = { onGrid(!grid) }) { Icon(if (grid) Icons.Default.GridView else Icons.Default.List, "Layout", tint = colors.primary) }
@@ -271,7 +278,7 @@ private fun SelectionBar(count: Int, onClear: () -> Unit, onSelectAll: () -> Uni
 @Composable private fun NativeMusicRow(item: MediaItem, favorite: Boolean, playing: Boolean, selected: Boolean, onPress: () -> Unit, onLongPress: () -> Unit, onFavorite: () -> Unit, onMore: () -> Unit) {
     val colors = LocalAirPlayrColors.current
     Row(Modifier.fillMaxWidth().height(78.dp).clip(RoundedCornerShape(20.dp)).background(if(selected) colors.primaryContainer else colors.surfaceContainer).combinedClickable(onClick=onPress,onLongClick=onLongPress).padding(horizontal=10.dp,vertical=9.dp),verticalAlignment=Alignment.CenterVertically){
-        Box(Modifier.size(58.dp).clip(RoundedCornerShape(17.dp))){Artwork(item.artworkUri,Modifier.fillMaxSize(),17.dp,item.title);if(selected)Box(Modifier.fillMaxSize().background(colors.primary.copy(alpha=.72f)),contentAlignment=Alignment.Center){Icon(Icons.Default.Check,null,tint=colors.onPrimary)}}
+        Box(Modifier.size(58.dp).clip(RoundedCornerShape(17.dp))){Artwork(item.artworkUri,Modifier.fillMaxSize(),17.dp,item.title, isPlaying = playing);if(selected)Box(Modifier.fillMaxSize().background(colors.primary.copy(alpha=.72f)),contentAlignment=Alignment.Center){Icon(Icons.Default.Check,null,tint=colors.onPrimary)}}
         Column(Modifier.weight(1f).padding(horizontal=10.dp)){Text(item.title,style=MaterialTheme.typography.titleMedium,maxLines=1,overflow=TextOverflow.Ellipsis);Text("${item.artist ?: "Unknown artist"} · ${time(item.durationMs)}",style=MaterialTheme.typography.bodySmall,color=colors.textSecondary,maxLines=1,overflow=TextOverflow.Ellipsis)}
         IconButton(onClick=onFavorite){Icon(if(favorite)Icons.Default.Favorite else Icons.Default.FavoriteBorder,"Favorite",tint=colors.primary)}
         IconButton(onClick=onMore){Icon(Icons.Default.MoreVert,"More",tint=colors.primary)}
@@ -289,16 +296,22 @@ private fun NativeMusicTile(item: MediaItem, favorite: Boolean, playing: Boolean
             .padding(10.dp),
     ) {
         Box(Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(18.dp))) {
-            Artwork(item.artworkUri, Modifier.fillMaxSize(), 18.dp, item.title)
-            if (selected || playing) {
+            AirPlayrMediaArtwork(
+                artworkUri = item.artworkUri,
+                modifier = Modifier.fillMaxSize(),
+                radius = 18.dp,
+                title = item.title,
+                mediaType = MediaType.AUDIO,
+                fallbackIcon = AirPlayrIcons.Music,
+                playing = playing,
+                onPlay = onPress,
+                onMore = onMore,
+            )
+            if (selected) {
                 Box(Modifier.fillMaxSize().background(colors.scrim.copy(alpha = .16f)))
+                Icon(Icons.Default.Check, "Selected", tint = colors.onPrimary, modifier = Modifier.size(26.dp).align(Alignment.BottomEnd).background(colors.primary, CircleShape).padding(4.dp))
             }
-            Row(Modifier.fillMaxSize().padding(4.dp), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.Top) {
-                if (favorite) Icon(Icons.Default.Favorite, "Favorite", tint = colors.primary, modifier = Modifier.size(20.dp).padding(2.dp))
-                IconButton(onClick = onMore, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.MoreVert, "More", tint = colors.primary, modifier = Modifier.size(20.dp)) }
-            }
-            if (playing) Icon(Icons.Default.PlayArrow, "Playing", tint = colors.onPrimary, modifier = Modifier.size(24.dp).align(Alignment.Center).background(colors.primary, CircleShape).padding(3.dp))
-            if (selected) Icon(Icons.Default.Check, "Selected", tint = colors.onPrimary, modifier = Modifier.size(26.dp).align(Alignment.BottomEnd).background(colors.primary, CircleShape).padding(4.dp))
+            if (favorite) Icon(Icons.Default.Favorite, "Favorite", tint = colors.primary, modifier = Modifier.align(Alignment.TopStart).padding(8.dp).size(20.dp))
         }
         Text(item.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
         Text(item.artist ?: "Unknown artist", style = MaterialTheme.typography.labelSmall, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -308,11 +321,11 @@ private fun NativeMusicTile(item: MediaItem, favorite: Boolean, playing: Boolean
 
 @Composable private fun CollectionGrid(grid:Boolean, data:List<Any>, onClick:(Any)->Unit, circular:Boolean=false, modifier:Modifier=Modifier) {
     val colors=LocalAirPlayrColors.current
-    if(grid) LazyVerticalGrid(GridCells.Fixed(2), modifier, state = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }, contentPadding=PaddingValues(12.dp), horizontalArrangement=Arrangement.spacedBy(10.dp), verticalArrangement=Arrangement.spacedBy(16.dp)){items(data){ raw -> val (name,songs)=when(raw){is AlbumGroup->raw.name to raw.songs; is CollectionGroup->raw.name to raw.songs; else->"Unknown" to emptyList()}; Column(Modifier.clickableCompat { onClick(raw) }.fillMaxWidth()){Artwork(songs.firstOrNull()?.artworkUri,Modifier.fillMaxWidth().height(170.dp),if(circular)85.dp else 22.dp,name, com.airplayr.app.core.data.media.MediaType.AUDIO, if(circular) AirPlayrIcons.Artist else AirPlayrIcons.ArtTrack);Text(name,style=MaterialTheme.typography.titleSmall,maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.padding(top=6.dp));Text("${songs.size} songs",style=MaterialTheme.typography.labelSmall,color=colors.textSecondary)}}}
-    else LazyColumn(modifier, state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding=PaddingValues(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){items(data){raw->val(name,songs)=when(raw){is AlbumGroup->raw.name to raw.songs;is CollectionGroup->raw.name to raw.songs;else->"Unknown" to emptyList()};AirPlayrCard(Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp),containerColor=colors.surfaceSolid,elevation=0.dp){Row(Modifier.fillMaxWidth().padding(10.dp).clickableCompat { onClick(raw) },verticalAlignment=Alignment.CenterVertically){Artwork(songs.firstOrNull()?.artworkUri,Modifier.size(66.dp),if(circular)33.dp else 16.dp,name, com.airplayr.app.core.data.media.MediaType.AUDIO, if(circular) AirPlayrIcons.Artist else AirPlayrIcons.ArtTrack);Column(Modifier.weight(1f).padding(horizontal=12.dp)){Text(name,style=MaterialTheme.typography.titleMedium);Text("${songs.size} songs",style=MaterialTheme.typography.bodySmall,color=colors.textSecondary)}}}}}
+    if(grid) LazyVerticalGrid(GridCells.Fixed(2), modifier, state = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }, contentPadding=PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 24.dp), horizontalArrangement=Arrangement.spacedBy(10.dp), verticalArrangement=Arrangement.spacedBy(16.dp)){items(data){ raw -> val (name,songs)=when(raw){is AlbumGroup->raw.name to raw.songs; is CollectionGroup->raw.name to raw.songs; else->"Unknown" to emptyList()}; Column(Modifier.clickableCompat { onClick(raw) }.fillMaxWidth()){Artwork(songs.firstOrNull()?.artworkUri,Modifier.fillMaxWidth().height(170.dp),if(circular)85.dp else 22.dp,name, com.airplayr.app.core.data.media.MediaType.AUDIO, if(circular) AirPlayrIcons.Artist else AirPlayrIcons.AlbumDisc, fallbackIconSize = if (circular) 48.dp else 48.dp);Text(name,style=MaterialTheme.typography.titleSmall,maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.padding(top=6.dp));Text("${songs.size} songs",style=MaterialTheme.typography.labelSmall,color=colors.textSecondary)}}}
+    else LazyColumn(modifier, state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding=PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 24.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){items(data){raw->val(name,songs)=when(raw){is AlbumGroup->raw.name to raw.songs;is CollectionGroup->raw.name to raw.songs;else->"Unknown" to emptyList()};AirPlayrCard(Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp),containerColor=colors.surfaceSolid,elevation=0.dp){Row(Modifier.fillMaxWidth().padding(10.dp).clickableCompat { onClick(raw) },verticalAlignment=Alignment.CenterVertically){Artwork(songs.firstOrNull()?.artworkUri,Modifier.size(66.dp),if(circular)33.dp else 16.dp,name, com.airplayr.app.core.data.media.MediaType.AUDIO, if(circular) AirPlayrIcons.Artist else AirPlayrIcons.AlbumDisc);Column(Modifier.weight(1f).padding(horizontal=12.dp)){Text(name,style=MaterialTheme.typography.titleMedium);Text("${songs.size} songs",style=MaterialTheme.typography.bodySmall,color=colors.textSecondary)}}}}}
 }
 
-@Composable private fun GenreGrid(data:List<CollectionGroup>, onNavigate:(String)->Unit, modifier:Modifier=Modifier){ val colors=LocalAirPlayrColors.current; LazyVerticalGrid(GridCells.Fixed(2), modifier, state = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() },contentPadding=PaddingValues(12.dp),horizontalArrangement=Arrangement.spacedBy(10.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){items(data){g->AirPlayrCard(Modifier.fillMaxWidth().height(148.dp),shape=RoundedCornerShape(24.dp),containerColor=listOf(colors.primaryContainer,colors.secondaryContainer,colors.tertiaryContainer)[(g.name.hashCode() and Int.MAX_VALUE)%3],elevation=0.dp,onClick={onNavigate("genre/${java.net.URLEncoder.encode(g.name,"UTF-8")}")}){Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(colors.surfaceContainer.copy(alpha=.1f),colors.surfaceVariant.copy(alpha=.24f))))){Column(Modifier.padding(16.dp)){Text(g.name,style=MaterialTheme.typography.headlineSmall,maxLines=2);Text("${g.songs.size} songs",style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(top=4.dp))};Artwork(g.songs.firstOrNull()?.artworkUri,Modifier.size(92.dp).align(Alignment.BottomEnd).padding(5.dp),18.dp,g.name)}}}} }
+@Composable private fun GenreGrid(data:List<CollectionGroup>, onNavigate:(String)->Unit, modifier:Modifier=Modifier){ val colors=LocalAirPlayrColors.current; LazyVerticalGrid(GridCells.Fixed(2), modifier, state = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() },contentPadding=PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 24.dp),horizontalArrangement=Arrangement.spacedBy(10.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){items(data){g->AirPlayrCard(Modifier.fillMaxWidth().height(148.dp),shape=RoundedCornerShape(24.dp),containerColor=listOf(colors.primaryContainer,colors.secondaryContainer,colors.tertiaryContainer)[(g.name.hashCode() and Int.MAX_VALUE)%3],elevation=0.dp,onClick={onNavigate("genre/${java.net.URLEncoder.encode(g.name,"UTF-8")}")}){Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(colors.surfaceContainer.copy(alpha=.1f),colors.surfaceVariant.copy(alpha=.24f))))){Column(Modifier.padding(16.dp)){Text(g.name,style=MaterialTheme.typography.headlineSmall,maxLines=2);Text("${g.songs.size} songs",style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(top=4.dp))};Artwork(g.songs.firstOrNull()?.artworkUri,Modifier.size(92.dp).align(Alignment.BottomEnd).padding(5.dp),18.dp,g.name)}}}} }
 
 @Composable
 private fun PlaylistGrid(
@@ -338,7 +351,7 @@ private fun PlaylistGrid(
             LazyVerticalGrid(state = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() },
                 columns = GridCells.Fixed(2),
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(12.dp),
+                contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
@@ -349,7 +362,7 @@ private fun PlaylistGrid(
         } else {
             LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(data, key = { it.id }) { playlist ->
@@ -361,7 +374,7 @@ private fun PlaylistGrid(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         val art = songs.firstOrNull { it.id in ids && !it.artworkUri.isNullOrBlank() }
-                        Artwork(art?.artworkUri, Modifier.size(66.dp), 16.dp, playlist.name)
+                        Artwork(art?.artworkUri, Modifier.size(66.dp), 16.dp, playlist.name, com.airplayr.app.core.data.media.MediaType.AUDIO, AirPlayrIcons.AlbumDisc, fallbackIconSize = 28.dp)
                         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                             Text(playlist.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text("${counts[playlist.id] ?: 0} songs", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
@@ -399,7 +412,7 @@ private fun PlaylistCard(
                         val cell = Modifier
                             .then(if (index % 2 == 0) Modifier.padding(end = maxWidth / 2) else Modifier.padding(start = maxWidth / 2))
                             .then(if (index / 2 == 0) Modifier.padding(bottom = maxHeight / 2) else Modifier.padding(top = maxHeight / 2))
-                        Artwork(song.artworkUri, cell.fillMaxWidth().fillMaxHeight(), 0.dp, song.title)
+                        Artwork(song.artworkUri, cell.fillMaxWidth().fillMaxHeight(), 0.dp, song.title, isPlaying = false)
                     }
                 }
             }

@@ -37,6 +37,7 @@ import kotlinx.coroutines.withContext
 fun HistoryFavoriteActionSheet(
     item: MediaItem,
     favorite: Boolean,
+    playing: Boolean = false,
     container: AppContainer,
     onClose: () -> Unit,
     onFavorite: () -> Unit,
@@ -66,7 +67,15 @@ fun HistoryFavoriteActionSheet(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Artwork(item.artworkUri ?: item.thumbnailUri, Modifier.size(64.dp), 14.dp, item.title)
+                Artwork(
+                    item.artworkUri ?: item.thumbnailUri,
+                    Modifier.size(64.dp),
+                    14.dp,
+                    item.title,
+                    item.mediaType,
+                    if (isVideo) AirPlayrIcons.Video else AirPlayrIcons.Music,
+                    isPlaying = playing,
+                )
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
                     Text(item.title.ifBlank { if (isVideo) "Video" else "Song" }, color = colors.textPrimary, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, maxLines = 1)
                     Text(listOfNotNull(item.artist, item.album).joinToString("  ·  ").ifBlank { if (isVideo) "Video" else "Unknown artist" }, color = colors.textSecondary, fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, maxLines = 1)
@@ -146,11 +155,19 @@ fun HistoryFavoritePlaylistSheet(container: AppContainer, items: List<MediaItem>
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HistoryFavoriteDetailsSheet(item: MediaItem, onDismiss: () -> Unit) {
+fun HistoryFavoriteDetailsSheet(item: MediaItem, playing: Boolean = false, onDismiss: () -> Unit) {
     val colors = LocalAirPlayrColors.current
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.surfaceContainerLow) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Artwork(item.artworkUri ?: item.thumbnailUri, Modifier.size(110.dp), 20.dp, item.title)
+            Artwork(
+                item.artworkUri ?: item.thumbnailUri,
+                Modifier.size(110.dp),
+                20.dp,
+                item.title,
+                item.mediaType,
+                if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music,
+                isPlaying = playing,
+            )
             Text(item.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 25.sp, color = colors.textPrimary)
             Text(listOfNotNull(item.artist, item.album, item.genre).joinToString(" • ").ifBlank { item.filename }, color = colors.textSecondary)
             Text("${item.sizeBytes / 1024 / 1024} MB · ${item.durationMs / 1000}s", color = colors.textSecondary)

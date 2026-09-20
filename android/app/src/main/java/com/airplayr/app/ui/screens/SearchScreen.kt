@@ -38,11 +38,13 @@ import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.core.lyrics.LyricsService
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.components.AirPlayrSheetScaffold
+import com.airplayr.app.ui.components.AirPlayrMediaArtwork
 import com.airplayr.app.ui.components.Artwork
 import com.airplayr.app.ui.components.displayArtworkUri
 import com.airplayr.app.ui.feedback.AppFeedback
 import com.airplayr.app.ui.playback.PlaybackController
 import com.airplayr.app.ui.playback.PlaybackControllerFactory
+import com.airplayr.app.ui.navigation.LibraryViewModel
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
@@ -86,6 +88,7 @@ private fun matches(entry: SearchEntry, query: String): Boolean {
 @Composable
 fun SearchScreen(
     container: AppContainer,
+    libraryViewModel: LibraryViewModel,
     onOpen: (MediaItem) -> Unit,
     onNavigate: (String) -> Unit = {},
     onBack: () -> Unit = {},
@@ -96,7 +99,6 @@ fun SearchScreen(
     val scope = rememberCoroutineScope()
     val playback: PlaybackController = viewModel(factory = PlaybackControllerFactory(container.appContext))
     var query by rememberSaveable { mutableStateOf("") }
-    var libraryLoaded by remember { mutableStateOf(false) }
     var debounced by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf("all") }
     var selected by remember { mutableStateOf<MediaItem?>(null) }
@@ -106,24 +108,25 @@ fun SearchScreen(
     var lyricsTarget by remember { mutableStateOf<MediaItem?>(null) }
     var tagTarget by remember { mutableStateOf<MediaItem?>(null) }
 
-    val audio by container.mediaLibrary.observe(MediaType.AUDIO).collectAsStateWithLifecycle(emptyList())
-    val video by container.mediaLibrary.observe(MediaType.VIDEO).collectAsStateWithLifecycle(emptyList())
-    val history by container.structured.history(100).collectAsStateWithLifecycle(emptyList())
-    val playlists by container.structured.playlists().collectAsStateWithLifecycle(emptyList())
-    val favoriteIds by container.structured.favorites().collectAsStateWithLifecycle(emptyList())
+    val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
+    val audio = snapshot.audio
+    val video = snapshot.video
+    val history = snapshot.history
+    val playlists = snapshot.playlists
+    val favoriteIds = snapshot.favorites
     val favoriteIdSet = remember(favoriteIds) { favoriteIds.map { it.mediaId }.toSet() }
+    val playbackState by playback.stableState.collectAsStateWithLifecycle()
 
     LaunchedEffect(query) {
         delay(180)
         debounced = query.trim()
     }
     LaunchedEffect(Unit) {
-        libraryLoaded = true
         focusRequester.requestFocus()
     }
 
     val lookup = remember(audio, video) { (audio + video).associateBy { it.id } }
-    val entries = remember(audio, video, playlists) {
+    val entries = remember(snapshot.audio, snapshot.video, snapshot.playlists) {
         val songs = audio.map {
             SearchEntry(it.id, "song", it.title.ifBlank { it.filename }, it.artist ?: "Unknown artist", it)
         }
@@ -157,7 +160,7 @@ fun SearchScreen(
         songs + albums + artists + pls + genres + videos
     }
 
-    val recentItems = remember(history, lookup, audio) {
+    val recentItems = remember(snapshot.history, snapshot.audio, lookup) {
         val recentArtists = mutableListOf<SearchEntry>()
         val seenArtists = mutableSetOf<String>()
         history.forEach { h ->
@@ -217,7 +220,7 @@ fun SearchScreen(
 
     Column(Modifier.fillMaxSize().background(colors.background)) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onBack) {
@@ -273,8 +276,10 @@ fun SearchScreen(
             }
         }
 
-        LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
-            contentPadding = PaddingValues(bottom = 112.dp),
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
+            contentPadding = PaddingValues(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             item {
@@ -299,15 +304,23 @@ fun SearchScreen(
                     )
                 }
             }
-            items(display, key = { "${it.type}:${it.id}" }) { entry ->
+            if (!snapshot.ready) {
+                item {
+                    Box(Modifier.fillMaxWidth().padding(vertical = 56.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = colors.primary)
+                    }
+                }
+            } else items(display, key = { "${it.type}:${it.id}" }) { entry ->
+                val playing = entry.item?.let { it.mediaType == MediaType.AUDIO && playbackState.isPlaying && playbackState.currentId == it.id } == true
                 SearchResultRow(
                     entry = entry,
                     colors = colors,
+                    playing = playing,
                     onClick = { openEntry(entry) },
                     onMore = { entry.item?.let { selected = it } },
                 )
             }
-            if (display.isEmpty() && libraryLoaded) {
+            if (snapshot.ready && display.isEmpty()) {
                 item {
                     Column(
                         Modifier.fillMaxWidth().padding(top = 50.dp),
@@ -338,6 +351,7 @@ fun SearchScreen(
         SearchActionSheet(
             item = selected!!,
             favorite = favoriteIdSet.contains(selected!!.id),
+            playing = playbackState.isPlaying && playbackState.currentId == selected!!.id,
             container = container,
             onClose = { selected = null },
             onPlayNext = {
@@ -417,7 +431,15 @@ fun SearchScreen(
 
     detailsSheet?.let { item ->
         AirPlayrSheetScaffold("Details", "MEDIA", onDismiss = { detailsSheet = null }) {
-            Artwork(item.displayArtworkUri(), Modifier.size(92.dp), 18.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music)
+            Artwork(
+                item.displayArtworkUri(),
+                Modifier.size(92.dp),
+                18.dp,
+                item.title,
+                item.mediaType,
+                if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music,
+                isPlaying = playbackState.isPlaying && playbackState.currentId == item.id,
+            )
             Text(item.title, style = MaterialTheme.typography.titleLarge)
             Text(listOfNotNull(item.artist, item.album, item.genre).joinToString(" • ").ifBlank { item.filename }, color = colors.textSecondary)
             Text("${item.sizeBytes / 1024 / 1024} MB · ${item.durationMs / 1000}s", color = colors.textSecondary)
@@ -466,6 +488,7 @@ private fun formatDuration(durationMs: Long): String {
 private fun SearchResultRow(
     entry: SearchEntry,
     colors: com.airplayr.app.ui.theme.AirPlayrColors,
+    playing: Boolean,
     onClick: () -> Unit,
     onMore: () -> Unit,
 ) {
@@ -474,11 +497,21 @@ private fun SearchResultRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (entry.item != null) {
-            Artwork(
-                entry.item.artworkUri ?: entry.item.thumbnailUri,
-                Modifier.size(64.dp),
-                if (entry.type == "artist") 999.dp else 16.dp,
-                entry.title,
+            AirPlayrMediaArtwork(
+                artworkUri = entry.item.displayArtworkUri(),
+                modifier = Modifier.size(64.dp),
+                radius = 16.dp,
+                title = entry.title,
+                mediaType = entry.item.mediaType,
+                fallbackIcon = when (entry.type) {
+                    "artist" -> AirPlayrIcons.Artist
+                    "album" -> AirPlayrIcons.AlbumDisc
+                    "video" -> AirPlayrIcons.Video
+                    else -> AirPlayrIcons.Music
+                },
+                playing = playing,
+                onPlay = if (entry.type == "song" || entry.type == "video") onClick else null,
+                onMore = if (entry.type == "song" || entry.type == "video") onMore else null,
             )
         } else {
             Box(
@@ -489,21 +522,19 @@ private fun SearchResultRow(
                     when (entry.type) {
                         "playlist" -> Icons.Default.QueueMusic
                         "genre" -> Icons.Default.LocalOffer
-                        "artist" -> Icons.Default.Person
-                        else -> Icons.Default.Album
+                        "artist" -> AirPlayrIcons.Artist
+                        "album" -> AirPlayrIcons.AlbumDisc
+                        else -> AirPlayrIcons.Music
                     },
-                    null, tint = colors.primary,
+                    null,
+                    tint = colors.primary,
+                    modifier = Modifier.size(28.dp),
                 )
             }
         }
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
             Text(entry.title, color = colors.textPrimary, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(entry.subtitle, color = colors.textPrimary, fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        if (entry.item != null && (entry.type == "song" || entry.type == "video")) {
-            IconButton(onClick = onMore) {
-                Icon(Icons.Default.MoreVert, "Song options", tint = colors.primary)
-            }
         }
     }
 }
@@ -512,6 +543,7 @@ private fun SearchResultRow(
 private fun SearchActionSheet(
     item: MediaItem,
     favorite: Boolean,
+    playing: Boolean,
     container: AppContainer,
     onClose: () -> Unit,
     onPlayNext: () -> Unit,
@@ -539,7 +571,15 @@ private fun SearchActionSheet(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Artwork(item.displayArtworkUri(), Modifier.size(64.dp), 14.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music)
+            Artwork(
+                item.displayArtworkUri(),
+                Modifier.size(64.dp),
+                14.dp,
+                item.title,
+                item.mediaType,
+                if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music,
+                isPlaying = playing,
+            )
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(item.title.ifBlank { if (isVideo) "Video" else "Song" }, color = colors.textPrimary, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(

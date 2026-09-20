@@ -42,7 +42,7 @@ fun DiagnosticsScreen(container: AppContainer) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     LaunchedEffect(Unit) { runCatching { DiagnosticsRepository(context).snapshot() }.onSuccess { snapshot = it; report = DiagnosticsRepository(context).format(it); crash = CrashReporter(context).lastCrash() } }
     Column(Modifier.fillMaxSize()) {
-        LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = androidx.compose.foundation.layout.WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("Diagnostics", style = MaterialTheme.typography.headlineMedium) }
             item { Card(Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(12.dp), 4.dp)) { Text(report.ifBlank { "Collecting diagnostics…" }, Modifier.padding(16.dp)) } }
             item {

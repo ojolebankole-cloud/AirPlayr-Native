@@ -1,6 +1,9 @@
 package com.airplayr.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DiscFull
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.SolidColor
@@ -47,39 +50,9 @@ object AirPlayrIcons {
             }
         }.build()
 
-    /** Exact Material Symbols asset: music_note_2. */
+    /** Single-note Material music glyph; keeps the app from drawing the legacy double-note icon. */
     val Music: ImageVector
-        get() = ImageVector.Builder(
-            name = "AirPlayrMusicNote2",
-            defaultWidth = 24.dp,
-            defaultHeight = 24.dp,
-            viewportWidth = 960f,
-            viewportHeight = 960f,
-        ).apply {
-            path(fill = SolidColor(Color.White)) {
-                moveTo(127f, 793f)
-                curveTo(80f, 746f, 80f, 680f, 127f, 633f)
-                curveTo(174f, 586f, 240f, 586f, 287f, 633f)
-                curveTo(310f, 656f, 320f, 684f, 320f, 715f)
-                verticalLineTo(373f)
-                lineTo(800f, 293f)
-                verticalLineTo(773f)
-                curveTo(800f, 839f, 753f, 886f, 687f, 886f)
-                curveTo(621f, 886f, 574f, 839f, 574f, 773f)
-                curveTo(574f, 707f, 621f, 660f, 687f, 660f)
-                curveTo(710f, 660f, 729f, 666f, 749f, 678f)
-                verticalLineTo(513f)
-                lineTo(429f, 576f)
-                verticalLineTo(896f)
-                curveTo(429f, 962f, 382f, 1009f, 316f, 1009f)
-                curveTo(250f, 1009f, 203f, 962f, 203f, 896f)
-                curveTo(203f, 830f, 250f, 783f, 316f, 783f)
-                curveTo(339f, 783f, 358f, 789f, 378f, 801f)
-                verticalLineTo(436f)
-                lineTo(429f, 426f)
-                close()
-            }
-        }.build()
+        get() = Icons.Default.MusicNote
 
     /** Exact Material Symbols asset: artist. */
     val Artist: ImageVector
@@ -132,50 +105,9 @@ object AirPlayrIcons {
             }
         }.build()
 
-    /** Exact Material Symbols asset: art_track. */
-    val ArtTrack: ImageVector
-        get() = ImageVector.Builder(
-            name = "AirPlayrArtTrack",
-            defaultWidth = 24.dp,
-            defaultHeight = 24.dp,
-            viewportWidth = 960f,
-            viewportHeight = 960f,
-        ).apply {
-            path(fill = SolidColor(Color.White)) {
-                moveTo(120f, 760f)
-                curveTo(87f, 760f, 63.5f, 736.5f, 63.5f, 703.5f)
-                verticalLineTo(303.5f)
-                curveTo(63.5f, 270.5f, 87f, 247f, 120f, 247f)
-                horizontalLineTo(520f)
-                curveTo(553f, 247f, 576.5f, 270.5f, 576.5f, 303.5f)
-                verticalLineTo(703.5f)
-                curveTo(576.5f, 736.5f, 553f, 760f, 520f, 760f)
-                horizontalLineTo(120f)
-                close()
-                moveTo(120f, 680f)
-                horizontalLineTo(520f)
-                verticalLineTo(280f)
-                horizontalLineTo(120f)
-                close()
-                moveTo(160f, 600f)
-                horizontalLineTo(480f)
-                lineTo(376f, 380f)
-                lineTo(300f, 480f)
-                lineTo(244f, 406f)
-                lineTo(160f, 520f)
-                close()
-                moveTo(680f, 840f)
-                verticalLineTo(280f)
-                horizontalLineTo(760f)
-                verticalLineTo(840f)
-                close()
-                moveTo(840f, 840f)
-                verticalLineTo(280f)
-                horizontalLineTo(920f)
-                verticalLineTo(840f)
-                close()
-            }
-        }.build()
+    /** Album fallback used by all album artwork when real artwork is unavailable. */
+    val AlbumDisc: ImageVector
+        get() = Icons.Default.DiscFull
 
     /** Library icon based on the bundled books_movies_and_music asset. */
     val Library: ImageVector

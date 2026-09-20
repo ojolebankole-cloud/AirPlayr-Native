@@ -37,6 +37,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun FavoritesScreen(
     container: AppContainer,
+    libraryViewModel: com.airplayr.app.ui.navigation.LibraryViewModel,
     playback: PlaybackController,
     onOpenVideo: (String) -> Unit,
     onOpenPlayer: () -> Unit,
@@ -45,16 +46,8 @@ fun FavoritesScreen(
 ) {
     val colors = LocalAirPlayrColors.current
     val scope = rememberCoroutineScope()
-    val music by container.mediaLibrary.observe(MediaType.AUDIO).collectAsStateWithLifecycle(emptyList())
-    val videos by container.mediaLibrary.observe(MediaType.VIDEO).collectAsStateWithLifecycle(emptyList())
-    val favoriteRows by container.structured.favorites().collectAsStateWithLifecycle(emptyList())
+    val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
     val playbackState by playback.stableState.collectAsStateWithLifecycle()
-    val lookup = remember(music, videos) { (music + videos).associateBy { it.id } }
-    val items = remember(favoriteRows, lookup) { favoriteRows.sortedByDescending { it.addedAt }.mapNotNull { lookup[it.mediaId] } }
-    val songs = remember(items) { items.filter { it.mediaType == MediaType.AUDIO } }
-    val likedVideos = remember(items) { items.filter { it.mediaType == MediaType.VIDEO } }
-    val albums = remember(songs) { songs.groupBy { (it.album ?: "Unknown album").trim() to (it.albumArtist ?: it.artist ?: "") }.values.map { it.first() }.take(20) }
-    val favoriteSet = remember(favoriteRows) { favoriteRows.map { it.mediaId }.toSet() }
     var headerMenu by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<MediaItem?>(null) }
     var playlistTarget by remember { mutableStateOf<List<MediaItem>?>(null) }
@@ -63,63 +56,144 @@ fun FavoritesScreen(
     var lyricsTarget by remember { mutableStateOf<MediaItem?>(null) }
     var deleteTarget by remember { mutableStateOf<MediaItem?>(null) }
 
+    val lookup = remember(snapshot.audio, snapshot.video) {
+        (snapshot.audio + snapshot.video).associateBy { it.id }
+    }
+    val items = remember(snapshot.favorites, lookup) {
+        snapshot.favorites.sortedByDescending { it.addedAt }.mapNotNull { lookup[it.mediaId] }
+    }
+    val songs = remember(items) { items.filter { it.mediaType == MediaType.AUDIO } }
+    val likedVideos = remember(items) { items.filter { it.mediaType == MediaType.VIDEO } }
+    val albums = remember(songs) {
+        songs.groupBy { (it.album ?: "Unknown album").trim() to (it.albumArtist ?: it.artist ?: "") }
+            .values.mapNotNull { it.firstOrNull() }
+            .take(20)
+    }
+    val favoriteSet = remember(snapshot.favorites) { snapshot.favorites.map { it.mediaId }.toSet() }
+
+    fun songsForAlbum(album: MediaItem): List<MediaItem> = songs.filter {
+        (it.album ?: "Unknown album").equals(album.album ?: "Unknown album", ignoreCase = true) &&
+            (it.albumArtist ?: it.artist ?: "").equals(album.albumArtist ?: album.artist ?: "", ignoreCase = true)
+    }
+
     fun playSong(item: MediaItem) {
-        val index = songs.indexOfFirst { it.id == item.id }.coerceAtLeast(0)
-        if (songs.isNotEmpty()) { playback.playQueue(songs, index); onOpenPlayer() }
+        val index = songs.indexOfFirst { it.id == item.id }
+        if (index >= 0) {
+            playback.playQueue(songs, index)
+            onOpenPlayer()
+        }
     }
 
     Box(Modifier.fillMaxSize().background(colors.background)) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
-            contentPadding = PaddingValues(bottom = 190.dp),
-        ) {
-            item {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp).heightIn(min = 66.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = colors.primary, modifier = Modifier.size(30.dp)) }
-                    Text("Favorites", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 29.sp, color = colors.textPrimary)
-                    Spacer(Modifier.weight(1f))
-                    IconButton(onClick = { headerMenu = true }) { Icon(Icons.Default.MoreVert, "Favorites options", tint = colors.primary, modifier = Modifier.size(25.dp)) }
-                }
+        if (!snapshot.ready) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = colors.primary)
             }
-            if (items.isEmpty()) item { Column(Modifier.fillMaxWidth().padding(horizontal = 45.dp).padding(top = 90.dp), horizontalAlignment = Alignment.CenterHorizontally) { Icon(Icons.Default.FavoriteBorder, null, Modifier.size(56.dp), tint = colors.primary); Text("No favorites yet", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 26.sp, color = colors.textPrimary, modifier = Modifier.padding(top = 18.dp)); Text("Songs and videos you like will appear here.", color = colors.textPrimary, modifier = Modifier.padding(top = 8.dp)) } }
-            if (songs.isNotEmpty()) {
-                item { Text("Liked songs", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 28.sp, color = colors.textPrimary, modifier = Modifier.padding(horizontal = 24.dp).padding(top = 25.dp, bottom = 10.dp)) }
-                items(songs.size, key = { "song:${songs[it].id}" }) { index ->
-                    val item = songs[index]
-                    val playing = playbackState.isPlaying && playbackState.currentId == item.id
-                    Row(Modifier.fillMaxWidth().clickable { playSong(item) }.padding(horizontal = 24.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Artwork(item.artworkUri ?: item.thumbnailUri, Modifier.size(64.dp), 17.dp, item.title)
-                        Column(Modifier.weight(1f).padding(horizontal = 16.dp)) { Text(item.title.ifBlank { "Unknown song" }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, color = colors.textPrimary, maxLines = 1); Text(listOfNotNull(item.artist, item.durationMs.takeIf { it > 0 }?.let(::formatDuration)).joinToString("  ·  ").ifBlank { "Unknown artist" }, color = colors.textSecondary, fontSize = 13.sp, maxLines = 1) }
-                        if (playing) Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) { repeat(3) { n -> Box(Modifier.width(4.dp).height((14 + n * 5).dp).background(colors.primary, RoundedCornerShape(4.dp))) } }
-                        else IconButton(onClick = { selected = item }) { Icon(Icons.Default.MoreVert, "Song options", tint = colors.primary) }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
+                contentPadding = PaddingValues(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                item {
+                    Row(
+                        Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 24.dp).heightIn(min = 66.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = colors.primary, modifier = Modifier.size(30.dp)) }
+                        Text("Favorites", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 29.sp, color = colors.textPrimary, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                        Spacer(Modifier.weight(1f))
+                        IconButton(onClick = { headerMenu = true }) { Icon(Icons.Default.MoreVert, "Favorites options", tint = colors.primary, modifier = Modifier.size(25.dp)) }
                     }
                 }
-            }
-            if (albums.isNotEmpty()) {
-                item { Text("Liked albums", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 28.sp, color = colors.textPrimary, modifier = Modifier.padding(horizontal = 24.dp).padding(top = 25.dp, bottom = 10.dp)) }
-                item { Row(Modifier.horizontalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }).padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) { albums.forEach { album -> Column(Modifier.width(170.dp).clickable { onNavigate("album/${Uri.encode(album.album ?: "Unknown album")}") }) { Artwork(album.artworkUri ?: album.thumbnailUri, Modifier.size(170.dp), 27.dp, album.title, MediaType.AUDIO, AirPlayrIcons.ArtTrack); Text(album.album ?: "Unknown album", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 17.sp, color = colors.textPrimary, maxLines = 1, modifier = Modifier.padding(top = 7.dp)); Text(album.artist ?: "Unknown artist", color = colors.textSecondary, fontSize = 12.sp, maxLines = 1) } } } }
-            }
-            if (likedVideos.isNotEmpty()) {
-                item { Text("Liked videos", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 28.sp, color = colors.textPrimary, modifier = Modifier.padding(horizontal = 24.dp).padding(top = 25.dp, bottom = 10.dp)) }
-                items(likedVideos.size, key = { "video:${likedVideos[it].id}" }) { index ->
-                    val item = likedVideos[index]
-                    Row(Modifier.fillMaxWidth().clickable { onOpenVideo(item.id) }.padding(horizontal = 24.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Artwork(item.thumbnailUri ?: item.uri, Modifier.width(122.dp).height(69.dp), 13.dp, item.title, MediaType.VIDEO, AirPlayrIcons.Video)
-                        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) { Text(item.title.ifBlank { "Video" }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, color = colors.textPrimary, maxLines = 1); Text("${item.artist ?: "Video"}${if (item.durationMs > 0) "  ·  ${formatDuration(item.durationMs)}" else ""}", color = colors.textSecondary, fontSize = 13.sp, maxLines = 1) }
-                        IconButton(onClick = { selected = item }) { Icon(Icons.Default.MoreVert, "Video options", tint = colors.primary) }
+
+                if (items.isEmpty()) {
+                    item {
+                        AirPlayrSectionEmpty("No favorites yet", "Songs and videos you like will appear here.")
+                    }
+                }
+
+                if (songs.isNotEmpty()) {
+                    item { Text("Liked songs", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 28.sp, color = colors.textPrimary, modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp)) }
+                    items(songs, key = { "song:${it.id}" }) { item ->
+                        val playing = playbackState.isPlaying && playbackState.currentId == item.id
+                        AirPlayrMediaRow(
+                            item = item,
+                            onOpen = { playSong(item) },
+                            onMore = { selected = item },
+                            playing = playing,
+                        )
+                    }
+                }
+
+                if (albums.isNotEmpty()) {
+                    item { Text("Liked albums", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 28.sp, color = colors.textPrimary, modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp)) }
+                    item {
+                        Row(
+                            Modifier.horizontalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }).padding(horizontal = 24.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            albums.forEach { album ->
+                                val albumSongs = songsForAlbum(album)
+                                val playing = playbackState.isPlaying && albumSongs.any { it.id == playbackState.currentId }
+                                var menuOpen by rememberSaveable(album.album) { mutableStateOf(false) }
+                                AirPlayrAlbumRailCard(
+                                    artworkUri = album.displayArtworkUri(),
+                                    albumTitle = album.album ?: "Unknown album",
+                                    artist = album.albumArtist ?: album.artist,
+                                    onOpen = { onNavigate("album/${Uri.encode(album.album ?: "Unknown album")}") },
+                                    onPlay = { if (albumSongs.isNotEmpty()) playback.playQueue(albumSongs) },
+                                    onMore = { menuOpen = true },
+                                    playing = playing,
+                                )
+                                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                    DropdownMenuItem(
+                                        text = { Text("Play album") },
+                                        leadingIcon = { Icon(AirPlayrIcons.Play, null) },
+                                        onClick = { menuOpen = false; if (albumSongs.isNotEmpty()) playback.playQueue(albumSongs) },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Open album") },
+                                        leadingIcon = { Icon(Icons.Default.Album, null) },
+                                        onClick = { menuOpen = false; onNavigate("album/${Uri.encode(album.album ?: "Unknown album")}") },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (likedVideos.isNotEmpty()) {
+                    item { Text("Liked videos", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 28.sp, color = colors.textPrimary, modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp)) }
+                    items(likedVideos, key = { "video:${it.id}" }) { item ->
+                        AirPlayrMediaRow(
+                            item = item,
+                            onOpen = { onOpenVideo(item.id) },
+                            onMore = { selected = item },
+                        )
                     }
                 }
             }
         }
-        if (songs.isNotEmpty()) FloatingActionButton(onClick = { playSong(songs.first()) }, modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = if (playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO) AIRPLAYR_FLOATING_PLAY_BOTTOM_WITH_MINI.dp else AIRPLAYR_FLOATING_PLAY_BOTTOM.dp), containerColor = colors.primary, contentColor = colors.onPrimary, shape = RoundedCornerShape(22.dp), elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 10.dp)) { Icon(Icons.Default.PlayArrow, "Play favorites", modifier = Modifier.size(31.dp)) }
+
+        if (snapshot.ready && songs.isNotEmpty()) {
+            FloatingActionButton(
+                onClick = { playSong(songs.first()) },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 24.dp),
+                containerColor = colors.primary,
+                contentColor = colors.onPrimary,
+                shape = RoundedCornerShape(22.dp),
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 10.dp),
+            ) { Icon(Icons.Default.PlayArrow, "Play favorites", modifier = Modifier.size(31.dp)) }
+        }
     }
 
     if (headerMenu) {
         ModalBottomSheet(onDismissRequest = { headerMenu = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.surfaceContainerLow) {
             Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 22.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text("Favorites", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 24.sp, color = colors.textPrimary)
-                TextButton(onClick = { playback.playQueue(songs.shuffled()); headerMenu = false; onOpenPlayer() }, enabled = songs.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth()) { Icon(Icons.Default.Shuffle, null, tint = colors.primary); Spacer(Modifier.width(14.dp)); Text("Shuffle", color = colors.textPrimary) } }
+                TextButton(onClick = { if (songs.isNotEmpty()) playback.playQueue(songs.shuffled()); headerMenu = false; if (songs.isNotEmpty()) onOpenPlayer() }, enabled = songs.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth()) { Icon(Icons.Default.Shuffle, null, tint = colors.primary); Spacer(Modifier.width(14.dp)); Text("Shuffle", color = colors.textPrimary) } }
                 TextButton(onClick = { songs.forEach(playback::addToQueue); headerMenu = false; AppFeedback.showSnackbar("Favorites added to the playing queue.") }, enabled = songs.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth()) { Icon(Icons.Default.QueueMusic, null, tint = colors.primary); Spacer(Modifier.width(14.dp)); Text("Add to queue", color = colors.textPrimary) } }
                 TextButton(onClick = { songs.forEach(playback::playNext); headerMenu = false; AppFeedback.showSnackbar("Favorites added as next.") }, enabled = songs.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth()) { Icon(Icons.Default.SkipNext, null, tint = colors.primary); Spacer(Modifier.width(14.dp)); Text("Play next", color = colors.textPrimary) } }
                 TextButton(onClick = { headerMenu = false; playlistTarget = songs }, enabled = songs.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth()) { Icon(Icons.Default.PlaylistAdd, null, tint = colors.primary); Spacer(Modifier.width(14.dp)); Text("Add to playlist", color = colors.textPrimary) } }
@@ -128,20 +202,54 @@ fun FavoritesScreen(
     }
 
     selected?.let { item ->
-        HistoryFavoriteActionSheet(item, favoriteSet.contains(item.id), container, { selected = null },
+        HistoryFavoriteActionSheet(
+            item = item,
+            favorite = favoriteSet.contains(item.id),
+            playing = playbackState.isPlaying && playbackState.currentId == item.id,
+            container = container,
+            onClose = { selected = null },
             onFavorite = { scope.launch { val active = container.structured.toggleFavorite(item); AppFeedback.showSnackbar(if (active) "Added to favorites." else "Removed from favorites."); selected = null } },
             onPlayNext = { if (item.mediaType == MediaType.AUDIO) playback.playNext(item) else AppFeedback.showSnackbar("Video queue is not available in the audio queue."); selected = null },
             onAddQueue = { if (item.mediaType == MediaType.AUDIO) playback.addToQueue(item) else AppFeedback.showSnackbar("Video queue is not available in the audio queue."); selected = null },
-            onPlaylist = { playlistTarget = listOf(item); selected = null }, onDetails = { detailsTarget = item; selected = null }, onDelete = { deleteTarget = item; selected = null },
-            onBlacklist = null, onGoAlbum = { item.album?.let { onNavigate("album/${Uri.encode(it)}") }; selected = null }, onGoArtist = { item.artist?.let { onNavigate("artist/${Uri.encode(it)}") }; selected = null }, onGoFolder = { item.relativePath?.let { onNavigate("music-folder/${Uri.encode(it)}") }; selected = null },
-            onEdit = { editTarget = item; selected = null }, onLyrics = { lyricsTarget = item; selected = null })
+            onPlaylist = { playlistTarget = listOf(item); selected = null },
+            onDetails = { detailsTarget = item; selected = null },
+            onDelete = { deleteTarget = item; selected = null },
+            onBlacklist = null,
+            onGoAlbum = { item.album?.let { onNavigate("album/${Uri.encode(it)}") }; selected = null },
+            onGoArtist = { item.artist?.let { onNavigate("artist/${Uri.encode(it)}") }; selected = null },
+            onGoFolder = { item.relativePath?.let { onNavigate("music-folder/${Uri.encode(it)}") }; selected = null },
+            onEdit = { editTarget = item; selected = null },
+            onLyrics = { lyricsTarget = item; selected = null },
+        )
     }
     playlistTarget?.let { list -> HistoryFavoritePlaylistSheet(container, list) { playlistTarget = null } }
-    detailsTarget?.let { HistoryFavoriteDetailsSheet(it) { detailsTarget = null } }
+    detailsTarget?.let { item -> HistoryFavoriteDetailsSheet(item, playing = playbackState.isPlaying && playbackState.currentId == item.id) { detailsTarget = null } }
     editTarget?.let { HistoryFavoriteTagEditorSheet(container, it) { editTarget = null } }
     lyricsTarget?.let { HistoryFavoriteLyricsSheet(container, it) { lyricsTarget = null } }
     deleteTarget?.let { item ->
-        AlertDialog(onDismissRequest = { deleteTarget = null }, title = { Text("Delete from device?") }, text = { Text("Delete ${item.title} from this device. Android may ask you to confirm the deletion.") }, dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel") } }, confirmButton = { TextButton(onClick = { deleteTarget = null; scope.launch(Dispatchers.IO) { val ok = runCatching { val base = if (item.mediaType == MediaType.AUDIO) android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI else android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI; container.appContext.contentResolver.delete(Uri.withAppendedPath(base, item.mediaStoreId?.toString() ?: return@runCatching false), null, null) > 0 }.getOrDefault(false); if (ok) runCatching { container.mediaLibrary.deltaRefresh(item.mediaType) }; withContext(Dispatchers.Main.immediate) { AppFeedback.showSnackbar(if (ok) "${item.title} deleted from device." else "Unable to delete ${item.title}.") } } }) { Text("Delete", color = colors.error) } })
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("Delete from device?") },
+            text = { Text("Delete ${item.title} from this device. Android may ask you to confirm the deletion.") },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    deleteTarget = null
+                    scope.launch(Dispatchers.IO) {
+                        val ok = runCatching {
+                            val base = if (item.mediaType == MediaType.AUDIO) android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI else android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                            container.appContext.contentResolver.delete(
+                                Uri.withAppendedPath(base, item.mediaStoreId?.toString() ?: return@runCatching false),
+                                null,
+                                null,
+                            ) > 0
+                        }.getOrDefault(false)
+                        if (ok) runCatching { container.mediaLibrary.deltaRefresh(item.mediaType) }
+                        withContext(Dispatchers.Main.immediate) { AppFeedback.showSnackbar(if (ok) "${item.title} deleted from device." else "Unable to delete ${item.title}.") }
+                    }
+                }) { Text("Delete", color = colors.error) }
+            },
+        )
     }
 }
 

@@ -103,6 +103,8 @@ fun airPlayrColorsFor(
         background = scheme.background,
         onBackground = scheme.onBackground,
         surface = scheme.surface,
+        surfaceSolid = scheme.surface,
+        backgroundElevated = scheme.surfaceContainerLow,
         onSurface = scheme.onSurface,
         surfaceVariant = scheme.surfaceVariant,
         onSurfaceVariant = scheme.onSurfaceVariant,

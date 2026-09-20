@@ -77,6 +77,7 @@ fun FeatureCollectionScreen(
     title: String,
     subtitle: String,
     loader: suspend () -> List<MediaItem>,
+    libraryViewModel: LibraryViewModel,
     playback: PlaybackController,
     container: AppContainer? = null,
     onBack: () -> Unit = {},
@@ -86,8 +87,10 @@ fun FeatureCollectionScreen(
     val colors = LocalAirPlayrColors.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
-    var items by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
+    val cachedFeatures by libraryViewModel.cachedFeatures.collectAsStateWithLifecycle()
+    val cacheKey = "feature:$title"
+    var items by remember(cachedFeatures, cacheKey) { mutableStateOf(cachedFeatures[cacheKey].orEmpty()) }
+    var loading by remember(cachedFeatures, cacheKey) { mutableStateOf(cachedFeatures[cacheKey] == null) }
     var menuOpen by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<MediaItem?>(null) }
     var favorite by remember { mutableStateOf(false) }
@@ -102,9 +105,10 @@ fun FeatureCollectionScreen(
             else -> Triple("NIGHT", "Settle into the night.", "A softer soundtrack for the quiet hours.")
         }
     }
-    LaunchedEffect(title) { loading = true; items = runCatching { loader() }.getOrDefault(emptyList()); loading = false }
+    LaunchedEffect(title) { libraryViewModel.loadFeature(cacheKey, loader) }
     LaunchedEffect(isTime) { if (isTime) while (true) { kotlinx.coroutines.delay(30_000); now = java.util.Calendar.getInstance() } }
-    val playbackState by playback.state.collectAsStateWithLifecycle()
+    LaunchedEffect(cachedFeatures, cacheKey) { cachedFeatures[cacheKey]?.let { items = it; loading = false } }
+    val playbackState by playback.stableState.collectAsStateWithLifecycle()
 
     fun playAll(shuffle: Boolean) {
         if (items.isEmpty()) return
@@ -120,9 +124,9 @@ fun FeatureCollectionScreen(
     }
     val hero = items.firstOrNull()
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().background(colors.background)) {
-        LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
             item {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 22.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = colors.primary) }
                     Column(Modifier.weight(1f)) {
                         Text(if (isTime) "AIRPLAYR · ${profile.first}" else "AIRPLAYR · PERSONAL", fontFamily = AirPlayrFonts.OpenSans, fontSize = 11.sp, letterSpacing = 1.3.sp, color = colors.textPrimary)
@@ -149,10 +153,13 @@ fun FeatureCollectionScreen(
                     },
                     badge = when (title) { "Rock your world" -> "HIGH ENERGY · ${items.size} SONGS"; "Rediscover" -> "THE REWIND · ${items.size} VIDEOS"; "Tuned in" -> "${profile.first} MIX · ${items.size} SONGS"; else -> "MADE FOR YOU" },
                     colors = colors,
+                    playing = playbackState.isPlaying && playbackState.currentId == hero.id,
                     onPlay = { if (hero.mediaType == MediaType.AUDIO) playback.playQueue(items, 0) else onVideoOpen(hero.id) },
                     onShuffle = { playAll(true) }
                 )
-            } else if (!loading) item {
+            } else if (loading) item {
+                Box(Modifier.fillMaxWidth().padding(vertical = 56.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = colors.primary) }
+            } else item {
                 AirPlayrSectionEmpty("Your collection is waiting", "Use AirPlayr for a while and this space will build from your local library.")
             }
             if (items.isNotEmpty() && title == "Tuned in") item {
@@ -168,7 +175,7 @@ fun FeatureCollectionScreen(
                 Text(if (title == "Rediscover") "Your unfinished and recently watched stories." else if (title == "Rock your world") "Songs ready when you want more energy." else if (title == "For you now") "A few familiar sounds to bring you back in." else "A hand-picked sequence for this moment.", fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, color = colors.textSecondary, modifier = Modifier.padding(horizontal = 22.dp))
             }
             items(items, key = { it.id }) { item ->
-                FeatureMediaRow(item, colors, onPlay = { if (item.mediaType == MediaType.AUDIO) playback.play(item) else onVideoOpen(item.id) }, onMore = { selected = item; scope.launch { favorite = container?.structured?.isFavorite(item.id) ?: false } })
+                FeatureMediaRow(item, colors, playing = playbackState.isPlaying && playbackState.currentId == item.id, onPlay = { if (item.mediaType == MediaType.AUDIO) playback.play(item) else onVideoOpen(item.id) }, onMore = { selected = item; scope.launch { favorite = container?.structured?.isFavorite(item.id) ?: false } })
             }
         }
         if (items.isNotEmpty()) FloatingActionButton(
@@ -182,7 +189,7 @@ fun FeatureCollectionScreen(
             },
             containerColor = colors.primary,
             contentColor = colors.onPrimary,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 22.dp, bottom = if (playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO) AIRPLAYR_FLOATING_PLAY_BOTTOM_WITH_MINI.dp else AIRPLAYR_FLOATING_PLAY_BOTTOM.dp).size(68.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 22.dp, bottom = 24.dp).size(68.dp),
             shape = RoundedCornerShape(22.dp),
                 elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 10.dp),
         ) { Icon(Icons.Default.PlayArrow, "Play mix", modifier = Modifier.size(31.dp)) }
@@ -230,10 +237,10 @@ fun FeatureCollectionScreen(
 }
 
 @Composable
-private fun FeatureHero(item: MediaItem, title: String?, subtitle: String, badge: String, colors: com.airplayr.app.ui.theme.AirPlayrColors, onPlay: () -> Unit, onShuffle: () -> Unit) {
+private fun FeatureHero(item: MediaItem, title: String?, subtitle: String, badge: String, colors: com.airplayr.app.ui.theme.AirPlayrColors, playing: Boolean, onPlay: () -> Unit, onShuffle: () -> Unit) {
     val art = item.displayArtworkUri()
     Box(Modifier.fillMaxWidth().height(360.dp).padding(horizontal = 22.dp).clip(RoundedCornerShape(30.dp)).airPlayrShadow(RoundedCornerShape(30.dp), 6.dp).clickable { onPlay() }) {
-        if (art != null) com.airplayr.app.ui.components.Artwork(art, Modifier.fillMaxSize(), 30.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music)
+        if (art != null) com.airplayr.app.ui.components.Artwork(art, Modifier.fillMaxSize(), 30.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music, isPlaying = playing)
         else Box(Modifier.fillMaxSize().background(colors.primaryContainer))
         Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = .42f)))
         Column(Modifier.fillMaxSize().padding(22.dp)) {
@@ -250,12 +257,24 @@ private fun FeatureHero(item: MediaItem, title: String?, subtitle: String, badge
 }
 
 @Composable
-private fun FeatureMediaRow(item: MediaItem, colors: com.airplayr.app.ui.theme.AirPlayrColors, onPlay: () -> Unit, onMore: () -> Unit) {
+private fun FeatureMediaRow(item: MediaItem, colors: com.airplayr.app.ui.theme.AirPlayrColors, playing: Boolean, onPlay: () -> Unit, onMore: () -> Unit) {
     AirPlayrCard(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 5.dp), shape = RoundedCornerShape(22.dp), containerColor = colors.surfaceContainer, elevation = 5.dp) {
-        Row(Modifier.fillMaxWidth().clickable(onClick = onPlay).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            com.airplayr.app.ui.components.Artwork(item.displayArtworkUri(), Modifier.size(82.dp), 18.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music)
-            Column(Modifier.weight(1f).padding(horizontal = 13.dp)) { Text(item.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 17.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(item.artist ?: if (item.mediaType == MediaType.VIDEO) "Video" else "Unknown artist", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary, maxLines = 1, modifier = Modifier.padding(top = 2.dp)) }
-            IconButton(onClick = onMore) { Icon(Icons.Default.MoreVert, "Options", tint = colors.primary) }
+        Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            com.airplayr.app.ui.components.AirPlayrMediaArtwork(
+                artworkUri = item.displayArtworkUri(),
+                modifier = Modifier.size(82.dp),
+                radius = 18.dp,
+                title = item.title,
+                mediaType = item.mediaType,
+                fallbackIcon = if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music,
+                playing = playing,
+                onPlay = onPlay,
+                onMore = onMore,
+            )
+            Column(Modifier.weight(1f).padding(horizontal = 13.dp).clickable(onClick = onPlay)) {
+                Text(item.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 17.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(item.artist ?: if (item.mediaType == MediaType.VIDEO) "Video" else "Unknown artist", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary, maxLines = 1, modifier = Modifier.padding(top = 2.dp))
+            }
         }
     }
 }
@@ -264,7 +283,7 @@ private fun FeatureMediaRow(item: MediaItem, colors: com.airplayr.app.ui.theme.A
 @Composable
 fun QueueScreen(appContext: android.content.Context) {
     val playback: PlaybackController = androidx.lifecycle.viewmodel.compose.viewModel(factory = com.airplayr.app.ui.playback.PlaybackControllerFactory(appContext))
-    val state by playback.state.collectAsStateWithLifecycle()
+    val state by playback.stableState.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize()) {
         ListTopBar("Queue", "${state.queueSize} queued items")
         AirPlayrCard(Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(26.dp), containerColor = LocalAirPlayrColors.current.surfaceSolid, elevation = 5.dp) {
@@ -285,13 +304,15 @@ fun QueueScreen(appContext: android.content.Context) {
 
 @Composable
 fun FoldersScreen(container: AppContainer, libraryViewModel: LibraryViewModel, onOpen: (String) -> Unit) {
-    val audio by libraryViewModel.audio.collectAsStateWithLifecycle()
-    val video by libraryViewModel.video.collectAsStateWithLifecycle()
+    val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
+    val audio = snapshot.audio
+    val video = snapshot.video
     val folders = (audio + video).groupBy { it.folder ?: it.relativePath ?: "Unknown folder" }.toList().sortedBy { it.first.lowercase() }
     Column(Modifier.fillMaxSize()) {
         ListTopBar("Folders", "${folders.size} media folders")
-        if (folders.isEmpty()) EmptyNativeState("No folders yet", "Grant media access or add a media folder in Settings.")
-        else LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (!snapshot.ready) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = LocalAirPlayrColors.current.primary) }
+        else if (folders.isEmpty()) EmptyNativeState("No folders yet", "Grant media access or add a media folder in Settings.")
+        else LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(folders, key = { it.first }) { (folder, items) ->
                 AirPlayrCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(22.dp), containerColor = LocalAirPlayrColors.current.surfaceSolid, elevation = 5.dp, onClick = { onOpen(java.net.URLEncoder.encode(folder, "UTF-8")) }) {
                     Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -320,7 +341,8 @@ fun BrowseFilterScreen(
     onOpenPlayer: () -> Unit = {},
 ) {
     val colors = LocalAirPlayrColors.current
-    val source by (if (type == MediaType.AUDIO) libraryViewModel.audio else libraryViewModel.video).collectAsStateWithLifecycle()
+    val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
+    val source = if (type == MediaType.AUDIO) snapshot.audio else snapshot.video
     val filtered = remember(source, value) {
         source.filter {
             when (title.lowercase()) {
@@ -332,12 +354,13 @@ fun BrowseFilterScreen(
             }
         }
     }
-    val playbackState by playback.state.collectAsStateWithLifecycle()
+    val playbackState by playback.stableState.collectAsStateWithLifecycle()
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             ListTopBar(value, "${filtered.size} items")
-            LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(filtered, key = { it.id }) { item -> MediaListCard(item) { playback.play(item) } }
+            LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (!snapshot.ready) item { Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = colors.primary) } }
+                items(filtered, key = { it.id }) { item -> MediaListCard(item, playing = playbackState.isPlaying && playbackState.currentId == item.id) { if (item.mediaType == MediaType.AUDIO) playback.play(item) else Unit } }
             }
         }
         if (filtered.any { it.mediaType == MediaType.AUDIO }) {
@@ -351,7 +374,7 @@ fun BrowseFilterScreen(
                 },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 22.dp, bottom = if (playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO) AIRPLAYR_FLOATING_PLAY_BOTTOM_WITH_MINI.dp else AIRPLAYR_FLOATING_PLAY_BOTTOM.dp)
+                    .padding(end = 22.dp, bottom = 24.dp)
                     .size(68.dp),
                 containerColor = colors.primary,
                 contentColor = colors.onPrimary,
@@ -373,11 +396,11 @@ fun RecentScreen(
     container: AppContainer? = null,
     onOpenPlayer: () -> Unit = {},
 ) {
-    val audio by viewModel.audio.collectAsStateWithLifecycle()
-    val video by viewModel.video.collectAsStateWithLifecycle()
-    val history = remember(container) { container?.structured?.history(100) ?: kotlinx.coroutines.flow.flowOf(emptyList()) }
-    val historyRows by history.collectAsStateWithLifecycle(emptyList())
-    val playbackState by playback.state.collectAsStateWithLifecycle()
+    val snapshot by viewModel.snapshot.collectAsStateWithLifecycle()
+    val audio = snapshot.audio
+    val video = snapshot.video
+    val historyRows = snapshot.history
+    val playbackState by playback.stableState.collectAsStateWithLifecycle()
     val data = when (type) {
         "songs" -> audio.sortedByDescending { it.dateAdded }.take(100)
         "albums" -> historyRows.filter { it.mediaType == MediaType.AUDIO.value }.mapNotNull { h -> audio.firstOrNull { it.id == h.mediaId } }
@@ -410,10 +433,11 @@ fun RecentScreen(
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             ListTopBar(title, "${data.size} local items")
-            if (data.isEmpty()) EmptyNativeState("Nothing here yet", "AirPlayr will build this section as your library and listening history grows.")
-            else LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (!snapshot.ready) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = LocalAirPlayrColors.current.primary) }
+            else if (data.isEmpty()) EmptyNativeState("Nothing here yet", "AirPlayr will build this section as your library and listening history grows.")
+            else LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(data, key = { it.id }) { item ->
-                    MediaListCard(item) {
+                    MediaListCard(item, playing = playbackState.isPlaying && playbackState.currentId == item.id) {
                         if (item.mediaType == MediaType.AUDIO) playback.play(item) else onOpen(item.id)
                     }
                 }
@@ -429,7 +453,7 @@ fun RecentScreen(
                         data.firstOrNull()?.let { onOpen(it.id) }
                     }
                 },
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 22.dp, bottom = if (playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO) AIRPLAYR_FLOATING_PLAY_BOTTOM_WITH_MINI.dp else AIRPLAYR_FLOATING_PLAY_BOTTOM.dp).size(68.dp),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 22.dp, bottom = 24.dp).size(68.dp),
                 containerColor = com.airplayr.app.ui.theme.LocalAirPlayrColors.current.primary,
                 contentColor = com.airplayr.app.ui.theme.LocalAirPlayrColors.current.onPrimary,
                 shape = RoundedCornerShape(22.dp),
@@ -443,12 +467,14 @@ fun RecentScreen(
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun MyPlaylistsScreen(container: AppContainer, playback: PlaybackController, onOpen: (String) -> Unit, onBack: () -> Unit = {}) {
+fun MyPlaylistsScreen(container: AppContainer, libraryViewModel: LibraryViewModel, playback: PlaybackController, onOpen: (String) -> Unit, onBack: () -> Unit = {}) {
     val colors = LocalAirPlayrColors.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
-    val playlists by container.structured.playlists().collectAsStateWithLifecycle(emptyList())
-    val library by container.mediaLibrary.observe(MediaType.AUDIO).collectAsStateWithLifecycle(initialValue = emptyList())
+    val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
+    val playlists = snapshot.playlists
+    val library = snapshot.audio
+    val libraryReady = snapshot.ready
     var selected by remember { mutableStateOf<com.airplayr.app.core.data.db.MusicPlaylistEntity?>(null) }
     var headerMenu by remember { mutableStateOf(false) }
     var fabOpen by remember { mutableStateOf(false) }
@@ -495,9 +521,9 @@ fun MyPlaylistsScreen(container: AppContainer, playback: PlaybackController, onO
     fun queuePlaylist(p: com.airplayr.app.core.data.db.MusicPlaylistEntity, next: Boolean) { val rows = itemsOf(p); if (rows.isEmpty()) com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("This playlist has no songs yet.") else { rows.forEach { if (next) playback.playNext(it) else playback.addToQueue(it) }; selected = null; com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("${rows.size} songs ${if (next) "added as next" else "added to the queue"}.") } }
 
     Box(Modifier.fillMaxSize().background(colors.background)) {
-        LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(bottom = 130.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 22.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = colors.primary) }
                     Column(Modifier.weight(1f)) { Text("AIRPLAYR · YOUR ARCHIVE", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 11.sp, letterSpacing = 1.2.sp, color = colors.textPrimary); Text("My playlists", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 30.sp, color = colors.textPrimary) }
                     IconButton(onClick = { headerMenu = true }) { Icon(Icons.Default.MoreVert, "My playlists menu", tint = colors.primary) }
@@ -509,8 +535,9 @@ fun MyPlaylistsScreen(container: AppContainer, playback: PlaybackController, onO
                 }
             }
             item { Text("Your playlists", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 24.sp, color = colors.textPrimary, modifier = Modifier.padding(horizontal = 22.dp, vertical = 6.dp)) }
-            if (playlists.isEmpty()) item { AirPlayrSectionEmpty("No playlists yet", "Create a playlist and your archive will appear here.") }
-            items(playlists, key = { it.id }) { p ->
+            if (!libraryReady) item { Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = colors.primary) } }
+            else if (playlists.isEmpty()) item { AirPlayrSectionEmpty("No playlists yet", "Create a playlist and your archive will appear here.") }
+            else items(playlists, key = { it.id }) { p ->
                 val rows = itemsOf(p)
                 AirPlayrCard(Modifier.fillMaxWidth().padding(horizontal = 22.dp), shape = RoundedCornerShape(24.dp), containerColor = colors.surfaceContainer, elevation = 5.dp) {
                     Column(Modifier.clickable { onOpen(p.id) }.padding(10.dp)) {
@@ -566,27 +593,33 @@ fun MyPlaylistsScreen(container: AppContainer, playback: PlaybackController, onO
 @Composable
 fun PlaylistDetailScreen(
     container: AppContainer,
+    libraryViewModel: LibraryViewModel,
     id: String,
     playback: PlaybackController,
     onOpenPlayer: () -> Unit = {},
 ) {
     val colors = LocalAirPlayrColors.current
-    val library by container.mediaLibrary.observe(MediaType.AUDIO).collectAsStateWithLifecycle(initialValue = emptyList())
+    val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
+    val library = snapshot.audio
     var name by remember { mutableStateOf("Playlist") }
     var ids by remember { mutableStateOf<List<String>>(emptyList()) }
+    var idsLoaded by remember { mutableStateOf(false) }
     LaunchedEffect(id) {
         val p = container.database.userDataDao().playlist(id)
         name = p?.name ?: "Playlist"
         ids = container.structured.playlistIds(id)
+        idsLoaded = true
     }
     val items = library.filter { it.id in ids }.sortedBy { ids.indexOf(it.id) }
-    val playbackState by playback.state.collectAsStateWithLifecycle()
+    val playbackState by playback.stableState.collectAsStateWithLifecycle()
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             ListTopBar(name, "${items.size} songs")
-            LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item { Button(onClick = { playback.playQueue(items); if (items.isNotEmpty()) onOpenPlayer() }, enabled = items.isNotEmpty()) { Text("Play playlist") } }
-                items(items, key = { it.id }) { item -> MediaListCard(item) { playback.play(item) } }
+                if (!snapshot.ready || !idsLoaded) item { Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = colors.primary) } }
+                else if (items.isEmpty()) item { AirPlayrSectionEmpty("Playlist is empty", "Add songs to this playlist to see them here.") }
+                else items(items, key = { it.id }) { item -> MediaListCard(item, playing = playbackState.isPlaying && playbackState.currentId == item.id) { playback.play(item) } }
             }
         }
         if (items.isNotEmpty()) {
@@ -594,7 +627,7 @@ fun PlaylistDetailScreen(
                 onClick = { playback.playQueue(items); onOpenPlayer() },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 22.dp, bottom = if (playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO) AIRPLAYR_FLOATING_PLAY_BOTTOM_WITH_MINI.dp else AIRPLAYR_FLOATING_PLAY_BOTTOM.dp)
+                    .padding(end = 22.dp, bottom = 24.dp)
                     .size(68.dp),
                 containerColor = colors.primary,
                 contentColor = colors.onPrimary,
@@ -611,8 +644,8 @@ fun PlaylistDetailScreen(
 fun EmptyNativeState(title: String, message: String) = AirPlayrSectionEmpty(title, message)
 
 @Composable
-private fun MediaListCard(item: MediaItem, onPlay: () -> Unit) {
-    AirPlayrMediaRow(item, onOpen = onPlay, compact = false)
+private fun MediaListCard(item: MediaItem, playing: Boolean = false, onPlay: () -> Unit) {
+    AirPlayrMediaRow(item, onOpen = onPlay, playing = playing, compact = false)
 }
 
 @Composable
@@ -626,7 +659,8 @@ fun BrowseIndexScreen(
     playback: PlaybackController,
     onOpen: (String) -> Unit,
 ) {
-    val source by (if (type == MediaType.AUDIO) libraryViewModel.audio else libraryViewModel.video).collectAsStateWithLifecycle()
+    val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
+    val source = if (type == MediaType.AUDIO) snapshot.audio else snapshot.video
     val keyer: (MediaItem) -> String = when (title.lowercase()) {
         "albums" -> { item -> item.album?.takeIf { it.isNotBlank() } ?: "Unknown album" }
         "artists" -> { item -> item.artist?.takeIf { it.isNotBlank() } ?: "Unknown artist" }
@@ -637,7 +671,8 @@ fun BrowseIndexScreen(
     val groups = source.groupBy(keyer).toList().sortedBy { it.first.lowercase() }
     Column(Modifier.fillMaxSize()) {
         ListTopBar(title, "${groups.size} ${title.lowercase()}")
-        LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (!snapshot.ready) item { Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = LocalAirPlayrColors.current.primary) } }
             items(groups, key = { it.first }) { (name, items) ->
                 AirPlayrCard(Modifier.fillMaxWidth().padding(horizontal = 8.dp), shape = RoundedCornerShape(22.dp), containerColor = LocalAirPlayrColors.current.surfaceSolid, elevation = 5.dp, onClick = { onOpen(java.net.URLEncoder.encode(name, "UTF-8")) }) {
                     Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {

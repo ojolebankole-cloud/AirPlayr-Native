@@ -2,6 +2,9 @@ package com.airplayr.app.ui.metadata
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,15 +35,14 @@ import com.airplayr.app.core.metadata.MetadataMatch
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.components.airPlayrShadow
 import com.airplayr.app.ui.navigation.LibraryViewModelFactory
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airplayr.app.ui.navigation.LibraryViewModel
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 
 @Composable
-fun MetadataScreen(container: AppContainer) {
-    val libraryVm: LibraryViewModel = viewModel(factory = LibraryViewModelFactory(container.mediaLibrary))
-    val audio by libraryVm.audio.collectAsStateWithLifecycle()
+fun MetadataScreen(container: AppContainer, libraryViewModel: LibraryViewModel) {
+    val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
+    val audio = snapshot.audio
     var selected by remember { mutableStateOf<MediaItem?>(null) }
     var title by remember { mutableStateOf("") }
     var artist by remember { mutableStateOf("") }
@@ -55,9 +57,11 @@ fun MetadataScreen(container: AppContainer) {
     }
 
     Column(Modifier.fillMaxSize()) {
-        LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = androidx.compose.foundation.layout.WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("Online Metadata", style = MaterialTheme.typography.headlineMedium) }
-            if (selected == null) {
+            if (!snapshot.ready) {
+                item { Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+            } else if (selected == null) {
                 item { Text("Choose a music item to look up and optionally apply catalog metadata.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 items(audio.take(250), key = { it.id }) { item ->
                     Card(Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(12.dp), 4.dp)) {

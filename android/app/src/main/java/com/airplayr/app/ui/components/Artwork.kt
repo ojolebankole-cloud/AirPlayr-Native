@@ -87,6 +87,7 @@ fun Artwork(
     contentDescription: String? = null,
     mediaType: MediaType? = null,
     fallbackIcon: ImageVector = when (mediaType) { MediaType.VIDEO -> AirPlayrIcons.Video; else -> AirPlayrIcons.Music },
+    fallbackIconSize: Dp = 22.dp,
     isPlaying: Boolean = false,
 ) {
     val context = LocalContext.current
@@ -113,7 +114,7 @@ fun Artwork(
         contentAlignment = Alignment.Center,
     ) {
         if (bitmap != null) Image(bitmap!!, contentDescription, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
-        else Icon(fallbackIcon, contentDescription, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+        else Icon(fallbackIcon, contentDescription, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(fallbackIconSize))
         if (isPlaying) PlayingWaveIndicator()
     }
 }

@@ -22,14 +22,16 @@ import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.components.AirPlayrCard
 import com.airplayr.app.ui.components.AirPlayrScreenHeader
 import com.airplayr.app.ui.components.AirPlayrSectionEmpty
+import com.airplayr.app.ui.navigation.LibraryViewModel
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import kotlinx.coroutines.launch
 
 @Composable
-fun PlaylistsScreen(container: AppContainer, onOpen: (String) -> Unit) {
+fun PlaylistsScreen(container: AppContainer, libraryViewModel: LibraryViewModel, onOpen: (String) -> Unit) {
     val scope = rememberCoroutineScope()
-    val lists by container.structured.playlists().collectAsStateWithLifecycle(emptyList())
+    val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
+    val lists = snapshot.playlists
     var name by remember { mutableStateOf("") }
     var deleting by remember { mutableStateOf<com.airplayr.app.core.data.db.MusicPlaylistEntity?>(null) }
     val c = LocalAirPlayrColors.current
@@ -45,8 +47,10 @@ fun PlaylistsScreen(container: AppContainer, onOpen: (String) -> Unit) {
                 }
             }
         }
-        if (lists.isEmpty()) AirPlayrSectionEmpty("No playlists yet", "Create your first playlist above.")
-        else LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(bottom = 110.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (!snapshot.ready) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary) }
+        } else if (lists.isEmpty()) AirPlayrSectionEmpty("No playlists yet", "Create your first playlist above.")
+        else LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(lists, key = { it.id }) { playlist ->
                 AirPlayrCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(22.dp), containerColor = c.surfaceSolid, elevation = 5.dp, onClick = { onOpen(playlist.id) }) {
                     Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {

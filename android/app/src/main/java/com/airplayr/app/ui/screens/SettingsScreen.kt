@@ -42,6 +42,7 @@ import kotlin.math.roundToInt
 fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMetadata: () -> Unit = {}, onNavigate: (String) -> Unit = {}) {
     val settings by container.preferences.settings.collectAsStateWithLifecycle(initialValue = null)
     val current = settings ?: return
+    val statusBarTop = androidx.compose.foundation.layout.WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val colors = LocalAirPlayrColors.current
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -117,7 +118,7 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
     LazyColumn(
         state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 120.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = statusBarTop + 22.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { Text("Settings", style = MaterialTheme.typography.headlineLarge); Text("AirPlayr controls and Android integration", color = colors.textSecondary) }

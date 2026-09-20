@@ -4,6 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -134,7 +137,7 @@ private fun MiniPlayerSection(
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Artwork(liveState.artworkUri, Modifier.size(62.dp), 19.dp, liveState.currentTitle, MediaType.AUDIO, AirPlayrIcons.Music, liveState.isPlaying)
+            Artwork(liveState.artworkUri, Modifier.size(62.dp), 19.dp, liveState.currentTitle, MediaType.AUDIO, AirPlayrIcons.Music, isPlaying = liveState.isPlaying)
             Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                 Text(
                     liveState.currentTitle ?: "Song",
@@ -196,6 +199,12 @@ private fun DockItem(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    val iconSize by animateDpAsState(
+        targetValue = if (selected) 31.dp else 29.dp,
+        animationSpec = tween(180, easing = FastOutSlowInEasing),
+        label = "dockIconSize",
+    )
+    val colors = MaterialTheme.colorScheme
     IconButton(
         onClick = onClick,
         interactionSource = interactionSource,
@@ -206,14 +215,22 @@ private fun DockItem(
                 this.selected = selected
             },
     ) {
-        // The Expo dock intentionally uses the same theme-primary tint for
-        // focused and unfocused icons. Only press feedback changes opacity.
-        Icon(
-            icon,
-            label,
-            Modifier.size(30.dp).alpha(if (pressed) 0.68f else 1f),
-            tint = MaterialTheme.colorScheme.primary,
-        )
+        Box(
+            Modifier
+                .size(if (selected) 42.dp else 38.dp)
+                .background(
+                    if (selected) colors.primaryContainer else androidx.compose.ui.graphics.Color.Transparent,
+                    RoundedCornerShape(if (selected) 14.dp else 12.dp),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                icon,
+                label,
+                Modifier.size(iconSize).alpha(if (pressed) 0.68f else 1f),
+                tint = if (selected) colors.primary else colors.onSurfaceVariant,
+            )
+        }
     }
 }
 
