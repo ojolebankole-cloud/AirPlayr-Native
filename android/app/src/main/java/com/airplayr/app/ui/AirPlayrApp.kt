@@ -361,25 +361,6 @@ fun AirPlayrApp(
                 if (currentRoute != "home") menuOpen = false
             }
 
-            // Keep the drawer behind the persistent bottom controls, but give its scroll content
-            // enough trailing room to reach the final items without those controls covering them.
-            if (menuOpen && currentRoute == "home") {
-                val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
-                MenuDrawer(
-                    visible = true,
-                    musicCount = snapshot.audio.size,
-                    videoCount = snapshot.video.size,
-                    folderCount = libraryViewModel.folderCount.collectAsStateWithLifecycle().value,
-                    container = container,
-                    bottomContentPadding = reservedBottom,
-                    onClose = { menuOpen = false },
-                    onNavigate = { route -> navigate(route) },
-                    onScanMedia = { libraryViewModel.refresh() },
-                    onAbout = {},
-                    onSupport = {},
-                )
-            }
-
             SnackbarHost(
                 hostState = snackbarHostState,
                 modifier = Modifier
@@ -413,6 +394,25 @@ fun AirPlayrApp(
                     modifier = Modifier
                         .fillMaxWidth()
                         .align(androidx.compose.ui.Alignment.BottomCenter),
+                )
+            }
+
+            // Draw the drawer after the persistent bottom system so the drawer is the top
+            // interactive layer when open. This prevents the mini-player/dock from covering
+            // the final drawer items such as About AirPlayr and Support AirPlayr.
+            if (menuOpen && currentRoute == "home") {
+                val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
+                MenuDrawer(
+                    visible = true,
+                    musicCount = snapshot.audio.size,
+                    videoCount = snapshot.video.size,
+                    folderCount = libraryViewModel.folderCount.collectAsStateWithLifecycle().value,
+                    container = container,
+                    onClose = { menuOpen = false },
+                    onNavigate = { route -> navigate(route) },
+                    onScanMedia = { libraryViewModel.refresh() },
+                    onAbout = {},
+                    onSupport = {},
                 )
             }
 
