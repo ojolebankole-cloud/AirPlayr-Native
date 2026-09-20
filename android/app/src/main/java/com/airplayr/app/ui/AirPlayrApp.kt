@@ -218,9 +218,9 @@ fun AirPlayrApp(
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = androidx.compose.ui.graphics.Color.Transparent,
-            snackbarHost = { host ->
+            snackbarHost = {
                 SnackbarHost(
-                    hostState = host,
+                    hostState = snackbarHostState,
                     snackbar = { data ->
                         Snackbar(
                             snackbarData = data,

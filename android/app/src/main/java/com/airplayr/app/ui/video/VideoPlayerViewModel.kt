@@ -72,7 +72,7 @@ class VideoPlayerViewModel(
                 // while the video is actually playing.
                 structured.saveVideoProgress(item.id, positionMs, durationMs)
                 if (isPlaying) stats.track(item, positionMs)
-                if (durationMs > 0L && positionMs.toDouble() / durationMs.toDouble() >= COMPLETION_FRACTION) {
+                if (durationMs > 0L && positionMs.toDouble() / durationMs.toDouble() >= VIDEO_COMPLETION_FRACTION) {
                     completedSessionId = item.id
                 }
             }
