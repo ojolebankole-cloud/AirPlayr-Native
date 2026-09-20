@@ -199,8 +199,9 @@ fun MenuDrawer(
                     state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
                     modifier = Modifier.fillMaxWidth().weight(1f),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        horizontal = 10.dp,
+                        start = 10.dp,
                         top = 14.dp,
+                        end = 10.dp,
                         bottom = 14.dp + bottomContentPadding,
                     ),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
