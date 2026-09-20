@@ -20,6 +20,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -219,7 +220,7 @@ fun AirPlayrApp(
         // Keep the shell edge-to-edge. The persistent bottom controls are an overlay surface,
         // while each screen owns any status-bar inset it actually needs. Home intentionally draws
         // behind the transparent status bar so its content can scroll underneath it.
-        Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             val contentModifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = reservedBottom)
