@@ -125,9 +125,9 @@ fun AirPlayrMediaArtwork(
     val c = LocalAirPlayrColors.current
     Box(modifier) {
         Artwork(
-            artworkUri = artworkUri,
+            uri = artworkUri,
             modifier = Modifier.fillMaxSize(),
-            cornerRadius = radius,
+            radius = radius,
             contentDescription = title,
             mediaType = mediaType,
             fallbackIcon = fallbackIcon,

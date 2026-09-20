@@ -1,4 +1,7 @@
 package com.airplayr.app.ui.screens
+import com.airplayr.app.ui.components.AirPlayrMediaArtwork
+import com.airplayr.app.core.data.media.MediaType
+import androidx.compose.foundation.layout.statusBarsPadding
 
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -176,7 +179,7 @@ fun MusicScreen(libraryViewModel: LibraryViewModel, appContext: android.content.
                     LazyVerticalGrid(state = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() },
                         columns = GridCells.Fixed(2),
                         modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp, bottom = 24.dp),
+                        contentPadding = PaddingValues(start = 12.dp, top = 6.dp, end = 12.dp, bottom = 24.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
@@ -200,7 +203,7 @@ fun MusicScreen(libraryViewModel: LibraryViewModel, appContext: android.content.
                     LazyColumn(
                         modifier = Modifier.weight(1f),
                         state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp, bottom = 24.dp),
+                        contentPadding = PaddingValues(start = 12.dp, top = 6.dp, end = 12.dp, bottom = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         if (filteredSongs.isEmpty()) item { EmptyMusic("No songs found", if (category == "likes") "Like a song to see it here." else "Music on this device will appear here.") }
@@ -362,7 +365,7 @@ private fun PlaylistGrid(
         } else {
             LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp, bottom = 24.dp),
+                contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(data, key = { it.id }) { playlist ->

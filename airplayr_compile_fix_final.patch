@@ -1,0 +1,150 @@
+diff --git a/android/app/src/main/java/com/airplayr/app/ui/components/AirPlayrSecondaryComponents.kt b/android/app/src/main/java/com/airplayr/app/ui/components/AirPlayrSecondaryComponents.kt
+index 9126e24..3ca2020 100644
+--- a/android/app/src/main/java/com/airplayr/app/ui/components/AirPlayrSecondaryComponents.kt
++++ b/android/app/src/main/java/com/airplayr/app/ui/components/AirPlayrSecondaryComponents.kt
+@@ -125,9 +125,9 @@ fun AirPlayrMediaArtwork(
+     val c = LocalAirPlayrColors.current
+     Box(modifier) {
+         Artwork(
+-            artworkUri = artworkUri,
++            uri = artworkUri,
+             modifier = Modifier.fillMaxSize(),
+-            cornerRadius = radius,
++            radius = radius,
+             contentDescription = title,
+             mediaType = mediaType,
+             fallbackIcon = fallbackIcon,
+diff --git a/android/app/src/main/java/com/airplayr/app/ui/diagnostics/DiagnosticsScreen.kt b/android/app/src/main/java/com/airplayr/app/ui/diagnostics/DiagnosticsScreen.kt
+index 9174928..396d9aa 100644
+--- a/android/app/src/main/java/com/airplayr/app/ui/diagnostics/DiagnosticsScreen.kt
++++ b/android/app/src/main/java/com/airplayr/app/ui/diagnostics/DiagnosticsScreen.kt
+@@ -1,4 +1,5 @@
+ package com.airplayr.app.ui.diagnostics
++import androidx.compose.foundation.layout.statusBarsPadding
+ 
+ import android.content.Intent
+ import androidx.compose.foundation.layout.Arrangement
+@@ -42,7 +43,7 @@ fun DiagnosticsScreen(container: AppContainer) {
+     val scope = androidx.compose.runtime.rememberCoroutineScope()
+     LaunchedEffect(Unit) { runCatching { DiagnosticsRepository(context).snapshot() }.onSuccess { snapshot = it; report = DiagnosticsRepository(context).format(it); crash = CrashReporter(context).lastCrash() } }
+     Column(Modifier.fillMaxSize()) {
+-        LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = androidx.compose.foundation.layout.WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
++        LazyColumn(Modifier.fillMaxSize().statusBarsPadding(), state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+             item { Text("Diagnostics", style = MaterialTheme.typography.headlineMedium) }
+             item { Card(Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(12.dp), 4.dp)) { Text(report.ifBlank { "Collecting diagnostics…" }, Modifier.padding(16.dp)) } }
+             item {
+diff --git a/android/app/src/main/java/com/airplayr/app/ui/metadata/MetadataScreen.kt b/android/app/src/main/java/com/airplayr/app/ui/metadata/MetadataScreen.kt
+index b66aa00..70b2cca 100644
+--- a/android/app/src/main/java/com/airplayr/app/ui/metadata/MetadataScreen.kt
++++ b/android/app/src/main/java/com/airplayr/app/ui/metadata/MetadataScreen.kt
+@@ -1,4 +1,5 @@
+ package com.airplayr.app.ui.metadata
++import androidx.compose.foundation.layout.statusBarsPadding
+ 
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Column
+@@ -57,7 +58,7 @@ fun MetadataScreen(container: AppContainer, libraryViewModel: LibraryViewModel)
+     }
+ 
+     Column(Modifier.fillMaxSize()) {
+-        LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = androidx.compose.foundation.layout.WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
++        LazyColumn(Modifier.fillMaxSize().statusBarsPadding(), state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+             item { Text("Online Metadata", style = MaterialTheme.typography.headlineMedium) }
+             if (!snapshot.ready) {
+                 item { Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+diff --git a/android/app/src/main/java/com/airplayr/app/ui/screens/CollectionsScreen.kt b/android/app/src/main/java/com/airplayr/app/ui/screens/CollectionsScreen.kt
+index aed8352..aa36a39 100644
+--- a/android/app/src/main/java/com/airplayr/app/ui/screens/CollectionsScreen.kt
++++ b/android/app/src/main/java/com/airplayr/app/ui/screens/CollectionsScreen.kt
+@@ -73,7 +73,7 @@ fun CollectionsScreen(container: AppContainer, libraryViewModel: LibraryViewMode
+             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary) }
+         } else if (!hasCollectionItems) {
+             AirPlayrSectionEmpty("No collections yet", "Listen to music and AirPlayr will start building these collections.")
+-        else LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
++        } else LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+             items(definitions, key = { it.title }) { def ->
+                 val rows = cached["collection:${def.title}"].orEmpty()
+                 if (rows.isNotEmpty()) AirPlayrCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(28.dp), containerColor = c.surfaceContainerLow, elevation = 5.dp) {
+diff --git a/android/app/src/main/java/com/airplayr/app/ui/screens/EqualizerScreen.kt b/android/app/src/main/java/com/airplayr/app/ui/screens/EqualizerScreen.kt
+index e614690..0b10dad 100644
+--- a/android/app/src/main/java/com/airplayr/app/ui/screens/EqualizerScreen.kt
++++ b/android/app/src/main/java/com/airplayr/app/ui/screens/EqualizerScreen.kt
+@@ -1,4 +1,5 @@
+ package com.airplayr.app.ui.screens
++import androidx.compose.foundation.layout.statusBarsPadding
+ 
+ import androidx.compose.foundation.Canvas
+ import androidx.compose.foundation.ScrollState
+diff --git a/android/app/src/main/java/com/airplayr/app/ui/screens/FavoritesScreen.kt b/android/app/src/main/java/com/airplayr/app/ui/screens/FavoritesScreen.kt
+index 54822a0..6a1fb10 100644
+--- a/android/app/src/main/java/com/airplayr/app/ui/screens/FavoritesScreen.kt
++++ b/android/app/src/main/java/com/airplayr/app/ui/screens/FavoritesScreen.kt
+@@ -1,6 +1,7 @@
+ @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+ 
+ package com.airplayr.app.ui.screens
++import androidx.compose.foundation.lazy.items
+ 
+ import com.airplayr.app.ui.theme.AirPlayrIcons
+ import android.net.Uri
+diff --git a/android/app/src/main/java/com/airplayr/app/ui/screens/HistoryScreen.kt b/android/app/src/main/java/com/airplayr/app/ui/screens/HistoryScreen.kt
+index 356a827..baea688 100644
+--- a/android/app/src/main/java/com/airplayr/app/ui/screens/HistoryScreen.kt
++++ b/android/app/src/main/java/com/airplayr/app/ui/screens/HistoryScreen.kt
+@@ -1,6 +1,7 @@
+ @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+ 
+ package com.airplayr.app.ui.screens
++import com.airplayr.app.ui.theme.AirPlayrIcons
+ 
+ import android.net.Uri
+ import androidx.compose.foundation.background
+diff --git a/android/app/src/main/java/com/airplayr/app/ui/screens/MusicScreen.kt b/android/app/src/main/java/com/airplayr/app/ui/screens/MusicScreen.kt
+index 9260fa7..c322fee 100644
+--- a/android/app/src/main/java/com/airplayr/app/ui/screens/MusicScreen.kt
++++ b/android/app/src/main/java/com/airplayr/app/ui/screens/MusicScreen.kt
+@@ -1,4 +1,7 @@
+ package com.airplayr.app.ui.screens
++import com.airplayr.app.ui.components.AirPlayrMediaArtwork
++import com.airplayr.app.core.data.media.MediaType
++import androidx.compose.foundation.layout.statusBarsPadding
+ 
+ import androidx.compose.material.icons.filled.QueueMusic
+ import androidx.compose.foundation.layout.fillMaxHeight
+@@ -176,7 +179,7 @@ fun MusicScreen(libraryViewModel: LibraryViewModel, appContext: android.content.
+                     LazyVerticalGrid(state = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() },
+                         columns = GridCells.Fixed(2),
+                         modifier = Modifier.weight(1f),
+-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp, bottom = 24.dp),
++                        contentPadding = PaddingValues(start = 12.dp, top = 6.dp, end = 12.dp, bottom = 24.dp),
+                         horizontalArrangement = Arrangement.spacedBy(6.dp),
+                         verticalArrangement = Arrangement.spacedBy(6.dp),
+                     ) {
+@@ -200,7 +203,7 @@ fun MusicScreen(libraryViewModel: LibraryViewModel, appContext: android.content.
+                     LazyColumn(
+                         modifier = Modifier.weight(1f),
+                         state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
+-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp, bottom = 24.dp),
++                        contentPadding = PaddingValues(start = 12.dp, top = 6.dp, end = 12.dp, bottom = 24.dp),
+                         verticalArrangement = Arrangement.spacedBy(6.dp),
+                     ) {
+                         if (filteredSongs.isEmpty()) item { EmptyMusic("No songs found", if (category == "likes") "Like a song to see it here." else "Music on this device will appear here.") }
+@@ -362,7 +365,7 @@ private fun PlaylistGrid(
+         } else {
+             LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
+                 modifier = Modifier.weight(1f),
+-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp, bottom = 24.dp),
++                contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 24.dp),
+                 verticalArrangement = Arrangement.spacedBy(8.dp),
+             ) {
+                 items(data, key = { it.id }) { playlist ->
+diff --git a/android/app/src/main/java/com/airplayr/app/ui/screens/PlayerScreen.kt b/android/app/src/main/java/com/airplayr/app/ui/screens/PlayerScreen.kt
+index c6a68e4..3e53795 100644
+--- a/android/app/src/main/java/com/airplayr/app/ui/screens/PlayerScreen.kt
++++ b/android/app/src/main/java/com/airplayr/app/ui/screens/PlayerScreen.kt
+@@ -1,4 +1,5 @@
+ package com.airplayr.app.ui.screens
++import androidx.compose.foundation.layout.statusBarsPadding
+ 
+ import com.airplayr.app.core.data.preferences.PreferencesRepository
+ import android.content.Context

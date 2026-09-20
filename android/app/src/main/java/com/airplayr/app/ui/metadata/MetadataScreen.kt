@@ -1,4 +1,5 @@
 package com.airplayr.app.ui.metadata
+import androidx.compose.foundation.layout.statusBarsPadding
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -57,7 +58,7 @@ fun MetadataScreen(container: AppContainer, libraryViewModel: LibraryViewModel) 
     }
 
     Column(Modifier.fillMaxSize()) {
-        LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = androidx.compose.foundation.layout.WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(Modifier.fillMaxSize().statusBarsPadding(), state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("Online Metadata", style = MaterialTheme.typography.headlineMedium) }
             if (!snapshot.ready) {
                 item { Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }

@@ -1,4 +1,5 @@
 package com.airplayr.app.ui.screens
+import androidx.compose.foundation.layout.statusBarsPadding
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ScrollState
