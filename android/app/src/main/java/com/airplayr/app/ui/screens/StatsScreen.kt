@@ -2,12 +2,13 @@ package com.airplayr.app.ui.screens
 
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
@@ -77,7 +78,7 @@ fun StatsScreen(container: AppContainer, playback: PlaybackController, onOpenMed
     val totalLabel = formatDuration(s.listeningSeconds + s.watchingSeconds)
 
     Box(Modifier.fillMaxSize().background(colors.background)) {
-        LazyColumn(
+        LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 122.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -322,7 +323,7 @@ private fun GenresCard(genres: List<PlaybackStatsRepository.GenreStat>, colors: 
             if (filtered.isEmpty()) {
                 Text("Genre insights will appear as you play music or videos with genre metadata.", fontFamily = AirPlayrFonts.OpenSans, fontSize = 14.sp, lineHeight = 20.sp, color = colors.textPrimary, modifier = Modifier.padding(vertical = 14.dp))
             } else {
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }).padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
                     filtered.forEach { genre -> GenreRingItem(genre, colors) }
                 }
             }

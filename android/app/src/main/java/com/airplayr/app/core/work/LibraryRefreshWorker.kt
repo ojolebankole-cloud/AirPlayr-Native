@@ -31,8 +31,12 @@ class LibraryRefreshWorker(
         }
 
         if (!container.preferences.settings.first().autoRefreshLibrary) return Result.success()
+        if (!container.preferences.shouldRefreshMediaStore(container.mediaStore.externalLibraryVersion(), minimumIntervalMs = 6 * 60 * 60_000L)) {
+            return Result.success()
+        }
         return try {
             container.mediaLibrary.deltaRefresh()
+            container.preferences.markMediaStoreRefresh(container.mediaStore.externalLibraryVersion())
             Result.success()
         } catch (cancellation: CancellationException) {
             throw cancellation

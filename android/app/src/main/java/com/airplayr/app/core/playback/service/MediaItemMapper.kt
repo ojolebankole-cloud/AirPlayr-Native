@@ -9,6 +9,11 @@ object MediaItemMapper {
     fun toExo(item: MediaItem): ExoMediaItem = ExoMediaItem.Builder()
         .setMediaId(item.id)
         .setUri(item.uri)
+        .apply {
+            val mime = item.mimeType?.takeIf { it.isNotBlank() }
+                ?: if (item.mediaType == MediaType.VIDEO) inferVideoMimeType(item.filename, item.uri) else null
+            if (mime != null) setMimeType(mime)
+        }
         .setMediaMetadata(
             MediaMetadata.Builder()
                 .setTitle(item.title)
@@ -21,4 +26,21 @@ object MediaItemMapper {
                 .setDurationMs(item.durationMs.takeIf { it > 0L })
                 .build()
         ).build()
+}
+
+
+private fun inferVideoMimeType(filename: String, uri: String): String? {
+    val name = filename.ifBlank { uri.substringBefore('?').substringAfterLast('/') }
+    return when (name.substringAfterLast('.', "").lowercase()) {
+        "mp4", "m4v" -> "video/mp4"
+        "webm" -> "video/webm"
+        "mkv" -> "video/x-matroska"
+        "mov" -> "video/quicktime"
+        "avi" -> "video/avi"
+        "wmv" -> "video/x-ms-wmv"
+        "3gp" -> "video/3gpp"
+        "ts", "m2ts", "mts" -> "video/mp2t"
+        "flv" -> "video/x-flv"
+        else -> null
+    }
 }

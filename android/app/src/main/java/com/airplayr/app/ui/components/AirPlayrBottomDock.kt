@@ -1,9 +1,6 @@
 package com.airplayr.app.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -29,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -44,7 +42,6 @@ import com.airplayr.app.core.qa.AirPlayrQaTags
 import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.ui.playback.PlaybackController
 import com.airplayr.app.ui.playback.PlaybackUiState
-import com.airplayr.app.ui.theme.AirPlayrElevation
 import com.airplayr.app.ui.theme.AirPlayrIcons
 
 @Composable
@@ -57,40 +54,23 @@ fun AirPlayrBottomDock(
     onOpenPlayer: () -> Unit,
     showMiniPlayer: Boolean = true,
 ) {
-    Column(
+    val miniVisible = showMiniPlayer && playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO
+    Surface(
         modifier = modifier
             .fillMaxWidth()
             .wrapContentHeight()
             .navigationBarsPadding()
             .padding(horizontal = 10.dp, vertical = 8.dp)
             .testTag(AirPlayrQaTags.DOCK),
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
     ) {
-        val miniVisible = showMiniPlayer && playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO
-        AnimatedVisibility(
-            visible = miniVisible,
-            enter = fadeIn(),
-            exit = fadeOut(),
-        ) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                tonalElevation = 2.dp,
-                shadowElevation = AirPlayrElevation.medium,
-            ) {
-                MiniPlayerSection(playbackState, playback, onOpenPlayer)
+        Column(Modifier.fillMaxWidth()) {
+            if (miniVisible) {
+                MiniPlayerSection(playback, onOpenPlayer)
             }
-        }
-
-        Spacer(Modifier.height(if (miniVisible) 8.dp else 0.dp))
-
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            tonalElevation = 2.dp,
-            shadowElevation = AirPlayrElevation.medium,
-        ) {
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -116,39 +96,33 @@ fun AirPlayrMiniPlayerOnly(
     onOpenPlayer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .wrapContentHeight()
-            .navigationBarsPadding()
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-    ) {
-        AnimatedVisibility(
-            visible = playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO,
-            enter = fadeIn(),
-            exit = fadeOut(),
+    if (playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO) {
+        Surface(
+            modifier = modifier
+                .fillMaxWidth()
+                .wrapContentHeight()
+                .navigationBarsPadding()
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
         ) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                tonalElevation = 2.dp,
-                shadowElevation = AirPlayrElevation.medium,
-            ) {
-                MiniPlayerSection(playbackState, playback, onOpenPlayer)
-            }
+            MiniPlayerSection(playback, onOpenPlayer)
         }
     }
 }
 
 @Composable
 private fun MiniPlayerSection(
-    state: PlaybackUiState,
     playback: PlaybackController,
     onOpenPlayer: () -> Unit,
 ) {
-    val fraction = if (state.durationMs > 0) {
-        (state.positionMs.toFloat() / state.durationMs).coerceIn(0f, 1f)
+    // Keep the 500 ms progress ticker local to the mini-player subtree. The shell receives
+    // stable playback state so the entire NavHost is not invalidated on every progress tick.
+    val liveState by playback.state.collectAsStateWithLifecycle()
+    val fraction = if (liveState.durationMs > 0) {
+        (liveState.positionMs.toFloat() / liveState.durationMs).coerceIn(0f, 1f)
     } else {
         0f
     }
@@ -160,10 +134,10 @@ private fun MiniPlayerSection(
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Artwork(state.artworkUri, Modifier.size(62.dp), 19.dp, state.currentTitle)
+            Artwork(liveState.artworkUri, Modifier.size(62.dp), 19.dp, liveState.currentTitle, MediaType.AUDIO, AirPlayrIcons.Music, liveState.isPlaying)
             Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                 Text(
-                    state.currentTitle ?: "Song",
+                    liveState.currentTitle ?: "Song",
                     maxLines = 1,
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontSize = 18.sp,
@@ -173,8 +147,8 @@ private fun MiniPlayerSection(
                 )
                 Text(
                     listOfNotNull(
-                        state.currentArtist?.takeIf { it.isNotBlank() },
-                        state.currentAlbum?.takeIf { it.isNotBlank() },
+                        liveState.currentArtist?.takeIf { it.isNotBlank() },
+                        liveState.currentAlbum?.takeIf { it.isNotBlank() },
                     ).joinToString("  •  "),
                     maxLines = 1,
                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp, lineHeight = 17.sp),
@@ -192,8 +166,8 @@ private fun MiniPlayerSection(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        if (state.isPlaying) AirPlayrIcons.Pause else AirPlayrIcons.Play,
-                        if (state.isPlaying) "Pause" else "Play",
+                        if (liveState.isPlaying) AirPlayrIcons.Pause else AirPlayrIcons.Play,
+                        if (liveState.isPlaying) "Pause" else "Play",
                         Modifier.size(30.dp),
                         tint = MaterialTheme.colorScheme.onPrimary,
                     )

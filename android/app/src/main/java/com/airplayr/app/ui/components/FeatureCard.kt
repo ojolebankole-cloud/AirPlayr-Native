@@ -3,6 +3,7 @@ package com.airplayr.app.ui.components
 import android.app.WallpaperManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.util.LruCache
 import android.os.Build
 import androidx.core.graphics.ColorUtils
 import androidx.compose.foundation.Image
@@ -28,9 +29,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.AirPlayrFeatureCardTokens
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
@@ -109,41 +107,86 @@ private val SOURCE_ACCENTS = mapOf(
     "playlist_pana" to listOf("#FF725E", "#EB996E", "#FFBE9D"),
 )
 
+private object FeatureArtworkCache {
+    private val cache = object : LruCache<String, Bitmap>(12 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount / 1024
+    }
+
+    @Synchronized
+    fun get(key: String): Bitmap? = cache.get(key)
+
+    @Synchronized
+    fun put(key: String, bitmap: Bitmap): Bitmap {
+        cache.put(key, bitmap)
+        return bitmap
+    }
+}
+
 @Composable
-private fun rememberRecoloredArtwork(imageRes: Int, artworkKey: String, palette: CardPalette): androidx.compose.ui.graphics.ImageBitmap? {
+private fun rememberRecoloredArtwork(
+    imageRes: Int,
+    artworkKey: String,
+    palette: CardPalette,
+): androidx.compose.ui.graphics.ImageBitmap? {
     val context = LocalContext.current
-    return produceState<androidx.compose.ui.graphics.ImageBitmap?>(initialValue = null, imageRes, artworkKey, palette.accent, palette.accent2, palette.accentLight) {
+    val cacheKey = remember(imageRes, artworkKey, palette.accent, palette.accent2, palette.accentLight) {
+        "$imageRes:$artworkKey:${palette.accent.toArgb()}:${palette.accent2.toArgb()}:${palette.accentLight.toArgb()}"
+    }
+    return produceState<androidx.compose.ui.graphics.ImageBitmap?>(initialValue = null, cacheKey) {
         value = withContext(Dispatchers.Default) {
-            runCatching {
-                val source = BitmapFactory.decodeResource(context.resources, imageRes) ?: return@runCatching null
-                val bitmap = source.copy(Bitmap.Config.ARGB_8888, true)
-                val sources = SOURCE_ACCENTS[artworkKey].orEmpty().map { android.graphics.Color.parseColor(it) }
-                val targets = intArrayOf(palette.accent.toArgb(), palette.accent2.toArgb(), palette.accentLight.toArgb())
-                val pixels = IntArray(bitmap.width * bitmap.height)
-                bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-                for (i in pixels.indices) {
-                    val pixel = pixels[i]
-                    val alpha = android.graphics.Color.alpha(pixel)
-                    if (alpha == 0) continue
-                    var best = -1
-                    var bestDistance = Int.MAX_VALUE
-                    val pr = android.graphics.Color.red(pixel); val pg = android.graphics.Color.green(pixel); val pb = android.graphics.Color.blue(pixel)
-                    sources.forEachIndexed { index, sourceColor ->
-                        val sr = android.graphics.Color.red(sourceColor); val sg = android.graphics.Color.green(sourceColor); val sb = android.graphics.Color.blue(sourceColor)
-                        val d = (pr-sr)*(pr-sr) + (pg-sg)*(pg-sg) + (pb-sb)*(pb-sb)
-                        if (d < bestDistance) { bestDistance = d; best = index }
+            FeatureArtworkCache.get(cacheKey)?.asImageBitmap()
+                ?: runCatching {
+                    val options = BitmapFactory.Options().apply {
+                        inSampleSize = 4
+                        inPreferredConfig = Bitmap.Config.ARGB_8888
                     }
-                    if (best >= 0 && bestDistance <= 22*22) {
-                        val target = targets[best % targets.size]
-                        pixels[i] = android.graphics.Color.argb(alpha, android.graphics.Color.red(target), android.graphics.Color.green(target), android.graphics.Color.blue(target))
+                    val source = BitmapFactory.decodeResource(context.resources, imageRes, options)
+                        ?: return@runCatching null
+                    val bitmap = source.copy(Bitmap.Config.ARGB_8888, true)
+                    val sources = SOURCE_ACCENTS[artworkKey].orEmpty().map { android.graphics.Color.parseColor(it) }
+                    val targets = intArrayOf(
+                        palette.accent.toArgb(),
+                        palette.accent2.toArgb(),
+                        palette.accentLight.toArgb(),
+                    )
+                    val pixels = IntArray(bitmap.width * bitmap.height)
+                    bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                    for (i in pixels.indices) {
+                        val pixel = pixels[i]
+                        val alpha = android.graphics.Color.alpha(pixel)
+                        if (alpha == 0) continue
+                        var best = -1
+                        var bestDistance = Int.MAX_VALUE
+                        val pr = android.graphics.Color.red(pixel)
+                        val pg = android.graphics.Color.green(pixel)
+                        val pb = android.graphics.Color.blue(pixel)
+                        sources.forEachIndexed { index, sourceColor ->
+                            val sr = android.graphics.Color.red(sourceColor)
+                            val sg = android.graphics.Color.green(sourceColor)
+                            val sb = android.graphics.Color.blue(sourceColor)
+                            val d = (pr - sr) * (pr - sr) + (pg - sg) * (pg - sg) + (pb - sb) * (pb - sb)
+                            if (d < bestDistance) {
+                                bestDistance = d
+                                best = index
+                            }
+                        }
+                        if (best >= 0 && bestDistance <= 22 * 22) {
+                            val target = targets[best % targets.size]
+                            pixels[i] = android.graphics.Color.argb(
+                                alpha,
+                                android.graphics.Color.red(target),
+                                android.graphics.Color.green(target),
+                                android.graphics.Color.blue(target),
+                            )
+                        }
                     }
-                }
-                bitmap.setPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-                bitmap.asImageBitmap()
-            }.getOrNull()
+                    bitmap.setPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                    FeatureArtworkCache.put(cacheKey, bitmap).asImageBitmap()
+                }.getOrNull()
         }
     }.value
 }
+
 private fun wallpaperSeed(context: android.content.Context): String {
     if (Build.VERSION.SDK_INT < 27) return "session"
     return runCatching {
@@ -156,22 +199,29 @@ private fun wallpaperSeed(context: android.content.Context): String {
 }
 
 @Composable
-fun AirPlayrFeatureCard(eyebrow: String, title: String, imageRes: Int, gradient: List<Color>, onClick: () -> Unit, kind: String = "rediscover") {
+fun AirPlayrFeatureCard(
+    eyebrow: String,
+    title: String,
+    imageRes: Int,
+    gradient: List<Color>,
+    onClick: () -> Unit,
+    kind: String = "rediscover",
+    clockHour: Int = Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
+    stableSessionSeed: String? = null,
+) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val colors = LocalAirPlayrColors.current
     val dark = androidx.compose.foundation.isSystemInDarkTheme()
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var now by remember { mutableStateOf(Calendar.getInstance()) }
-    val sessionSeed = remember { "${System.currentTimeMillis()}-${kotlin.random.Random.nextInt()}" }
-    var wallpaper by remember { mutableStateOf(wallpaperSeed(context)) }
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) { wallpaper = wallpaperSeed(context); now = Calendar.getInstance() } }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    val now = remember(clockHour) {
+        Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, clockHour) }
     }
-    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(30_000L); now = Calendar.getInstance() } }
-    val currentPhase = phase(now.get(Calendar.HOUR_OF_DAY))
+    // Home provides a saveable session seed so the artwork palette/key remains stable when
+    // the Home destination is recreated. Generating a new random seed here caused recolouring
+    // cache misses and repeated CPU-heavy bitmap work on every return to Home.
+    val sessionSeed = stableSessionSeed ?: remember { "${System.currentTimeMillis()}-${kotlin.random.Random.nextInt()}" }
+    val wallpaper = remember { wallpaperSeed(context) }
+    val currentPhase = phase(clockHour)
     val seed = "$wallpaper:$sessionSeed"
     val p = remember(kind, currentPhase, seed, dark, colors.primary, colors.secondary, colors.tertiary, colors.surface, colors.surfaceContainerLow, colors.surfaceContainerHigh, colors.surfaceContainerHighest) { palette(kind, currentPhase, seed, dark, colors.primary, colors.secondary, colors.tertiary, colors.surface, colors.surfaceContainerLow, colors.surfaceContainerHigh, colors.surfaceContainerHighest) }
     val width = (configuration.screenWidthDp * .49f).coerceIn(178f, 196f).dp

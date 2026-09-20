@@ -27,6 +27,10 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
@@ -35,6 +39,16 @@ import kotlinx.coroutines.launch
 class PlaybackController(private val appContext: Context) : ViewModel() {
     private val _state = MutableStateFlow(PlaybackUiState())
     val state: StateFlow<PlaybackUiState> = _state.asStateFlow()
+
+    /**
+     * Shell-safe playback state. Position/buffer ticks are intentionally excluded so the
+     * application NavHost does not recompose every 500 ms while a song is playing.
+     * Screens that actually render progress can continue collecting [state].
+     */
+    val stableState: StateFlow<PlaybackUiState> = state
+        .map { it.copy(positionMs = 0L, bufferedPositionMs = 0L) }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, PlaybackUiState())
 
     private var controller: MediaController? = null
     private val queueStore = QueueStore(appContext)

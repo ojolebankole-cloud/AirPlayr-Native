@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -226,7 +225,15 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
             }
 
             Spacer(Modifier.height(4.dp))
-            Artwork(state.artworkUri, Modifier.size(artSizeDp).shadow(AirPlayrElevation.medium, RoundedCornerShape(min(34f, artSizeDp.value * 0.055f).dp)), min(34f, artSizeDp.value * 0.055f).dp, state.currentTitle)
+            Artwork(
+                state.artworkUri,
+                Modifier.size(artSizeDp).shadow(AirPlayrElevation.medium, RoundedCornerShape(min(34f, artSizeDp.value * 0.055f).dp)),
+                min(34f, artSizeDp.value * 0.055f).dp,
+                state.currentTitle,
+                com.airplayr.app.core.data.media.MediaType.AUDIO,
+                com.airplayr.app.ui.theme.AirPlayrIcons.Music,
+                state.isPlaying,
+            )
 
             Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(state.currentTitle ?: "Nothing playing", style = MaterialTheme.typography.displayLarge.copy(fontFamily = AirPlayrFonts.SmoochSans), textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)

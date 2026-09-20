@@ -14,7 +14,8 @@ import kotlin.math.max
 import kotlin.math.min
 
 /** Room-backed local playback statistics store. */
-class PlaybackStatsRepository(private val db: AirPlayrDatabase) {
+class PlaybackStatsRepository(private val databaseProvider: () -> AirPlayrDatabase) {
+    private val db: AirPlayrDatabase get() = databaseProvider()
     data class TopItem(val id: String, val title: String, val artist: String?, val album: String?, val artworkUri: String?, val mediaType: String, val periodPlays: Int, val allTimePlays: Int)
     data class GenreStat(val name: String, val plays: Int, val musicPlays: Int, val videoPlays: Int, val share: Double)
     data class Summary(

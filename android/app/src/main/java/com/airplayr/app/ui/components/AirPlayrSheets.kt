@@ -2,6 +2,7 @@ package com.airplayr.app.ui.components
 
 import com.airplayr.app.ui.theme.AirPlayrIcons
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.ScrollState
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
@@ -27,8 +28,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -64,6 +65,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -167,7 +169,7 @@ fun SleepTimerSheet(
                 Text("Stops at the selected time", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             presets.forEach { value ->
                 FilterChip(selected = minutes == value, onClick = { minutes = value }, label = { Text(if (value >= 60) "${value / 60}h${if (value % 60 == 0) "" else " ${value % 60}m"}" else "${value}m") })
             }
@@ -209,7 +211,7 @@ fun SpeedPitchSheet(dsp: com.airplayr.app.core.playback.dsp.DspState, controller
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Tune, null, tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(10.dp)); Text("Speed", style = MaterialTheme.typography.titleMedium) }
                 Slider(value = speed, onValueChange = { speed = it }, valueRange = .25f..4f, steps = 14, onValueChangeFinished = { controller.setSpeed(speed) })
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { speedPresets.forEach { s -> FilterChip(selected = kotlin.math.abs(speed - s) < .02f, onClick = { speed = s; controller.setSpeed(s) }, label = { Text("%.2f×".format(s)) }) } }
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }), horizontalArrangement = Arrangement.spacedBy(8.dp)) { speedPresets.forEach { s -> FilterChip(selected = kotlin.math.abs(speed - s) < .02f, onClick = { speed = s; controller.setSpeed(s) }, label = { Text("%.2f×".format(s)) }) } }
             }
         }
         Card(modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(24.dp), clip = false), shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
@@ -322,7 +324,7 @@ fun LyricsSheet(
             }
 
             if (hasSynced) {
-                LazyColumn(
+                LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
                     Modifier.fillMaxWidth().height(500.dp),
                     verticalArrangement = Arrangement.spacedBy(1.dp),
                     contentPadding = PaddingValues(vertical = 6.dp),
@@ -344,7 +346,7 @@ fun LyricsSheet(
                     }
                 }
             } else if (hasPlain) {
-                Column(Modifier.fillMaxWidth().height(500.dp).verticalScroll(rememberScrollState())) {
+                Column(Modifier.fillMaxWidth().height(500.dp).verticalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) })) {
                     Text(result!!.plainLyrics.orEmpty(), Modifier.fillMaxWidth().padding(8.dp), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
                 }
             }
@@ -427,7 +429,7 @@ fun TagEditorSheet(context: Context, item: MediaItem, metadata: MetadataReposito
     var matches by remember { mutableStateOf<List<MetadataMatch>>(emptyList()) }
     fun set(key: String, value: String) { fields.value = fields.value + (key to value) }
     AirPlayrSheetScaffold("Tag editor", "MUSIC METADATA", onClose) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) { Button(enabled = !busy, onClick = { scope.launch { busy = true; matches = metadata.search(item.copy(title = fields.value["Title"].orEmpty(), artist = fields.value["Artist"].orEmpty(), album = fields.value["Album"].orEmpty()), force = true); busy = false } }) { Icon(Icons.Default.Search, null); Spacer(Modifier.width(8.dp)); Text(if (busy) "Searching…" else "Lookup") }; TextButton(onClick = { fields.value = fields.value + ("Title" to item.title) }) { Text("Restore title") } }
             fields.value.forEach { (label, value) -> OutlinedTextField(value, { set(label, it) }, Modifier.fillMaxWidth(), label = { Text(label) }, singleLine = label !in setOf("Composer")) }
             if (matches.isNotEmpty()) {

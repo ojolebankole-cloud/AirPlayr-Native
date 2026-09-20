@@ -1,12 +1,13 @@
 package com.airplayr.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -49,7 +51,7 @@ fun CollectionsScreen(container: AppContainer, onOpen: (String) -> Unit, playbac
     Column(Modifier.fillMaxSize().background(c.background)) {
         AirPlayrScreenHeader("Smart collections", "Built from your local music library", trailing = { IconButton(onClick = { scope.launch { reload() } }) { Icon(Icons.Default.Refresh, "Refresh", tint = c.primary) } })
         if (loaded.values.all { it.isEmpty() }) AirPlayrSectionEmpty("No collections yet", "Listen to music and AirPlayr will start building these collections.")
-        else LazyColumn(contentPadding = PaddingValues(bottom = 110.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        else LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(bottom = 110.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(definitions, key = { it.title }) { def ->
                 val rows = loaded[def.title].orEmpty()
                 if (rows.isNotEmpty()) AirPlayrCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(28.dp), containerColor = c.surfaceContainerLow, elevation = 5.dp) {
@@ -59,7 +61,7 @@ fun CollectionsScreen(container: AppContainer, onOpen: (String) -> Unit, playbac
                             Column(Modifier.weight(1f).padding(start = 12.dp)) { Text(def.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 19.sp, color = c.textPrimary); Text(def.subtitle, fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = c.textSecondary) }
                             Text("${rows.size}", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 16.sp, color = c.primary)
                         }
-                        Row(Modifier.padding(top = 14.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(Modifier.padding(top = 14.dp).horizontalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             rows.take(8).forEach { item -> Column(Modifier.width(112.dp).clickable { if (item.mediaType.name == "AUDIO") playback.play(item) }) { Artwork(item.artworkUri, Modifier.size(112.dp), 16.dp, item.title); Text(item.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 14.sp, color = c.textPrimary, maxLines = 1, modifier = Modifier.padding(top = 5.dp)); Text(item.artist ?: "Unknown artist", fontFamily = AirPlayrFonts.OpenSans, fontSize = 11.sp, color = c.textSecondary, maxLines = 1) } }
                         }
                         TextButton(onClick = { onOpen(def.route) }, modifier = Modifier.align(Alignment.End)) { Text("View all", fontFamily = AirPlayrFonts.SmoochSans) }

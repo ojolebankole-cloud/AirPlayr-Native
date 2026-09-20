@@ -16,7 +16,9 @@ interface UserDataDao {
     @Query("SELECT mediaId FROM favorites") suspend fun favoriteIds(): List<String>
 
     @Query("SELECT * FROM playback_history ORDER BY playedAt DESC LIMIT :limit") fun observeHistory(limit: Int): Flow<List<PlaybackHistoryEntity>>
+    @Query("SELECT * FROM playback_history WHERE playCount >= 2 ORDER BY playCount DESC, playedAt DESC LIMIT :limit") fun observeRepeated(limit: Int): Flow<List<PlaybackHistoryEntity>>
     @Query("SELECT * FROM playback_history ORDER BY playedAt DESC LIMIT :limit") suspend fun history(limit: Int): List<PlaybackHistoryEntity>
+    @Query("SELECT * FROM playback_history WHERE mediaId = :mediaId LIMIT 1") suspend fun historyById(mediaId: String): PlaybackHistoryEntity?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertHistory(item: PlaybackHistoryEntity)
     @Query("UPDATE playback_history SET completed = 1, completedAt = :at WHERE mediaId = :mediaId") suspend fun markCompleted(mediaId: String, at: Long)
     @Query("DELETE FROM playback_history") suspend fun clearHistory()
@@ -39,9 +41,12 @@ interface UserDataDao {
     @Query("SELECT * FROM playback_sessions WHERE startedAt >= :since AND startedAt <= :until ORDER BY startedAt DESC") suspend fun playbackSessions(since: Long, until: Long): List<PlaybackSessionEntity>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertPlaybackActivity(activity: PlaybackActivityEntity)
     @Query("SELECT * FROM playback_activity WHERE dayKey BETWEEN :fromDay AND :toDay ORDER BY dayKey ASC") suspend fun playbackActivity(fromDay: String, toDay: String): List<PlaybackActivityEntity>
+    @Query("SELECT COALESCE(SUM(seconds), 0) FROM playback_activity WHERE mediaType = :mediaType") suspend fun totalPlaybackSeconds(mediaType: String): Long
+    @Query("SELECT COUNT(*) FROM playback_history WHERE mediaType = :mediaType AND completed = 1") suspend fun completedHistoryCount(mediaType: String): Int
 
     @Query("SELECT * FROM video_progress WHERE mediaId = :id") fun observeVideoProgress(id: String): Flow<VideoProgressEntity?>
     @Query("SELECT * FROM video_progress ORDER BY updatedAt DESC") fun observeVideoProgress(): Flow<List<VideoProgressEntity>>
+    @Query("SELECT * FROM video_progress ORDER BY updatedAt DESC LIMIT :limit") fun observeRecentVideoProgress(limit: Int): Flow<List<VideoProgressEntity>>
     @Query("SELECT * FROM video_progress WHERE mediaId = :id") suspend fun videoProgress(id: String): VideoProgressEntity?
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertVideoProgress(item: VideoProgressEntity)
     @Query("DELETE FROM video_progress WHERE mediaId = :id") suspend fun clearVideoProgress(id: String)

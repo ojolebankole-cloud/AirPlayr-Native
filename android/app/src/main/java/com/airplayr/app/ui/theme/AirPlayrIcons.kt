@@ -47,29 +47,175 @@ object AirPlayrIcons {
             }
         }.build()
 
+    /** Exact Material Symbols asset: music_note_2. */
     val Music: ImageVector
         get() = ImageVector.Builder(
-            name = "AirPlayrMusic",
-            defaultWidth = 30.dp,
-            defaultHeight = 30.dp,
-            viewportWidth = 28f,
-            viewportHeight = 28f,
+            name = "AirPlayrMusicNote2",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 960f,
+            viewportHeight = 960f,
         ).apply {
             path(fill = SolidColor(Color.White)) {
-                moveTo(14f, 4f)
-                horizontalLineTo(22f)
-                verticalLineTo(6.8f)
-                lineTo(16.8f, 8.2f)
-                verticalLineTo(17.1f)
-                horizontalLineTo(14f)
+                moveTo(127f, 793f)
+                curveTo(80f, 746f, 80f, 680f, 127f, 633f)
+                curveTo(174f, 586f, 240f, 586f, 287f, 633f)
+                curveTo(310f, 656f, 320f, 684f, 320f, 715f)
+                verticalLineTo(373f)
+                lineTo(800f, 293f)
+                verticalLineTo(773f)
+                curveTo(800f, 839f, 753f, 886f, 687f, 886f)
+                curveTo(621f, 886f, 574f, 839f, 574f, 773f)
+                curveTo(574f, 707f, 621f, 660f, 687f, 660f)
+                curveTo(710f, 660f, 729f, 666f, 749f, 678f)
+                verticalLineTo(513f)
+                lineTo(429f, 576f)
+                verticalLineTo(896f)
+                curveTo(429f, 962f, 382f, 1009f, 316f, 1009f)
+                curveTo(250f, 1009f, 203f, 962f, 203f, 896f)
+                curveTo(203f, 830f, 250f, 783f, 316f, 783f)
+                curveTo(339f, 783f, 358f, 789f, 378f, 801f)
+                verticalLineTo(436f)
+                lineTo(429f, 426f)
+                close()
+            }
+        }.build()
+
+    /** Exact Material Symbols asset: artist. */
+    val Artist: ImageVector
+        get() = ImageVector.Builder(
+            name = "AirPlayrArtist",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 960f,
+            viewportHeight = 960f,
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(740f, 400f)
+                horizontalLineTo(880f)
+                verticalLineTo(480f)
+                horizontalLineTo(800f)
+                verticalLineTo(700f)
+                curveTo(800f, 742f, 771f, 771f, 729f, 771f)
+                curveTo(687f, 771f, 658f, 742f, 658f, 700f)
+                curveTo(658f, 658f, 687f, 629f, 729f, 629f)
+                curveTo(737f, 629f, 747f, 631f, 758f, 636f)
+                verticalLineTo(428f)
+                horizontalLineTo(740f)
+                close()
+                moveTo(120f, 800f)
+                verticalLineTo(688f)
+                curveTo(120f, 653f, 138f, 625f, 167f, 597f)
+                curveTo(229f, 566f, 293f, 550f, 360f, 550f)
+                curveTo(402f, 550f, 444f, 557f, 484f, 566f)
+                curveTo(464f, 578f, 448f, 595f, 432f, 615f)
+                curveTo(406f, 609f, 380f, 606f, 354f, 606f)
+                curveTo(297f, 606f, 242f, 620f, 187f, 646f)
+                curveTo(178f, 651f, 172f, 660f, 172f, 680f)
+                verticalLineTo(712f)
+                horizontalLineTo(493f)
+                curveTo(495f, 732f, 502f, 752f, 522f, 792f)
+                horizontalLineTo(120f)
+                close()
+                moveTo(327f, 433f)
+                curveTo(280f, 386f, 280f, 320f, 327f, 273f)
+                curveTo(374f, 226f, 440f, 226f, 487f, 273f)
+                curveTo(534f, 320f, 534f, 386f, 487f, 433f)
+                curveTo(440f, 480f, 374f, 480f, 327f, 433f)
+                close()
+                moveTo(496.5f, 376.5f)
+                curveTo(520f, 353f, 520f, 320f, 496.5f, 296.5f)
+                curveTo(473f, 273f, 440f, 273f, 416.5f, 296.5f)
+                curveTo(393f, 320f, 393f, 353f, 416.5f, 376.5f)
+                curveTo(440f, 400f, 473f, 400f, 496.5f, 376.5f)
+                close()
+            }
+        }.build()
+
+    /** Exact Material Symbols asset: art_track. */
+    val ArtTrack: ImageVector
+        get() = ImageVector.Builder(
+            name = "AirPlayrArtTrack",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 960f,
+            viewportHeight = 960f,
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(120f, 760f)
+                curveTo(87f, 760f, 63.5f, 736.5f, 63.5f, 703.5f)
+                verticalLineTo(303.5f)
+                curveTo(63.5f, 270.5f, 87f, 247f, 120f, 247f)
+                horizontalLineTo(520f)
+                curveTo(553f, 247f, 576.5f, 270.5f, 576.5f, 303.5f)
+                verticalLineTo(703.5f)
+                curveTo(576.5f, 736.5f, 553f, 760f, 520f, 760f)
+                horizontalLineTo(120f)
+                close()
+                moveTo(120f, 680f)
+                horizontalLineTo(520f)
+                verticalLineTo(280f)
+                horizontalLineTo(120f)
+                close()
+                moveTo(160f, 600f)
+                horizontalLineTo(480f)
+                lineTo(376f, 380f)
+                lineTo(300f, 480f)
+                lineTo(244f, 406f)
+                lineTo(160f, 520f)
+                close()
+                moveTo(680f, 840f)
+                verticalLineTo(280f)
+                horizontalLineTo(760f)
+                verticalLineTo(840f)
+                close()
+                moveTo(840f, 840f)
+                verticalLineTo(280f)
+                horizontalLineTo(920f)
+                verticalLineTo(840f)
+                close()
+            }
+        }.build()
+
+    /** Library icon based on the bundled books_movies_and_music asset. */
+    val Library: ImageVector
+        get() = ImageVector.Builder(
+            name = "AirPlayrLibrary",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 960f,
+            viewportHeight = 960f,
+        ).apply {
+            path(fill = SolidColor(Color.White)) {
+                moveTo(160f, 880f)
+                lineTo(160f, 322f)
+                lineTo(560f, 162f)
+                lineTo(560f, 282f)
+                lineTo(640f, 282f)
+                lineTo(640f, 402f)
+                lineTo(560f, 402f)
+                lineTo(560f, 362f)
+                lineTo(200f, 362f)
+                lineTo(200f, 840f)
+                lineTo(407f, 840f)
+                lineTo(487f, 920f)
+                lineTo(160f, 920f)
+                close()
+                moveTo(360f, 240f)
+                lineTo(520f, 178f)
+                lineTo(520f, 240f)
                 close()
             }
             path(fill = SolidColor(Color.White)) {
-                moveTo(5.5f, 18.2f)
-                curveTo(5.5f, 16.1f, 7.9f, 14.4f, 10.9f, 14.4f)
-                curveTo(13.9f, 14.4f, 16.3f, 16.1f, 16.3f, 18.2f)
-                curveTo(16.3f, 20.3f, 13.9f, 22f, 10.9f, 22f)
-                curveTo(7.9f, 22f, 5.5f, 20.3f, 5.5f, 18.2f)
+                moveTo(680f, 880f)
+                curveTo(597f, 880f, 540f, 823f, 540f, 740f)
+                curveTo(540f, 657f, 597f, 600f, 680f, 600f)
+                curveTo(763f, 600f, 820f, 657f, 820f, 740f)
+                curveTo(820f, 823f, 763f, 880f, 680f, 880f)
+                close()
+                moveTo(630f, 800f)
+                lineTo(790f, 700f)
+                lineTo(630f, 600f)
                 close()
             }
         }.build()

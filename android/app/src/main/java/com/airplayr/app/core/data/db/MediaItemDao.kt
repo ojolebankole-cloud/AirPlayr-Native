@@ -13,11 +13,23 @@ interface MediaItemDao {
     @Query("SELECT * FROM media_items WHERE mediaType = :type ORDER BY dateModified DESC, id")
     fun observeByType(type: String): Flow<List<MediaItemEntity>>
 
+    @Query("SELECT * FROM media_items WHERE mediaType = :type ORDER BY dateAdded DESC, title COLLATE NOCASE ASC LIMIT :limit")
+    fun observeRecentByType(type: String, limit: Int): Flow<List<MediaItemEntity>>
+
+    @Query("SELECT * FROM media_items WHERE id IN (:ids)")
+    suspend fun getByIds(ids: List<String>): List<MediaItemEntity>
+
     @Query("SELECT * FROM media_items WHERE mediaType = :type ORDER BY dateModified DESC, id LIMIT :limit OFFSET :offset")
     suspend fun getPage(type: String, limit: Int, offset: Int): List<MediaItemEntity>
 
     @Query("SELECT COUNT(*) FROM media_items WHERE mediaType = :type")
     suspend fun count(type: String): Int
+
+    @Query("SELECT COUNT(*) FROM media_items WHERE mediaType = :type")
+    fun observeCount(type: String): Flow<Int>
+
+    @Query("SELECT COUNT(DISTINCT CASE WHEN NULLIF(folder, '') IS NOT NULL THEN folder WHEN NULLIF(relativePath, '') IS NOT NULL THEN relativePath END) FROM media_items")
+    fun observeFolderCount(): Flow<Int>
 
     @Query("SELECT * FROM media_items WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): MediaItemEntity?

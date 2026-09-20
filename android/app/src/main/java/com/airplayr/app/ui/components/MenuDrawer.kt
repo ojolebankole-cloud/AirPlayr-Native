@@ -5,8 +5,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
@@ -25,9 +24,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
@@ -49,7 +48,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airplayr.app.di.AppContainer
+import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.ui.playback.PlaybackController
 import com.airplayr.app.ui.playback.PlaybackControllerFactory
 import com.airplayr.app.ui.theme.AirPlayrRadii
@@ -96,36 +95,25 @@ fun MenuDrawer(
     val drawerWidth = (configuration.screenWidthDp * 0.87f).coerceAtMost(430f).dp
     val drawerWidthPx = with(density) { drawerWidth.toPx() }
     val playback: PlaybackController = viewModel(factory = PlaybackControllerFactory(container.appContext))
-    val playbackState by playback.state.collectAsStateWithLifecycle()
+    val playbackState by playback.stableState.collectAsStateWithLifecycle()
     val recentHistory by container.structured.history(1).collectAsStateWithLifecycle(initialValue = emptyList())
     val latest = recentHistory.firstOrNull()
 
-    val scope = rememberCoroutineScope()
     var showAbout by remember { mutableStateOf(false) }
     var showSupport by remember { mutableStateOf(false) }
-    var dragFraction by remember { mutableFloatStateOf(-1f) }
+    // The drawer is intentionally immediate: no open/close settle animation is used.
+    // Dragging is still supported, but releasing a close gesture dismisses immediately.
+    var dragFraction by remember { mutableFloatStateOf(0f) }
     var dragging by remember { mutableFloatStateOf(0f) }
-    var targetFraction by remember { mutableFloatStateOf(-1f) }
-    val animatedFraction by animateFloatAsState(
-        targetValue = targetFraction,
-        animationSpec = tween(if (targetFraction < 0f) 180 else 300),
-        label = "drawer",
-    )
 
-    // Opening animation starts fully off-screen and settles into the same 87%-width surface used by the reference.
-    androidx.compose.runtime.LaunchedEffect(visible) {
-        targetFraction = if (visible) 0f else -1f
-        if (!visible) dragFraction = -1f
-    }
-
-    val displayedFraction = if (dragging > 0.5f) dragFraction else animatedFraction
+    val displayedFraction = dragFraction
     val dragState = rememberDraggableState { delta ->
         if (drawerWidthPx <= 0f) return@rememberDraggableState
         dragFraction = (dragFraction + delta / drawerWidthPx).coerceIn(-1f, 0f)
     }
 
     val entriesLibrary = listOf(
-        MenuEntry("Library", AirPlayrIcons.Music, "home", "${musicCount + videoCount}"),
+        MenuEntry("Library", AirPlayrIcons.Library, "home", "${musicCount + videoCount}"),
         MenuEntry("Folders", Icons.Outlined.FolderOpen, "folders", "$folderCount folders"),
         MenuEntry("Music", AirPlayrIcons.Music, "music", "$musicCount songs"),
         MenuEntry("Videos", AirPlayrIcons.Video, "videos", "$videoCount videos"),
@@ -160,15 +148,15 @@ fun MenuDrawer(
                 .draggable(
                     state = dragState,
                     orientation = Orientation.Horizontal,
-                    onDragStarted = { dragging = 1f; dragFraction = animatedFraction },
+                    onDragStarted = { dragging = 1f },
                     onDragStopped = { velocity ->
                         val close = dragFraction < -0.30f || velocity < -900f
                         dragging = 0f
                         if (close) {
-                            targetFraction = -1f
-                            scope.launch { kotlinx.coroutines.delay(180); onClose() }
+                            dragFraction = -1f
+                            onClose()
                         } else {
-                            targetFraction = 0f
+                            dragFraction = 0f
                         }
                     },
                 ),
@@ -178,7 +166,7 @@ fun MenuDrawer(
                 topStart = 0.dp,
                 bottomStart = 0.dp,
             ),
-            colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer.copy(alpha = 0.94f)),
+            colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer),
             elevation = CardDefaults.cardElevation(defaultElevation = 18.dp),
         ) {
             Column(Modifier.fillMaxSize()) {
@@ -187,14 +175,13 @@ fun MenuDrawer(
                 val artist = playbackState.currentArtist ?: latest?.artist ?: "Start playing your library"
                 val artwork = playbackState.artworkUri ?: latest?.artworkUri
                 Box(Modifier.fillMaxWidth().height(184.dp)) {
-                    ArtworkBackdrop(artwork, Modifier.fillMaxSize(), alpha = 0.42f, scale = 1.08f)
-                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, colors.surfaceContainer.copy(alpha = 0.62f)))))
+                    Box(Modifier.fillMaxSize().background(colors.surfaceContainer))
                     Row(
                         Modifier.fillMaxWidth().align(Alignment.BottomStart).padding(horizontal = 8.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(Modifier.size(58.dp).clip(RoundedCornerShape(14.dp)).background(colors.primaryContainer), contentAlignment = Alignment.Center) {
-                            Artwork(artwork, Modifier.fillMaxSize(), 14.dp, title)
+                            Artwork(artwork, Modifier.fillMaxSize(), 14.dp, title, MediaType.AUDIO, AirPlayrIcons.Music, isPlaying)
                         }
                         Column(Modifier.weight(1f).padding(start = 13.dp)) {
                             Text(if (isPlaying) "CURRENTLY PLAYING" else "LAST PLAYED", style = MaterialTheme.typography.labelSmall, color = colors.textPrimary)
@@ -206,7 +193,7 @@ fun MenuDrawer(
 
                 Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).size(1.dp).background(colors.outlineVariant.copy(alpha = .65f)))
 
-                LazyColumn(
+                LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
                     Modifier.fillMaxWidth().weight(1f),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),

@@ -44,10 +44,12 @@ class NativeVideoController(private val context: Context) {
     }
 
     fun playExternal(p: Player, uri: String, mimeType: String?, title: String) {
+        val resolvedMime = mimeType?.takeIf { it.isNotBlank() }
+            ?: inferVideoMimeType(uri)
         val item = androidx.media3.common.MediaItem.Builder()
             .setMediaId("external-video:$uri")
             .setUri(uri)
-            .setMimeType(mimeType?.takeIf { it.isNotBlank() })
+            .apply { if (resolvedMime != null) setMimeType(resolvedMime) }
             .setMediaMetadata(
                 androidx.media3.common.MediaMetadata.Builder()
                     .setTitle(title.ifBlank { "Video" })
@@ -65,5 +67,22 @@ class NativeVideoController(private val context: Context) {
     fun release() {
         player?.release()
         player = null
+    }
+}
+
+
+private fun inferVideoMimeType(uri: String): String? {
+    val name = uri.substringBefore('?').substringAfterLast('/')
+    return when (name.substringAfterLast('.', "").lowercase()) {
+        "mp4", "m4v" -> "video/mp4"
+        "webm" -> "video/webm"
+        "mkv" -> "video/x-matroska"
+        "mov" -> "video/quicktime"
+        "avi" -> "video/avi"
+        "wmv" -> "video/x-ms-wmv"
+        "3gp" -> "video/3gpp"
+        "ts", "m2ts", "mts" -> "video/mp2t"
+        "flv" -> "video/x-flv"
+        else -> null
     }
 }

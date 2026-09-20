@@ -1,5 +1,7 @@
 package com.airplayr.app.ui
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
@@ -191,7 +193,7 @@ fun AirPlayrApp(
             val isFullMusicPlayer = currentRoute == "player"
             val showDock = isPrimaryDockScreen
             val showMiniPlayer = !isPrimaryDockScreen && !isVideoScreen && !isFullMusicPlayer
-            val shellPlaybackState by playbackController.state.collectAsStateWithLifecycle()
+            val shellPlaybackState by playbackController.stableState.collectAsStateWithLifecycle()
             val miniPlayerVisible = showMiniPlayer &&
                 shellPlaybackState.currentId != null &&
                 shellPlaybackState.currentMediaType == com.airplayr.app.core.data.media.MediaType.AUDIO
@@ -200,13 +202,24 @@ fun AirPlayrApp(
                 miniPlayerVisible -> com.airplayr.app.ui.components.AIRPLAYR_MINI_PLAYER_ONLY_BASE_HEIGHT.dp
                 else -> 0.dp
             }
+            val contentModifier = if (currentRoute == "home") {
+                // Home is intentionally edge-to-edge: its scroll content must be able to pass
+                // underneath the status bar and the opaque bottom control surface.
+                androidx.compose.ui.Modifier.fillMaxSize()
+            } else {
+                androidx.compose.ui.Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .padding(bottom = reservedBottom)
+            }
             NavHost(
                 navController = navController,
                 startDestination = "home",
-                modifier = androidx.compose.ui.Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .padding(bottom = reservedBottom),
+                modifier = contentModifier,
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None },
+                popEnterTransition = { EnterTransition.None },
+                popExitTransition = { ExitTransition.None },
             ) {
                 composable("home") {
                     HomeScreen(
@@ -279,7 +292,7 @@ fun AirPlayrApp(
                 composable("music-playlist/{id}") { entry -> PlaylistDetailScreen(container, entry.arguments?.getString("id").orEmpty(), playbackController, onOpenPlayer = { navController.navigate("player") }) }
                 composable("playlist/{id}") { entry -> PlaylistDetailScreen(container, entry.arguments?.getString("id").orEmpty(), playbackController, onOpenPlayer = { navController.navigate("player") }) }
                 composable("recent/{type}") { entry -> RecentScreen(entry.arguments?.getString("type").orEmpty(), libraryViewModel, playbackController, { navController.navigate("video/$it") }, container, { navController.navigate("player") }) }
-                composable("most-played") { FeatureCollectionScreen("Most played", "Your most-played local music", { container.collections.mostPlayed() }, playbackController, onOpenPlayer = { navController.navigate("player") }) }
+                composable("most-played") { FeatureCollectionScreen("Most played", "Your most-played local music", { container.collections.mostPlayed() }, playbackController, onBack = { navController.popBackStack() }, onOpenPlayer = { navController.navigate("player") }) }
                 composable("for-you") { FeatureCollectionScreen("For you now", "Press play & tuned in", { container.collections.forYou() }, playbackController, container, { navController.popBackStack() }, onOpenPlayer = { navController.navigate("player") }) }
                 composable("rediscover") { FeatureCollectionScreen("Rediscover", "From your previous plays", { container.collections.rediscoverVideos() }, playbackController, container, { navController.popBackStack() }, { navController.navigate("video/$it") }, onOpenPlayer = { navController.navigate("player") }) }
                 composable("rediscover/rewind") { FeatureCollectionScreen("Rediscover", "From your previous plays", { container.collections.rediscoverVideos() }, playbackController, container, { navController.popBackStack() }, { navController.navigate("video/$it") }, onOpenPlayer = { navController.navigate("player") }) }
@@ -377,8 +390,8 @@ fun AirPlayrApp(
             if (castOpen) {
                 ModalBottomSheet(
                     onDismissRequest = { castOpen = false },
-                    containerColor = androidx.compose.ui.graphics.Color.Transparent,
-                    scrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.46f),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    scrimColor = MaterialTheme.colorScheme.scrim,
                 ) {
                     CastPickerSheet(
                         controller = container.cast,

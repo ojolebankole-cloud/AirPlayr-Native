@@ -67,6 +67,8 @@ private val SLEEP_PENDING_TRACK_ID = stringPreferencesKey("sleep_pending_track_i
 private val SAF_ROOTS = stringSetPreferencesKey("saf_roots")
 private val WHATS_NEW_SEEN_VERSION = stringPreferencesKey("whats_new_seen_version")
 private val INITIAL_LIBRARY_SCAN_DONE = booleanPreferencesKey("initial_library_scan_done")
+private val MEDIASTORE_VERSION = stringPreferencesKey("mediastore_version")
+private val MEDIASTORE_LAST_REFRESH_MS = androidx.datastore.preferences.core.longPreferencesKey("mediastore_last_refresh_ms")
 
 class PreferencesRepository(private val context: Context) {
     val settings: Flow<AirPlayrSettings> = context.airPlayrDataStore.data.map { p ->
@@ -180,6 +182,24 @@ class PreferencesRepository(private val context: Context) {
     suspend fun hasCompletedInitialLibraryScan(): Boolean =
         context.airPlayrDataStore.data.map { it[INITIAL_LIBRARY_SCAN_DONE] == true }.first()
     suspend fun markInitialLibraryScanDone() { context.airPlayrDataStore.edit { it[INITIAL_LIBRARY_SCAN_DONE] = true } }
+
+    suspend fun shouldRefreshMediaStore(currentVersion: String?, minimumIntervalMs: Long = 15 * 60_000L): Boolean {
+        val p = context.airPlayrDataStore.data.first()
+        val storedVersion = p[MEDIASTORE_VERSION]
+        val lastRefresh = p[MEDIASTORE_LAST_REFRESH_MS] ?: 0L
+        return if (!currentVersion.isNullOrBlank() && !storedVersion.isNullOrBlank()) {
+            currentVersion != storedVersion
+        } else {
+            System.currentTimeMillis() - lastRefresh >= minimumIntervalMs
+        }
+    }
+
+    suspend fun markMediaStoreRefresh(version: String?) {
+        context.airPlayrDataStore.edit { prefs ->
+            if (version.isNullOrBlank()) prefs.remove(MEDIASTORE_VERSION) else prefs[MEDIASTORE_VERSION] = version
+            prefs[MEDIASTORE_LAST_REFRESH_MS] = System.currentTimeMillis()
+        }
+    }
     suspend fun addSafRoot(uri: String) { context.airPlayrDataStore.edit { it[SAF_ROOTS] = (it[SAF_ROOTS] ?: emptySet()) + uri } }
     suspend fun removeSafRoot(uri: String) { context.airPlayrDataStore.edit { it[SAF_ROOTS] = (it[SAF_ROOTS] ?: emptySet()) - uri } }
 

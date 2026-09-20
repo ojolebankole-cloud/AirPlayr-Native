@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.StateFlow
 import com.airplayr.app.core.video.NativeVideoController
 import com.airplayr.app.core.metadata.MetadataRepository
 import com.airplayr.app.core.cast.CastController
+import com.airplayr.app.ui.navigation.HomeRepository
+import com.airplayr.app.ui.navigation.HomeStatsCache
 
 class AppContainer(context: Context) {
     val appContext: Context = context.applicationContext
@@ -66,6 +68,22 @@ class AppContainer(context: Context) {
         }
     }
 
+    private val migration3To4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_media_items_mediaType_dateAdded ON media_items(mediaType, dateAdded)")
+        }
+    }
+
+    private val migration4To5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_media_items_mediaType_sourceDirectoryUri ON media_items(mediaType, sourceDirectoryUri)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_playback_history_mediaType_completed ON playback_history(mediaType, completed)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_playback_history_playCount_playedAt ON playback_history(playCount, playedAt)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_playback_events_mediaType_playedAt ON playback_events(mediaType, playedAt)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_playback_activity_mediaType_dayKey ON playback_activity(mediaType, dayKey)")
+        }
+    }
+
     // Keep application construction cheap. Room, Cast and player-adjacent repositories are
     // created only when their first consumer actually needs them, so an existing user can get
     // a Compose frame without constructing the entire media stack on the Activity thread.
@@ -74,23 +92,31 @@ class AppContainer(context: Context) {
             appContext,
             AirPlayrDatabase::class.java,
             "airplayr.db",
-        ).addMigrations(migration1To2, migration2To3).build()
+        ).addMigrations(migration1To2, migration2To3, migration3To4, migration4To5).build()
     }
 
     val preferences = PreferencesRepository(appContext)
     val mediaStore = MediaStoreDataSource(appContext)
     val metadata: MetadataRepository by lazy { MetadataRepository(appContext) }
-    val mediaLibrary: MediaLibraryRepository by lazy { MediaLibraryRepository(database, mediaStore, metadata) }
+    val mediaLibrary: MediaLibraryRepository by lazy { MediaLibraryRepository({ database }, mediaStore, { metadata }) }
     val safMediaScanner = SafMediaScanner(appContext)
-    val structured: com.airplayr.app.core.data.StructuredRepository by lazy { com.airplayr.app.core.data.StructuredRepository(database) }
-    val stats: com.airplayr.app.core.data.PlaybackStatsRepository by lazy { com.airplayr.app.core.data.PlaybackStatsRepository(database) }
-    val search: com.airplayr.app.core.data.search.SearchRepository by lazy { com.airplayr.app.core.data.search.SearchRepository(database) }
+    val structured: com.airplayr.app.core.data.StructuredRepository by lazy { com.airplayr.app.core.data.StructuredRepository { database } }
+    val stats: com.airplayr.app.core.data.PlaybackStatsRepository by lazy { com.airplayr.app.core.data.PlaybackStatsRepository { database } }
+    // HomeRepository construction is cheap; starting it here lets its Room observer warm
+    // on the application IO scope before the first Home composition.
+    val homeRepository: HomeRepository by lazy { HomeRepository({ mediaLibrary }, { structured }, applicationScope) }
+    val homeStats: HomeStatsCache by lazy { HomeStatsCache { structured } }
+    val search: com.airplayr.app.core.data.search.SearchRepository by lazy { com.airplayr.app.core.data.search.SearchRepository { database } }
     val collections: com.airplayr.app.core.intelligence.CollectionsRepository by lazy { com.airplayr.app.core.intelligence.CollectionsRepository(mediaLibrary, structured) }
     val dsp: com.airplayr.app.core.playback.dsp.DspRepository by lazy { com.airplayr.app.core.playback.dsp.DspRepository(appContext) }
     val videoController: NativeVideoController by lazy { NativeVideoController(appContext) }
     val cast: CastController by lazy { CastController(appContext) }
 
     init {
+        // Home has first priority: start its app-scoped observer before background refresh/SAF
+        // jobs so an existing user's Room snapshot is warm as early as possible.
+        homeRepository.start()
+
         // WorkManager setup and SAF roots are never part of the Activity's critical startup path.
         applicationScope.launch {
             scheduleLibraryRefresh()
@@ -99,11 +125,18 @@ class AppContainer(context: Context) {
         // Room remains the immediate source for existing users; the UI coordinator starts
         // the first full scan only after all startup permission steps have been presented.
         applicationScope.launch {
-            // SAF roots are supplemental to the already-cached MediaStore library. Returning
-            // users get a short head start; their extra roots are refreshed after Home is usable.
-            if (preferences.hasCompletedInitialLibraryScan()) kotlinx.coroutines.delay(1_200L)
+            // SAF roots are supplemental and are intentionally warmed well after the first Home
+            // render. They must never compete with the user's first navigation frame.
+            if (preferences.hasCompletedInitialLibraryScan()) kotlinx.coroutines.delay(12_000L)
             preferences.safRoots.first().forEach { root ->
                 runCatching { safMediaScanner.scanTree(android.net.Uri.parse(root), mediaLibrary) }
+            }
+        }
+        applicationScope.launch {
+            // The Home observer is already running from init; wait for its first Room snapshot
+            // without putting any work on the Activity thread.
+            if (preferences.hasCompletedInitialLibraryScan()) {
+                runCatching { homeRepository.prewarm() }
             }
         }
     }
@@ -112,20 +145,24 @@ class AppContainer(context: Context) {
      * Requests startup synchronization from an application-owned scope. Existing users receive
      * a normal delta refresh; only an uninitialized library receives the one-time full scan.
      */
-    fun requestLibrarySynchronization(startupDelayMs: Long = 0L) {
+    fun requestLibrarySynchronization(startupDelayMs: Long = 3_000L) {
         applicationScope.launch {
             if (startupDelayMs > 0L) kotlinx.coroutines.delay(startupDelayMs)
             if (!MediaPermission.granted(appContext)) return@launch
             if (!preferences.hasCompletedInitialLibraryScan()) {
                 ensureInitialLibraryScan()
-            } else {
-                // Existing-user launches intentionally give the first Home frame a head start.
-                // The freshness pass then runs off the UI path and updates Room underneath the
-                // already-visible Home instead of competing with its first composition.
+                runCatching { homeRepository.prewarm() }
+            } else if (preferences.shouldRefreshMediaStore(mediaStore.externalLibraryVersion())) {
+                // Freshness work is application-scoped and only runs when MediaStore can
+                // actually have changed. If its version is unchanged, there is nothing to
+                // reconcile and Room emits nothing to Home.
                 _syncState.value = LibrarySyncState.DELTA
                 runCatching { mediaLibrary.deltaRefresh() }
                     .onFailure { _syncState.value = LibrarySyncState.FAILED }
-                    .onSuccess { _syncState.value = LibrarySyncState.IDLE }
+                    .onSuccess {
+                        preferences.markMediaStoreRefresh(mediaStore.externalLibraryVersion())
+                        _syncState.value = LibrarySyncState.IDLE
+                    }
             }
         }
     }
@@ -166,6 +203,7 @@ class AppContainer(context: Context) {
                     )
                 }
                 preferences.markInitialLibraryScanDone()
+                preferences.markMediaStoreRefresh(mediaStore.externalLibraryVersion())
                 _syncState.value = LibrarySyncState.IDLE
                 kotlinx.coroutines.delay(650)
                 _syncProgress.value = LibrarySyncProgress()

@@ -5,12 +5,13 @@ package com.airplayr.app.ui.screens
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -93,10 +95,10 @@ fun SearchScreen(
     val focusRequester = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
     val playback: PlaybackController = viewModel(factory = PlaybackControllerFactory(container.appContext))
-    var query by remember { mutableStateOf("") }
+    var query by rememberSaveable { mutableStateOf("") }
     var libraryLoaded by remember { mutableStateOf(false) }
-    var debounced by remember { mutableStateOf("") }
-    var filter by remember { mutableStateOf("all") }
+    var debounced by rememberSaveable { mutableStateOf("") }
+    var filter by rememberSaveable { mutableStateOf("all") }
     var selected by remember { mutableStateOf<MediaItem?>(null) }
     var playlistTarget by remember { mutableStateOf<MediaItem?>(null) }
     var detailsSheet by remember { mutableStateOf<MediaItem?>(null) }
@@ -116,11 +118,7 @@ fun SearchScreen(
         debounced = query.trim()
     }
     LaunchedEffect(Unit) {
-        delay(220)
         libraryLoaded = true
-    }
-    LaunchedEffect(Unit) {
-        delay(120)
         focusRequester.requestFocus()
     }
 
@@ -261,7 +259,7 @@ fun SearchScreen(
         }
 
         Row(
-            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp),
+            Modifier.horizontalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }).padding(horizontal = 16.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             FILTERS.forEach { (key, label) ->
@@ -275,7 +273,7 @@ fun SearchScreen(
             }
         }
 
-        LazyColumn(
+        LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
             contentPadding = PaddingValues(bottom = 112.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {

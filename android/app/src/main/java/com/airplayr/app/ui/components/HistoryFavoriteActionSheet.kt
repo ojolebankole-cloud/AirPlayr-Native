@@ -57,8 +57,9 @@ fun HistoryFavoriteActionSheet(
     ModalBottomSheet(
         onDismissRequest = onClose,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetGesturesEnabled = true,
         containerColor = colors.surfaceContainerLow,
-        tonalElevation = 8.dp,
+        tonalElevation = 0.dp,
     ) {
         Column(
             Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 22.dp, vertical = 8.dp),

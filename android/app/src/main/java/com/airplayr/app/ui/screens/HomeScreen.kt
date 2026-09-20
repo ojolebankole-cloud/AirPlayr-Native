@@ -5,13 +5,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.ScrollState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,11 +34,12 @@ import com.airplayr.app.di.AppContainer
 import com.airplayr.app.di.LibrarySyncProgress
 import com.airplayr.app.ui.components.*
 import com.airplayr.app.ui.navigation.LibraryViewModel
+import com.airplayr.app.ui.navigation.HomeViewModel
+import com.airplayr.app.ui.navigation.HomeViewModelFactory
 import com.airplayr.app.ui.playback.PlaybackController
 import com.airplayr.app.ui.theme.AirPlayrColors
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import com.airplayr.app.ui.theme.AirPlayrFonts
-import com.airplayr.app.ui.theme.AirPlayrElevation
 import com.airplayr.app.ui.theme.AirPlayrIcons
 
 @Composable
@@ -47,42 +51,30 @@ fun HomeScreen(
     onCast: () -> Unit = {},
 ) {
     val colors = LocalAirPlayrColors.current
-    val music by libraryViewModel.audio.collectAsStateWithLifecycle()
-    val videos by libraryViewModel.video.collectAsStateWithLifecycle()
-    val history by container.structured.history(200).collectAsStateWithLifecycle(initialValue = emptyList())
-    val videoProgress by container.structured.allVideoProgress().collectAsStateWithLifecycle(initialValue = emptyList())
-    val playbackState by playback.state.collectAsStateWithLifecycle()
+    val homeViewModel: HomeViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+        factory = HomeViewModelFactory(container.homeRepository),
+    )
+    val homeState by homeViewModel.state.collectAsStateWithLifecycle()
     val syncState by container.syncState.collectAsStateWithLifecycle()
-    var menuOpen by remember { mutableStateOf(false) }
-    var stats by remember { mutableStateOf<com.airplayr.app.core.data.PlaybackStatsRepository.Summary?>(null) }
+    var menuOpen by rememberSaveable { mutableStateOf(false) }
+    val stats by container.homeStats.summary.collectAsStateWithLifecycle()
+    val syncProgress by container.syncProgress.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
 
-    // The Home stats card in the Expo reference uses all-time tracked listening
-    // time, while its play counts/top items come from the 100-entry playback
-    // history. Keep the existing 200-entry Home history untouched and derive the
-    // card's own view from the same 100-entry window used by Expo.
-    val statsHistory = remember(history) { history.take(100) }
-    LaunchedEffect(statsHistory) {
-        // Statistics are useful on Home, but calculating an all-time summary should not be
-        // allowed to contend with the first visible frame of an existing-user launch.
-        kotlinx.coroutines.delay(650L)
-        stats = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            runCatching { container.stats.summary("all", emptyList(), 5) }.getOrNull()
-        }
+    val history = homeState.history
+    val statsHistory = history.take(100)
+    LaunchedEffect(history) {
+        container.homeStats.refreshIfStale()
     }
 
-    val derived = produceState(HomeDerivedData(), music, videos, history, videoProgress) {
-        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-            buildHomeDerivedData(music, videos, history, videoProgress)
-        }
-    }.value
-    val recentSongs = derived.recentSongs
-    val lookup = derived.lookup
-    val recentPlayedAlbums = derived.recentPlayedAlbums
-    val recentArtists = derived.recentArtists
-    val currentlyWatching = derived.currentlyWatching
-    val completedWatching = derived.completedWatching
-    val recentVideos = derived.recentVideos
-    val recentlyPlayedVideos = derived.recentlyPlayedVideos
+    val recentSongs = homeState.recentSongs
+    val onRepeat = homeState.onRepeat
+    val recentPlayedAlbums = homeState.recentPlayedAlbums
+    val recentArtists = homeState.recentArtists
+    val currentlyWatching = homeState.currentlyWatching
+    val completedWatching = homeState.completedWatching
+    val recentVideos = homeState.recentVideos
+    val recentlyPlayedVideos = homeState.recentlyPlayedVideos
     val audioHistory = statsHistory.filter { it.mediaType == MediaType.AUDIO.value }
     val videoHistory = statsHistory.filter { it.mediaType == MediaType.VIDEO.value }
     val musicPlays = audioHistory.sumOf { it.playCount }
@@ -90,7 +82,7 @@ fun HomeScreen(
 
     // Match Expo exactly: refresh the time-of-day card every 30 seconds while
     // Home is mounted, so crossing a time boundary updates without reopening Home.
-    var currentHour by remember { mutableIntStateOf(java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) }
+    var currentHour by rememberSaveable { mutableIntStateOf(java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) }
     LaunchedEffect(Unit) {
         while (true) {
             kotlinx.coroutines.delay(30_000L)
@@ -107,7 +99,7 @@ fun HomeScreen(
         in 23..23, in 0..1 -> Triple("Night Extra", "Feel the night.", R.drawable.dj_boy_cuate)
         else -> Triple("Late Night Jam", "For the night.", R.drawable.dj_boy_cuate)
     }
-    val featureSessionSeed = remember { java.util.UUID.randomUUID().toString() }
+    val featureSessionSeed = rememberSaveable { java.util.UUID.randomUUID().toString() }
     val features = remember(timeCard, featureSessionSeed) {
         val list = listOf(
             FeatureSpec("For you now", "Press play & tuned in", "for-you", "for-you", R.drawable.headphone_amico, listOf(Color(0xFFF6D7E8), Color(0xFFE9D8FA), Color(0xFFD7E8F7))),
@@ -120,9 +112,12 @@ fun HomeScreen(
     }
 
     Box(Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.HOME).fillMaxSize().background(colors.background)) {
+        val homeListState = rememberSaveable(saver = androidx.compose.foundation.lazy.LazyListState.Saver) { androidx.compose.foundation.lazy.LazyListState(0) }
+        val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         LazyColumn(
+            state = homeListState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 0.dp, bottom = 24.dp),
+            contentPadding = PaddingValues(top = topInset, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             item {
@@ -131,16 +126,16 @@ fun HomeScreen(
                         onMenu = { menuOpen = true },
                         onSearch = { onNavigate("search") },
                         onCast = onCast,
-                        scanProgress = container.syncProgress.collectAsStateWithLifecycle().value,
+                        scanProgress = syncProgress,
                     )
-                    if (music.isEmpty() && videos.isEmpty() && syncState == com.airplayr.app.di.LibrarySyncState.INITIAL_SCAN) {
+                    if (homeState.audioCount == 0 && homeState.videoCount == 0 && syncState == com.airplayr.app.di.LibrarySyncState.INITIAL_SCAN) {
                         Text(
                             "Building your library…",
                             style = MaterialTheme.typography.titleMedium,
                             color = colors.textSecondary,
                             modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
                         )
-                    } else if (music.isEmpty() && videos.isEmpty() && syncState == com.airplayr.app.di.LibrarySyncState.FAILED) {
+                    } else if (homeState.audioCount == 0 && homeState.videoCount == 0 && syncState == com.airplayr.app.di.LibrarySyncState.FAILED) {
                         Text(
                             "Your media library is empty or could not be read yet.",
                             style = MaterialTheme.typography.titleMedium,
@@ -153,32 +148,39 @@ fun HomeScreen(
                         { onNavigate("history") },
                         { onNavigate("favorites") },
                         { onNavigate("most-played") },
-                        { if (music.isNotEmpty()) playback.playQueue(music.shuffled()) },
+                        { scope.launch { val all = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { container.mediaLibrary.all(MediaType.AUDIO) }; if (all.isNotEmpty()) playback.playQueue(all.shuffled()) } },
                     )
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
+                            .horizontalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) })
                             .padding(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         features.forEach { f ->
-                            AirPlayrFeatureCard(f.eyebrow, f.title, f.image, f.gradient, { onNavigate(f.route) }, f.kind)
+                            AirPlayrFeatureCard(f.eyebrow, f.title, f.image, f.gradient, { onNavigate(f.route) }, f.kind, hour, featureSessionSeed)
                         }
+                    }
+                }
+            }
+            if (onRepeat.isNotEmpty()) {
+                item {
+                    HomeSection("On repeat", { onNavigate("most-played") }) {
+                        OnRepeatRail(onRepeat, playback, onNavigate)
                     }
                 }
             }
             if (recentSongs.isNotEmpty()) {
                 item {
                     HomeSection("Recently added songs", { onNavigate("recent/songs") }) {
-                        VerticalSongList(recentSongs, playback)
+                        TwoRowSongRail(recentSongs, playback)
                     }
                 }
             }
             if (recentPlayedAlbums.isNotEmpty()) {
                 item {
                     HomeSection("Recently played albums", { onNavigate("recent/albums") }) {
-                        HorizontalAlbumRail(recentPlayedAlbums, onNavigate)
+                        HorizontalAlbumRail(recentPlayedAlbums, playback, onNavigate)
                     }
                 }
             }
@@ -219,81 +221,23 @@ fun HomeScreen(
             }
             if (musicPlays > 0 || videoPlays > 0) {
                 item {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        ListeningStatsCard(
-                            listeningSeconds = stats?.listeningSeconds ?: 0L,
-                            musicPlays = musicPlays,
-                            topTrack = audioHistory.maxWithOrNull(compareBy<com.airplayr.app.core.data.db.PlaybackHistoryEntity> { it.playCount }.thenBy { it.playedAt })?.title ?: "—",
-                            onNavigate = onNavigate,
-                        )
-                        WatchingStatsCard(
-                            videoPlays = videoPlays,
-                            completedVideos = stats?.completedVideos ?: videoHistory.count { it.completed },
-                            topVideo = videoHistory.maxWithOrNull(compareBy<com.airplayr.app.core.data.db.PlaybackHistoryEntity> { it.playCount }.thenBy { it.playedAt })?.title ?: "—",
-                            onNavigate = onNavigate,
-                        )
-                    }
-                }
-            }
-            if (playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO) {
-                item {
-                    CurrentPlaybackCard(
-                        playbackState.currentTitle.orEmpty(),
-                        playbackState.currentArtist.orEmpty(),
-                        playbackState.artworkUri,
-                        playbackState.positionMs,
-                        playbackState.durationMs,
+                    ListeningWatchingStatsCard(
+                        listeningSeconds = stats?.listeningSeconds ?: 0L,
+                        musicPlays = musicPlays,
+                        videoPlays = videoPlays,
+                        completedVideos = stats?.completedVideos ?: videoHistory.count { it.completed },
+                        topTrack = audioHistory.maxWithOrNull(compareBy<com.airplayr.app.core.data.db.PlaybackHistoryEntity> { it.playCount }.thenBy { it.playedAt })?.title ?: "—",
+                        topVideo = videoHistory.maxWithOrNull(compareBy<com.airplayr.app.core.data.db.PlaybackHistoryEntity> { it.playCount }.thenBy { it.playedAt })?.title ?: "—",
+                        onNavigate = onNavigate,
                     )
                 }
             }
+            item {
+                CurrentPlaybackHost(playback)
+            }
         }
-        MenuDrawer(visible = menuOpen, musicCount = music.size, videoCount = videos.size, folderCount = music.mapNotNull { it.folder?.takeIf(String::isNotBlank) }.distinct().size, container = container, onClose = { menuOpen = false }, onNavigate = onNavigate, onAbout = {}, onSupport = {}, onScanMedia = { libraryViewModel.refresh() })
+        MenuDrawer(visible = menuOpen, musicCount = homeState.audioCount, videoCount = homeState.videoCount, folderCount = homeState.folderCount, container = container, onClose = { menuOpen = false }, onNavigate = onNavigate, onAbout = {}, onSupport = {}, onScanMedia = { libraryViewModel.refresh() })
     }
-}
-
-private data class HomeDerivedData(
-    val recentSongs: List<MediaItem> = emptyList(),
-    val lookup: Map<String, MediaItem> = emptyMap(),
-    val recentPlayedAlbums: List<Pair<String, List<MediaItem>>> = emptyList(),
-    val recentArtists: List<Pair<String, List<MediaItem>>> = emptyList(),
-    val currentlyWatching: List<MediaItem> = emptyList(),
-    val completedWatching: List<MediaItem> = emptyList(),
-    val recentVideos: List<MediaItem> = emptyList(),
-    val recentlyPlayedVideos: List<MediaItem> = emptyList(),
-)
-
-private fun buildHomeDerivedData(
-    music: List<MediaItem>,
-    videos: List<MediaItem>,
-    history: List<com.airplayr.app.core.data.db.PlaybackHistoryEntity>,
-    videoProgress: List<com.airplayr.app.core.data.db.VideoProgressEntity>,
-): HomeDerivedData {
-    val lookup = (music + videos).associateBy { it.id }
-    val audioHistory = history.filter { it.mediaType == MediaType.AUDIO.value }
-    val videoHistory = history.filter { it.mediaType == MediaType.VIDEO.value }
-    val recentPlayedAlbums = audioHistory.mapNotNull { h -> lookup[h.mediaId] }
-        .groupBy { (it.album ?: "Unknown album") to (it.albumArtist ?: it.artist ?: "") }
-        .map { (key, songs) -> key.first to songs }
-        .take(10)
-    val recentArtists = audioHistory.mapNotNull { h -> lookup[h.mediaId] }
-        .groupBy { it.artist?.trim().takeUnless { it.isNullOrBlank() } ?: "Unknown artist" }
-        .map { it.key to it.value }
-        .take(10)
-    return HomeDerivedData(
-        recentSongs = music.sortedWith(compareByDescending<MediaItem> { it.dateAdded }.thenBy { it.title.lowercase() }).take(10),
-        lookup = lookup,
-        recentPlayedAlbums = recentPlayedAlbums,
-        recentArtists = recentArtists,
-        currentlyWatching = videoProgress.filter { !it.completed && it.positionMs > 0 }
-            .sortedByDescending { it.updatedAt }.mapNotNull { lookup[it.mediaId] }.take(10),
-        completedWatching = videoProgress.filter { it.completed }
-            .sortedByDescending { it.updatedAt }.mapNotNull { lookup[it.mediaId] }.take(10),
-        recentVideos = videos.sortedByDescending { it.dateAdded }.take(10),
-        recentlyPlayedVideos = videoHistory.mapNotNull { lookup[it.mediaId] }.distinctBy { it.id }.take(10),
-    )
 }
 
 private data class FeatureSpec(val title: String, val eyebrow: String, val route: String, val kind: String, val image: Int, val gradient: List<Color>)
@@ -317,7 +261,7 @@ private fun HomeHeader(
     val searchEnabled = !scanProgress.visible
     Column(Modifier.fillMaxWidth().padding(top = 6.dp, start = 24.dp, end = 24.dp, bottom = 4.dp)) {
         Row(
-            Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(27.dp)).background(colors.surfaceSolid).padding(horizontal = 10.dp),
+            Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(27.dp)).background(colors.surfaceContainer).padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onMenu, modifier = Modifier.size(42.dp)) {
@@ -387,93 +331,71 @@ private fun QuickActions(colors: AirPlayrColors, onHistory: () -> Unit, onFavori
 }
 
 @Composable
-private fun ListeningStatsCard(
+private fun ListeningWatchingStatsCard(
     listeningSeconds: Long,
     musicPlays: Int,
+    videoPlays: Int,
+    completedVideos: Int,
     topTrack: String,
+    topVideo: String,
     onNavigate: (String) -> Unit,
 ) {
     val colors = LocalAirPlayrColors.current
+    val totalPlays = (musicPlays + videoPlays).coerceAtLeast(1)
+    val musicSweep = 360f * musicPlays / totalPlays.toFloat()
     Card(
         onClick = { onNavigate("listening-watching-stats") },
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 18.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
         shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = LocalAirPlayrColors.current.surfaceSolid),
-        elevation = CardDefaults.cardElevation(defaultElevation = AirPlayrElevation.medium),
+        colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(Modifier.padding(24.dp)) {
-            Text(
-                "Listening stats",
-                style = MaterialTheme.typography.titleLarge.copy(fontFamily = AirPlayrFonts.SmoochSans),
-            )
-            Row(
-                Modifier.fillMaxWidth().padding(top = 14.dp),
-            ) {
-                StatMini(formatExpoListeningTime(listeningSeconds), "LISTENING TIME*", Modifier.weight(1f))
-                StatMini("$musicPlays", "MUSIC PLAYS", Modifier.weight(1f))
-            }
-            Text(
-                "* Listening time is measured from actual forward playback tracked by AirPlayr.",
-                fontFamily = AirPlayrFonts.OpenSansMedium,
-                fontSize = 11.sp,
-                lineHeight = 14.sp,
-                color = colors.textPrimary,
-                modifier = Modifier.padding(bottom = 14.dp),
-            )
-            HorizontalDivider(color = colors.outlineVariant, thickness = 0.5.dp)
-            Row(
-                Modifier.fillMaxWidth().padding(top = 14.dp),
-                horizontalArrangement = Arrangement.spacedBy(18.dp),
-            ) {
+        Column(Modifier.padding(22.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("TOP TRACK", fontFamily = FontFamily.Default, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
-                    Text(topTrack, fontFamily = FontFamily.Default, fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("Listening & watching", style = MaterialTheme.typography.titleLarge.copy(fontFamily = AirPlayrFonts.SmoochSans, fontWeight = FontWeight.SemiBold))
+                    Text("Your activity at a glance", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
                 }
+                Box(Modifier.size(78.dp), contentAlignment = Alignment.Center) {
+                    androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                        drawArc(colors.primary, -90f, musicSweep, useCenter = true, style = Fill)
+                        drawArc(colors.secondaryContainer, -90f + musicSweep, 360f - musicSweep, useCenter = true, style = Fill)
+                        drawCircle(colors.surfaceContainer, radius = size.minDimension * .30f)
+                    }
+                    Icon(Icons.Default.BarChart, "Statistics", tint = colors.primary, modifier = Modifier.size(22.dp))
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                PremiumStatTile(Icons.Default.Headphones, formatExpoListeningTime(listeningSeconds), "LISTENING", Modifier.weight(1f))
+                PremiumStatTile(Icons.Default.MusicNote, "$musicPlays", "MUSIC PLAYS", Modifier.weight(1f))
+                PremiumStatTile(Icons.Default.Visibility, "$videoPlays", "VIDEO PLAYS", Modifier.weight(1f))
+            }
+            HorizontalDivider(color = colors.outlineVariant.copy(alpha = .55f), thickness = 0.5.dp, modifier = Modifier.padding(vertical = 16.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text("TOP TRACK", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = colors.textSecondary)
+                    Text(topTrack, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("TOP VIDEO", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = colors.textSecondary)
+                    Text(topVideo, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.CheckCircle, "Completed videos", tint = colors.primary, modifier = Modifier.size(18.dp))
+                Text(" $completedVideos videos completed", style = MaterialTheme.typography.labelMedium, color = colors.textSecondary)
             }
         }
     }
 }
 
 @Composable
-private fun WatchingStatsCard(
-    videoPlays: Int,
-    completedVideos: Int,
-    topVideo: String,
-    onNavigate: (String) -> Unit,
-) {
+private fun PremiumStatTile(icon: androidx.compose.ui.graphics.vector.ImageVector, value: String, label: String, modifier: Modifier) {
     val colors = LocalAirPlayrColors.current
-    Card(
-        onClick = { onNavigate("listening-watching-stats") },
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 18.dp),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = colors.surfaceSolid),
-        elevation = CardDefaults.cardElevation(defaultElevation = AirPlayrElevation.medium),
-    ) {
-        Column(Modifier.padding(24.dp)) {
-            Text(
-                "Watching stats",
-                style = MaterialTheme.typography.titleLarge.copy(fontFamily = AirPlayrFonts.SmoochSans),
-            )
-            Row(
-                Modifier.fillMaxWidth().padding(top = 14.dp),
-            ) {
-                StatMini("$videoPlays", "VIDEO PLAYS", Modifier.weight(1f))
-                StatMini("$completedVideos", "VIDEOS COMPLETED", Modifier.weight(1f))
-            }
-            HorizontalDivider(color = colors.outlineVariant, thickness = 0.5.dp)
-            Row(
-                Modifier.fillMaxWidth().padding(top = 14.dp),
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text("TOP VIDEO", fontFamily = FontFamily.Default, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary)
-                    Text(topVideo, fontFamily = FontFamily.Default, fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-            }
-        }
+    Column(modifier.clip(RoundedCornerShape(18.dp)).background(colors.surfaceContainerHigh).padding(12.dp)) {
+        Icon(icon, label, tint = colors.primary, modifier = Modifier.size(19.dp))
+        Text(value, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
+        Text(label, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, color = colors.textSecondary, maxLines = 1)
     }
 }
 
@@ -537,20 +459,32 @@ private fun formatExpoListeningTime(totalSeconds: Long): String {
     }
 }
 
-@Composable private fun VerticalSongList(items: List<MediaItem>, playback: PlaybackController) {
-    Column(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+@Composable private fun TwoRowSongRail(items: List<MediaItem>, playback: PlaybackController) {
+    val columns = items.chunked(2)
+    val railState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
+    Row(
+        Modifier.horizontalScroll(railState).padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        items.forEach { item ->
-            SongRailCard(item, Modifier.fillMaxWidth()) { playback.play(item) }
+        columns.forEach { pair ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.width(300.dp)) {
+                pair.forEach { item ->
+                    SongRailCard(item, Modifier.fillMaxWidth()) { playback.play(item) }
+                }
+            }
         }
     }
 }
 
 @Composable private fun SongRailCard(item: MediaItem, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = LocalAirPlayrColors.current
-    AirPlayrCard(modifier.heightIn(min = 72.dp), shape = RoundedCornerShape(18.dp), containerColor = c.surfaceSolid, elevation = AirPlayrElevation.medium, onClick = onClick) {
+    Card(
+        modifier = modifier.heightIn(min = 72.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = c.surfaceContainer),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        onClick = onClick,
+    ) {
         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Artwork(item.artworkUri, Modifier.size(58.dp), 14.dp, item.title)
             Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
@@ -561,24 +495,131 @@ private fun formatExpoListeningTime(totalSeconds: Long): String {
     }
 }
 
-@Composable private fun HorizontalAlbumRail(groups: List<Pair<String,List<MediaItem>>>, onNavigate: (String) -> Unit) {
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+@Composable
+private fun HorizontalAlbumRail(
+    groups: List<Pair<String, List<MediaItem>>>,
+    playback: PlaybackController,
+    onNavigate: (String) -> Unit,
+) {
+    val railState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
+    val colors = LocalAirPlayrColors.current
+    Row(
+        Modifier.horizontalScroll(railState).padding(horizontal = 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
         groups.forEach { (name, songs) ->
-            Column(
-                Modifier
-                    .width(164.dp)
-                    .clickable { onNavigate("album/${java.net.URLEncoder.encode(name, "UTF-8")}") },
-            ) {
-                Artwork(songs.firstOrNull()?.artworkUri, Modifier.size(164.dp), 18.dp, name)
-                Text(name, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 17.sp, color = LocalAirPlayrColors.current.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
-                Text(songs.firstOrNull()?.artist ?: "Unknown artist", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = LocalAirPlayrColors.current.textPrimary, maxLines = 1)
+            var menuOpen by rememberSaveable(name) { mutableStateOf(false) }
+            val albumRoute = "album/${java.net.URLEncoder.encode(name, "UTF-8")}"
+            Column(Modifier.width(164.dp)) {
+                Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
+                    Artwork(songs.firstOrNull()?.artworkUri, Modifier.fillMaxSize(), 18.dp, name, MediaType.AUDIO, AirPlayrIcons.ArtTrack)
+
+                    IconButton(
+                        onClick = { menuOpen = true },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(36.dp),
+                    ) {
+                        Icon(Icons.Default.MoreVert, "Album options", tint = Color.White, modifier = Modifier.size(22.dp))
+                    }
+
+                    Surface(
+                        onClick = { if (songs.isNotEmpty()) playback.playQueue(songs) },
+                        modifier = Modifier.align(Alignment.BottomStart).padding(10.dp).size(40.dp),
+                        shape = CircleShape,
+                        color = colors.primary,
+                        tonalElevation = 0.dp,
+                        shadowElevation = 0.dp,
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(AirPlayrIcons.Play, "Play album", tint = colors.onPrimary, modifier = Modifier.size(19.dp))
+                        }
+                    }
+
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Play album") },
+                            leadingIcon = { Icon(AirPlayrIcons.Play, null) },
+                            onClick = {
+                                menuOpen = false
+                                if (songs.isNotEmpty()) playback.playQueue(songs)
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Open album") },
+                            leadingIcon = { Icon(Icons.Default.Album, null) },
+                            onClick = {
+                                menuOpen = false
+                                onNavigate(albumRoute)
+                            },
+                        )
+                    }
+                }
+                Column(Modifier.clickable { onNavigate(albumRoute) }.padding(top = 6.dp)) {
+                    Text(name, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 17.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(songs.firstOrNull()?.artist ?: "Unknown artist", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OnRepeatRail(
+    items: List<MediaItem>,
+    playback: PlaybackController,
+    onNavigate: (String) -> Unit,
+) {
+    val railState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
+    Row(
+        Modifier.horizontalScroll(railState).padding(horizontal = 36.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        items.chunked(2).forEach { pair ->
+            Column(Modifier.width(272.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                pair.forEach { item ->
+                    RepeatRailCard(
+                        item = item,
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            if (item.mediaType == MediaType.AUDIO) playback.play(item)
+                            else onNavigate("video/${item.id}")
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RepeatRailCard(item: MediaItem, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val colors = LocalAirPlayrColors.current
+    Card(
+        modifier = modifier.height(72.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        onClick = onClick,
+    ) {
+        Row(Modifier.fillMaxSize().padding(7.dp), verticalAlignment = Alignment.CenterVertically) {
+            Artwork(
+                if (item.mediaType == MediaType.VIDEO) item.thumbnailUri ?: item.artworkUri ?: item.uri else item.artworkUri,
+                Modifier.size(58.dp),
+                14.dp,
+                item.title,
+                item.mediaType,
+                if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music,
+            )
+            Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                Text(item.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 17.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(item.artist ?: "Unknown artist", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
             }
         }
     }
 }
 
 @Composable private fun HorizontalArtistRail(groups: List<Pair<String,List<MediaItem>>>, onNavigate: (String) -> Unit) {
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+    val railState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
+    Row(Modifier.horizontalScroll(railState).padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         groups.forEach { (name, songs) ->
             Column(
                 Modifier
@@ -586,7 +627,7 @@ private fun formatExpoListeningTime(totalSeconds: Long): String {
                     .clickable { onNavigate("artist/${java.net.URLEncoder.encode(name, "UTF-8")}") },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Artwork(songs.firstOrNull()?.artworkUri, Modifier.size(120.dp), 60.dp, name)
+                Artwork(songs.firstOrNull()?.artworkUri, Modifier.size(120.dp), 60.dp, name, MediaType.AUDIO, AirPlayrIcons.Artist)
                 Text(name, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 13.sp, color = LocalAirPlayrColors.current.textPrimary, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
             }
         }
@@ -595,24 +636,43 @@ private fun formatExpoListeningTime(totalSeconds: Long): String {
 
 @Composable private fun HorizontalVideoRail(items: List<MediaItem>, onNavigate: (String) -> Unit) {
     val c = LocalAirPlayrColors.current
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    val railState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
+    Row(Modifier.horizontalScroll(railState).padding(horizontal = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         items.forEach { item ->
-            AirPlayrCard(Modifier.width(196.dp), shape = RoundedCornerShape(18.dp), containerColor = c.surfaceSolid, elevation = 5.dp, onClick = { onNavigate("video/${item.id}") }) {
-                Column {
+            Column(Modifier.width(196.dp).clickable { onNavigate("video/${item.id}") }) {
+                Box {
                     Artwork(item.thumbnailUri ?: item.uri, Modifier.fillMaxWidth().height(110.dp), 18.dp, item.title, MediaType.VIDEO, AirPlayrIcons.Video)
-                    Text(item.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 15.sp, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(8.dp))
+                    Box(Modifier.align(Alignment.BottomStart).padding(8.dp).size(36.dp).clip(CircleShape).background(c.primary), contentAlignment = Alignment.Center) {
+                        Icon(AirPlayrIcons.Play, "Play video", tint = c.onPrimary, modifier = Modifier.size(18.dp))
+                    }
                 }
+                Text(item.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 15.sp, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 7.dp))
             }
         }
     }
 }
 
-@Composable private fun CurrentPlaybackCard(title: String, artist: String, art: String?, position: Long, duration: Long) {
+@Composable
+private fun CurrentPlaybackHost(playback: PlaybackController) {
+    val playbackState by playback.state.collectAsStateWithLifecycle()
+    if (playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO) {
+        CurrentPlaybackCard(
+            playbackState.currentTitle.orEmpty(),
+            playbackState.currentArtist.orEmpty(),
+            playbackState.artworkUri,
+            playbackState.positionMs,
+            playbackState.durationMs,
+            playbackState.isPlaying,
+        )
+    }
+}
+
+@Composable private fun CurrentPlaybackCard(title: String, artist: String, art: String?, position: Long, duration: Long, isPlaying: Boolean) {
     val c = LocalAirPlayrColors.current
     AirPlayrCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(22.dp), containerColor = c.surfaceSolid, elevation = 5.dp) {
         Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Artwork(art, Modifier.size(46.dp), 14.dp)
+                Artwork(art, Modifier.size(46.dp), 14.dp, mediaType = MediaType.AUDIO, isPlaying = isPlaying)
                 Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                     Text(title.ifBlank { "Playing" }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(artist.ifBlank { "Unknown artist" }, fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = c.textSecondary, maxLines = 1)

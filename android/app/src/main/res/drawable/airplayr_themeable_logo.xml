@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="256dp"
+    android:height="128dp"
+    android:viewportWidth="1024"
+    android:viewportHeight="512">
+    <path android:fillColor="@color/splash_logo_color" android:pathData="M91,188 A27,27 0,0 1,118,215 L118,297 A27,27 0,0 1,91,324 A27,27 0,0 1,64,297 L64,215 A27,27 0,0 1,91,188 Z"/>
+    <path android:fillColor="@color/splash_logo_color" android:pathData="M208,112 A32,32 0,0 1,240,144 L240,368 A32,32 0,0 1,208,400 A32,32 0,0 1,176,368 L176,144 A32,32 0,0 1,208,112 Z"/>
+    <path android:fillColor="@color/splash_logo_color" android:pathData="M330,56 A36,36 0,0 1,366,92 L366,420 A36,36 0,0 1,330,456 A36,36 0,0 1,294,420 L294,92 A36,36 0,0 1,330,56 Z"/>
+    <path android:fillColor="@color/splash_logo_color" android:pathData="M452,112 A32,32 0,0 1,484,144 L484,368 A32,32 0,0 1,452,400 A32,32 0,0 1,420,368 L420,144 A32,32 0,0 1,452,112 Z"/>
+    <path android:fillColor="@color/splash_logo_color" android:pathData="M574,76 C574,54 592,38 614,38 C624,38 633,41 641,47 L842,188 C858,199 867,217 867,237 C867,257 858,275 842,286 L641,427 C633,433 624,436 614,436 C592,436 574,420 574,398 Z"/>
+</vector>

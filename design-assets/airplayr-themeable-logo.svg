@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 1024 512"
+     role="img"
+     aria-labelledby="title desc">
+  <title id="title">AirPlayr logo</title>
+  <desc id="desc">A play triangle beside four rounded audio bars.</desc>
+
+  <style>
+    :root {
+      --airplayr-primary: currentColor;
+      --airplayr-secondary: currentColor;
+      --airplayr-tertiary: currentColor;
+    }
+    .airplayr-primary { fill: var(--airplayr-primary); }
+    .airplayr-secondary { fill: var(--airplayr-secondary); }
+    .airplayr-tertiary { fill: var(--airplayr-tertiary); }
+  </style>
+
+  <!-- Audio bars -->
+  <rect class="airplayr-secondary" x="64" y="188" width="54" height="136" rx="27"/>
+  <rect class="airplayr-primary"   x="176" y="112" width="64" height="288" rx="32"/>
+  <rect class="airplayr-tertiary"  x="294" y="56"  width="72" height="400" rx="36"/>
+  <rect class="airplayr-secondary" x="420" y="112" width="64" height="288" rx="32"/>
+
+  <!-- Rounded play mark -->
+  <path class="airplayr-primary"
+        d="M574 76
+           C574 54 592 38 614 38
+           C624 38 633 41 641 47
+           L842 188
+           C858 199 867 217 867 237
+           C867 257 858 275 842 286
+           L641 427
+           C633 433 624 436 614 436
+           C592 436 574 420 574 398
+           Z"/>
+</svg>

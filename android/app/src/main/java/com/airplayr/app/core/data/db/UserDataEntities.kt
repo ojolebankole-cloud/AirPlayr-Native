@@ -6,7 +6,7 @@ import androidx.room.Index
 @Entity(tableName = "favorites", primaryKeys = ["mediaId"])
 data class FavoriteEntity(val mediaId: String, val mediaType: String, val addedAt: Long)
 
-@Entity(tableName = "playback_history", primaryKeys = ["mediaId"], indices = [Index(value = ["playedAt"]), Index(value = ["mediaType"])])
+@Entity(tableName = "playback_history", primaryKeys = ["mediaId"], indices = [Index(value = ["playedAt"]), Index(value = ["mediaType"]), Index(value = ["mediaType", "completed"]), Index(value = ["playCount", "playedAt"])])
 data class PlaybackHistoryEntity(
     val mediaId: String,
     val mediaType: String,
@@ -38,7 +38,7 @@ data class VideoProgressEntity(val mediaId: String, val positionMs: Long, val du
 @Entity(tableName = "video_bookmarks", primaryKeys = ["mediaId", "positionMs"])
 data class VideoBookmarkEntity(val mediaId: String, val positionMs: Long, val label: String?, val createdAt: Long)
 
-@Entity(tableName = "playback_events", indices = [Index(value = ["playedAt"]), Index(value = ["mediaType"])])
+@Entity(tableName = "playback_events", indices = [Index(value = ["playedAt"]), Index(value = ["mediaType"]), Index(value = ["mediaType", "playedAt"])])
 data class PlaybackEventEntity(
     @androidx.room.PrimaryKey(autoGenerate = true) val eventId: Long = 0,
     val mediaId: String,
@@ -61,7 +61,7 @@ data class PlaybackSessionEntity(
     val lastMediaTime: Long,
 )
 
-@Entity(tableName = "playback_activity", primaryKeys = ["dayKey", "bucket", "mediaType"], indices = [Index(value = ["dayKey"])])
+@Entity(tableName = "playback_activity", primaryKeys = ["dayKey", "bucket", "mediaType"], indices = [Index(value = ["dayKey"]), Index(value = ["mediaType", "dayKey"])])
 data class PlaybackActivityEntity(
     val dayKey: String,
     val bucket: String,

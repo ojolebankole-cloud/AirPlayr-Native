@@ -2,6 +2,7 @@ package com.airplayr.app.ui.screens
 
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -19,11 +20,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -55,6 +57,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -101,11 +104,11 @@ fun MusicScreen(libraryViewModel: LibraryViewModel, appContext: android.content.
     val playlists by container.structured.playlists().collectAsStateWithLifecycle(initialValue = emptyList())
     val playback: PlaybackController = viewModel(factory = PlaybackControllerFactory(appContext))
     val playbackState by playback.state.collectAsStateWithLifecycle()
-    var category by remember { mutableStateOf("songs") }
-    var query by remember { mutableStateOf("") }
-    var searchOpen by remember { mutableStateOf(false) }
-    var ascending by remember { mutableStateOf(true) }
-    var grid by remember(settings?.libraryLayout) { mutableStateOf(settings?.libraryLayout != "list") }
+    var category by rememberSaveable { mutableStateOf("songs") }
+    var query by rememberSaveable { mutableStateOf("") }
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
+    var ascending by rememberSaveable { mutableStateOf(true) }
+    var grid by rememberSaveable(settings?.libraryLayout) { mutableStateOf(settings?.libraryLayout != "list") }
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
     var moreFor by remember { mutableStateOf<MediaItem?>(null) }
     var playlistDialogFor by remember { mutableStateOf<MediaItem?>(null) }
@@ -140,7 +143,7 @@ fun MusicScreen(libraryViewModel: LibraryViewModel, appContext: android.content.
 
     Column(Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.MUSIC).fillMaxSize().background(colors.background)) {
         MusicHeader(searchOpen, query, { query = it }, { searchOpen = !searchOpen; if (searchOpen) query = "" }, { onNavigate("home") }, grid, { value -> grid = value; scope.launch { container.preferences.setLibraryLayout(if (value) "grid" else "list") } })
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        Row(Modifier.horizontalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             MUSIC_CATEGORIES.forEach { (key,label) -> FilterChip(selected = category == key, onClick = { category = key; selected = emptySet() }, label = { Text(label) }) }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -163,7 +166,7 @@ fun MusicScreen(libraryViewModel: LibraryViewModel, appContext: android.content.
                     onEdit = { filteredSongs.firstOrNull { it.id in selected }?.let { editFor = it } },
                 )
                 if (grid) {
-                    LazyVerticalGrid(
+                    LazyVerticalGrid(state = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() },
                         columns = GridCells.Fixed(2),
                         modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
@@ -187,7 +190,7 @@ fun MusicScreen(libraryViewModel: LibraryViewModel, appContext: android.content.
                         }
                     }
                 } else {
-                    LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    LazyColumn(Modifier, state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) }.weight(1f), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (filteredSongs.isEmpty()) item { EmptyMusic("No songs found", if (category == "likes") "Like a song to see it here." else "Music on this device will appear here.") }
                         items(filteredSongs, key = { it.id }) { item ->
                             NativeMusicRow(
@@ -246,7 +249,7 @@ private data class CollectionGroup(val name: String, val songs: List<MediaItem>)
 private fun SelectionBar(count: Int, onClear: () -> Unit, onSelectAll: () -> Unit, onPlay: () -> Unit, onPlayNext: () -> Unit, onPlaylist: () -> Unit, onLike: () -> Unit, onEdit: () -> Unit) {
     val colors = LocalAirPlayrColors.current
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerHighest)) {
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }).padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onClear) { Icon(Icons.Default.Close, "Clear", tint = colors.primary) }
             Text("$count selected", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 5.dp))
             IconButton(onClick = onPlay) { Icon(Icons.Default.PlayArrow, "Play selected", tint = colors.primary) }
@@ -300,11 +303,11 @@ private fun NativeMusicTile(item: MediaItem, favorite: Boolean, playing: Boolean
 
 @Composable private fun CollectionGrid(grid:Boolean, data:List<Any>, onClick:(Any)->Unit, circular:Boolean=false, modifier:Modifier=Modifier) {
     val colors=LocalAirPlayrColors.current
-    if(grid) LazyVerticalGrid(GridCells.Fixed(2),modifier, contentPadding=PaddingValues(12.dp), horizontalArrangement=Arrangement.spacedBy(10.dp), verticalArrangement=Arrangement.spacedBy(16.dp)){items(data){ raw -> val (name,songs)=when(raw){is AlbumGroup->raw.name to raw.songs; is CollectionGroup->raw.name to raw.songs; else->"Unknown" to emptyList()}; Column(Modifier.clickableCompat { onClick(raw) }.fillMaxWidth()){Artwork(songs.firstOrNull()?.artworkUri,Modifier.fillMaxWidth().height(170.dp),if(circular)85.dp else 22.dp,name);Text(name,style=MaterialTheme.typography.titleSmall,maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.padding(top=6.dp));Text("${songs.size} songs",style=MaterialTheme.typography.labelSmall,color=colors.textSecondary)}}}
-    else LazyColumn(modifier,contentPadding=PaddingValues(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){items(data){raw->val(name,songs)=when(raw){is AlbumGroup->raw.name to raw.songs;is CollectionGroup->raw.name to raw.songs;else->"Unknown" to emptyList()};AirPlayrCard(Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp),containerColor=colors.surfaceSolid,elevation=0.dp){Row(Modifier.fillMaxWidth().padding(10.dp).clickableCompat { onClick(raw) },verticalAlignment=Alignment.CenterVertically){Artwork(songs.firstOrNull()?.artworkUri,Modifier.size(66.dp),if(circular)33.dp else 16.dp,name);Column(Modifier.weight(1f).padding(horizontal=12.dp)){Text(name,style=MaterialTheme.typography.titleMedium);Text("${songs.size} songs",style=MaterialTheme.typography.bodySmall,color=colors.textSecondary)}}}}}
+    if(grid) LazyVerticalGrid(GridCells.Fixed(2), modifier, state = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }, contentPadding=PaddingValues(12.dp), horizontalArrangement=Arrangement.spacedBy(10.dp), verticalArrangement=Arrangement.spacedBy(16.dp)){items(data){ raw -> val (name,songs)=when(raw){is AlbumGroup->raw.name to raw.songs; is CollectionGroup->raw.name to raw.songs; else->"Unknown" to emptyList()}; Column(Modifier.clickableCompat { onClick(raw) }.fillMaxWidth()){Artwork(songs.firstOrNull()?.artworkUri,Modifier.fillMaxWidth().height(170.dp),if(circular)85.dp else 22.dp,name, com.airplayr.app.core.data.media.MediaType.AUDIO, if(circular) AirPlayrIcons.Artist else AirPlayrIcons.ArtTrack);Text(name,style=MaterialTheme.typography.titleSmall,maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.padding(top=6.dp));Text("${songs.size} songs",style=MaterialTheme.typography.labelSmall,color=colors.textSecondary)}}}
+    else LazyColumn(modifier, state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding=PaddingValues(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){items(data){raw->val(name,songs)=when(raw){is AlbumGroup->raw.name to raw.songs;is CollectionGroup->raw.name to raw.songs;else->"Unknown" to emptyList()};AirPlayrCard(Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp),containerColor=colors.surfaceSolid,elevation=0.dp){Row(Modifier.fillMaxWidth().padding(10.dp).clickableCompat { onClick(raw) },verticalAlignment=Alignment.CenterVertically){Artwork(songs.firstOrNull()?.artworkUri,Modifier.size(66.dp),if(circular)33.dp else 16.dp,name, com.airplayr.app.core.data.media.MediaType.AUDIO, if(circular) AirPlayrIcons.Artist else AirPlayrIcons.ArtTrack);Column(Modifier.weight(1f).padding(horizontal=12.dp)){Text(name,style=MaterialTheme.typography.titleMedium);Text("${songs.size} songs",style=MaterialTheme.typography.bodySmall,color=colors.textSecondary)}}}}}
 }
 
-@Composable private fun GenreGrid(data:List<CollectionGroup>, onNavigate:(String)->Unit, modifier:Modifier=Modifier){ val colors=LocalAirPlayrColors.current; LazyVerticalGrid(GridCells.Fixed(2),modifier,contentPadding=PaddingValues(12.dp),horizontalArrangement=Arrangement.spacedBy(10.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){items(data){g->AirPlayrCard(Modifier.fillMaxWidth().height(148.dp),shape=RoundedCornerShape(24.dp),containerColor=listOf(colors.primaryContainer,colors.secondaryContainer,colors.tertiaryContainer)[(g.name.hashCode() and Int.MAX_VALUE)%3],elevation=0.dp,onClick={onNavigate("genre/${java.net.URLEncoder.encode(g.name,"UTF-8")}")}){Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(colors.surfaceContainer.copy(alpha=.1f),colors.surfaceVariant.copy(alpha=.24f))))){Column(Modifier.padding(16.dp)){Text(g.name,style=MaterialTheme.typography.headlineSmall,maxLines=2);Text("${g.songs.size} songs",style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(top=4.dp))};Artwork(g.songs.firstOrNull()?.artworkUri,Modifier.size(92.dp).align(Alignment.BottomEnd).padding(5.dp),18.dp,g.name)}}}} }
+@Composable private fun GenreGrid(data:List<CollectionGroup>, onNavigate:(String)->Unit, modifier:Modifier=Modifier){ val colors=LocalAirPlayrColors.current; LazyVerticalGrid(GridCells.Fixed(2), modifier, state = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() },contentPadding=PaddingValues(12.dp),horizontalArrangement=Arrangement.spacedBy(10.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){items(data){g->AirPlayrCard(Modifier.fillMaxWidth().height(148.dp),shape=RoundedCornerShape(24.dp),containerColor=listOf(colors.primaryContainer,colors.secondaryContainer,colors.tertiaryContainer)[(g.name.hashCode() and Int.MAX_VALUE)%3],elevation=0.dp,onClick={onNavigate("genre/${java.net.URLEncoder.encode(g.name,"UTF-8")}")}){Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(colors.surfaceContainer.copy(alpha=.1f),colors.surfaceVariant.copy(alpha=.24f))))){Column(Modifier.padding(16.dp)){Text(g.name,style=MaterialTheme.typography.headlineSmall,maxLines=2);Text("${g.songs.size} songs",style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(top=4.dp))};Artwork(g.songs.firstOrNull()?.artworkUri,Modifier.size(92.dp).align(Alignment.BottomEnd).padding(5.dp),18.dp,g.name)}}}} }
 
 @Composable
 private fun PlaylistGrid(
@@ -327,7 +330,7 @@ private fun PlaylistGrid(
             IconButton(onClick = onAdd) { Icon(Icons.Default.Add, "Create playlist", tint = colors.primary) }
         }
         if (grid) {
-            LazyVerticalGrid(
+            LazyVerticalGrid(state = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() },
                 columns = GridCells.Fixed(2),
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(12.dp),
@@ -339,7 +342,7 @@ private fun PlaylistGrid(
                 }
             }
         } else {
-            LazyColumn(
+            LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),

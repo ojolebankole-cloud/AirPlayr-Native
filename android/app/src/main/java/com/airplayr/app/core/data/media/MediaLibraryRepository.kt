@@ -3,28 +3,51 @@ package com.airplayr.app.core.data.media
 import androidx.room.withTransaction
 import com.airplayr.app.core.data.db.AirPlayrDatabase
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 class MediaLibraryRepository(
-    private val database: AirPlayrDatabase,
+    private val databaseProvider: () -> AirPlayrDatabase,
     private val mediaStore: MediaStoreDataSource,
-    private val metadata: com.airplayr.app.core.metadata.MetadataRepository,
+    private val metadataProvider: () -> com.airplayr.app.core.metadata.MetadataRepository,
 ) {
     private val refreshMutex = Mutex()
+    private val database: AirPlayrDatabase get() = databaseProvider()
+    private val metadata: com.airplayr.app.core.metadata.MetadataRepository get() = metadataProvider()
 
-    fun observe(type: MediaType): Flow<List<MediaItem>> =
-        database.mediaItemDao().observeByType(type.value)
-            .map { list -> list.map(MediaItemEntity::asExternal) }
+    fun observe(type: MediaType): Flow<List<MediaItem>> = flow {
+        emitAll(database.mediaItemDao().observeByType(type.value))
+    }.map { list -> list.map(MediaItemEntity::asExternal) }
+        .flowOn(kotlinx.coroutines.Dispatchers.IO)
+
+    fun observeRecent(type: MediaType, limit: Int = 30): Flow<List<MediaItem>> = flow {
+        emitAll(database.mediaItemDao().observeRecentByType(type.value, limit.coerceIn(1, 100)))
+    }.map { list -> list.map(MediaItemEntity::asExternal) }
+        .flowOn(kotlinx.coroutines.Dispatchers.IO)
 
     suspend fun page(type: MediaType, limit: Int = 250, offset: Int = 0): List<MediaItem> =
         database.mediaItemDao().getPage(type.value, limit.coerceIn(1, 250), offset.coerceAtLeast(0))
             .map(MediaItemEntity::asExternal)
 
+    suspend fun all(type: MediaType): List<MediaItem> =
+        database.mediaItemDao().getPage(type.value, Int.MAX_VALUE, 0).map(MediaItemEntity::asExternal)
+
+    fun observeFolderCount(): Flow<Int> = flow { emitAll(database.mediaItemDao().observeFolderCount()) }.flowOn(kotlinx.coroutines.Dispatchers.IO)
+
     suspend fun count(type: MediaType): Int = database.mediaItemDao().count(type.value)
 
+    fun observeCount(type: MediaType): Flow<Int> = flow { emitAll(database.mediaItemDao().observeCount(type.value)) }.flowOn(kotlinx.coroutines.Dispatchers.IO)
+
     suspend fun get(id: String): MediaItem? = database.mediaItemDao().getById(id)?.asExternal()?.let { metadata.overlay(it) }
+
+    suspend fun getByIds(ids: Set<String>): List<MediaItem> =
+        if (ids.isEmpty()) emptyList() else database.mediaItemDao().getByIds(ids.toList()).map(MediaItemEntity::asExternal)
 
     /**
      * Deliberately rebuilds the MediaStore-owned portion of the library.
@@ -33,8 +56,11 @@ class MediaLibraryRepository(
      * Normal launches, workers, screens and ViewModels must use [deltaRefresh] instead.
      */
     suspend fun fullRescan(onProgress: ((found: Int, total: Int, label: String) -> Unit)? = null): RefreshResult = refreshMutex.withLock {
-        val audio = mediaStore.query(MediaType.AUDIO)
-        val video = mediaStore.query(MediaType.VIDEO)
+        val (audio, video) = coroutineScope {
+            val audioDeferred = async { mediaStore.query(MediaType.AUDIO) }
+            val videoDeferred = async { mediaStore.query(MediaType.VIDEO) }
+            audioDeferred.await() to videoDeferred.await()
+        }
         var accessibleCount = 0
         val total = (if (audio.accessible) audio.items.size else 0) + (if (video.accessible) video.items.size else 0)
         var found = 0
@@ -75,8 +101,11 @@ class MediaLibraryRepository(
      * SAF/imported rows (sourceDirectoryUri != null) are never touched.
      */
     suspend fun deltaRefresh(): RefreshResult = refreshMutex.withLock {
-        val audio = mediaStore.query(MediaType.AUDIO)
-        val video = mediaStore.query(MediaType.VIDEO)
+        val (audio, video) = coroutineScope {
+            val audioDeferred = async { mediaStore.query(MediaType.AUDIO) }
+            val videoDeferred = async { mediaStore.query(MediaType.VIDEO) }
+            audioDeferred.await() to videoDeferred.await()
+        }
         var accessibleCount = 0
         var totalAdded = 0
         var totalUpdated = 0
@@ -122,19 +151,21 @@ class MediaLibraryRepository(
 
 
     private suspend fun fullSyncMediaStoreType(type: MediaType, items: List<MediaItem>, onBatchCommitted: ((Int) -> Unit)? = null) {
-        val dao = database.mediaItemDao()
-        val existing = dao.getMediaStoreByType(type.value).associateBy { it.id }
-        val incoming = items.map(MediaItem::asEntity).associateBy { it.id }
+        database.withTransaction {
+            val dao = database.mediaItemDao()
+            val existing = dao.getMediaStoreByType(type.value).associateBy { it.id }
+            val incoming = items.map(MediaItem::asEntity).associateBy { it.id }
 
-        incoming.values.chunked(FULL_SCAN_BATCH_SIZE).forEach { batch ->
-            if (batch.isNotEmpty()) {
-                dao.insertAll(batch)
-                onBatchCommitted?.invoke(batch.size)
+            incoming.values.chunked(FULL_SCAN_BATCH_SIZE).forEach { batch ->
+                if (batch.isNotEmpty()) {
+                    dao.insertAll(batch)
+                    onBatchCommitted?.invoke(batch.size)
+                }
             }
-        }
 
-        val removedIds = existing.keys - incoming.keys
-        if (removedIds.isNotEmpty()) dao.deleteByIds(removedIds.toList())
+            val removedIds = existing.keys - incoming.keys
+            if (removedIds.isNotEmpty()) dao.deleteByIds(removedIds.toList())
+        }
     }
 
     private suspend fun reconcileMediaStoreType(type: MediaType, items: List<MediaItem>): DeltaResult {

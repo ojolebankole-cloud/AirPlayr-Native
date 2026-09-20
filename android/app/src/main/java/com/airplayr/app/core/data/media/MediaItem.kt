@@ -8,6 +8,8 @@ import androidx.room.PrimaryKey
     tableName = "media_items",
     indices = [
         Index(value = ["mediaType", "dateModified"]),
+        Index(value = ["mediaType", "dateAdded"]),
+        Index(value = ["mediaType", "sourceDirectoryUri"]),
         Index(value = ["mediaType", "title"]),
         Index(value = ["mediaType", "artist"]),
         Index(value = ["mediaStoreId"], unique = false),

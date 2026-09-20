@@ -1,0 +1,16 @@
+Phase 9 — AirPlayr icon + splash implementation
+
+Source assets:
+- App launcher icon: supplied 1536x1536 JPEG used as the legacy density launcher artwork.
+- Splash logo: supplied airplayr-themeable-logo.svg translated to Android VectorDrawable geometry so its color comes from the theme instead of a baked bitmap color.
+
+Android 13+:
+- Adaptive launcher icon includes a monochrome layer for themed-icon support.
+- Legacy launcher artwork remains the supplied app icon image.
+
+Splash:
+- AndroidX SplashScreen continues to be installed before Activity super.onCreate.
+- Splash icon now uses the themeable vector logo.
+- API 31+ splash background uses a system dynamic neutral color; older APIs retain the existing fallback color.
+
+No dependencies were added or changed.

@@ -9,7 +9,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class MediaStoreDataSource(context: Context) {
-    private val resolver: ContentResolver = context.contentResolver
+    private val appContext = context.applicationContext
+    private val resolver: ContentResolver = appContext.contentResolver
+
+    /** MediaStore provides a cheap collection version on API 30+. Use it to skip full deltas
+     * when the device media database has not changed at all. */
+    fun externalLibraryVersion(): String? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            runCatching { MediaStore.getVersion(appContext, MediaStore.VOLUME_EXTERNAL) }.getOrNull()
+        } else null
 
     suspend fun query(type: MediaType, maxItems: Int = MAX_LIBRARY_ITEMS): MediaStoreRead = withContext(Dispatchers.IO) {
         val projection = when (type) {
@@ -20,7 +28,6 @@ class MediaStoreDataSource(context: Context) {
             MediaType.AUDIO -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
             MediaType.VIDEO -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
         }
-        val sort = "${MediaStore.MediaColumns.DATE_MODIFIED} DESC, ${MediaStore.MediaColumns._ID} DESC"
         val result = ArrayList<MediaItem>(minOf(maxItems, 1024))
 
         val cursor = try {
@@ -29,7 +36,7 @@ class MediaStoreDataSource(context: Context) {
                 projection,
                 null,
                 null,
-                sort,
+                null,
             )
         } catch (_: SecurityException) {
             return@withContext MediaStoreRead(accessible = false, items = emptyList())
