@@ -126,7 +126,8 @@ import com.airplayr.app.ui.video.VideoPlayerViewModelFactory
         }
     }
 }
-@Composable private fun AndroidPlayerView(player:Player,modifier:Modifier){AndroidView(factory={ctx->PlayerView(ctx).apply{layoutParams=ViewGroup.LayoutParams(-1,-1);useController=true;keepContentOnPlayerReset=true;this.player=player}},update={it.player=player},modifier=modifier)}
+@OptIn(UnstableApi::class)
+@Composable private fun AndroidPlayerView(player:Player,modifier:Modifier){AndroidView(factory={ctx->PlayerView(ctx).apply{layoutParams=ViewGroup.LayoutParams(-1,-1);useController=true;setKeepContentOnPlayerReset(true);this.player=player}},update={it.player=player},modifier=modifier)}
 
 private fun formatTime(ms: Long): String {
     val total = (ms / 1000L).coerceAtLeast(0L)

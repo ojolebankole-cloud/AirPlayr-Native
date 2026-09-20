@@ -193,8 +193,9 @@ fun MenuDrawer(
 
                 Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).size(1.dp).background(colors.outlineVariant.copy(alpha = .65f)))
 
-                LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
-                    Modifier.fillMaxWidth().weight(1f),
+                LazyColumn(
+                    state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
+                    modifier = Modifier.fillMaxWidth().weight(1f),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {

@@ -114,8 +114,9 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
     }
     fun confirmAction(title: String, message: String, action: suspend () -> Unit) { confirm = ConfirmAction(title, message, action) }
 
-    LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
-        Modifier.fillMaxSize(),
+    LazyColumn(
+        state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {

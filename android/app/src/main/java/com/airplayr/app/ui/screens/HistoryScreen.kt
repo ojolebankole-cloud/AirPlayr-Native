@@ -99,7 +99,11 @@ fun HistoryScreen(
     }
 
     Box(Modifier.fillMaxSize().background(colors.background)) {
-        LazyColumn(Modifier, state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) }.fillMaxSize(), contentPadding = PaddingValues(top = 0.dp, bottom = 190.dp)) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
+            contentPadding = PaddingValues(top = 0.dp, bottom = 190.dp),
+        ) {
             item {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp).heightIn(min = 66.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = colors.primary, modifier = Modifier.size(30.dp)) }

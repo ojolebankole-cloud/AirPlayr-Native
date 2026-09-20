@@ -190,7 +190,12 @@ fun MusicScreen(libraryViewModel: LibraryViewModel, appContext: android.content.
                         }
                     }
                 } else {
-                    LazyColumn(Modifier, state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) }.weight(1f), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
                         if (filteredSongs.isEmpty()) item { EmptyMusic("No songs found", if (category == "likes") "Like a song to see it here." else "Music on this device will appear here.") }
                         items(filteredSongs, key = { it.id }) { item ->
                             NativeMusicRow(

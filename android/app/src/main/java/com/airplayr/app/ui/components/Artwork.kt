@@ -10,6 +10,7 @@ import android.util.Size
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.height
@@ -117,7 +118,7 @@ fun Artwork(
     }
 }
 
-@Composable private fun PlayingWaveIndicator() {
+@Composable private fun BoxScope.PlayingWaveIndicator() {
     val transition = rememberInfiniteTransition(label = "artwork-playing-wave")
     val a by transition.animateFloat(0.35f, 1f, infiniteRepeatable(tween(420), RepeatMode.Reverse), label = "wave-a")
     val b by transition.animateFloat(1f, 0.42f, infiniteRepeatable(tween(520), RepeatMode.Reverse), label = "wave-b")

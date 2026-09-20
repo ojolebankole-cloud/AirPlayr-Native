@@ -81,8 +81,17 @@ class HomeRepository(
                 videoProgress,
                 audioCount,
                 videoCount,
-            ) { audio, video, historyRows, repeatedRows, progressRows, audioTotal, videoTotal ->
-                HomeInputs(audio, video, historyRows, repeatedRows, progressRows, audioTotal, videoTotal)
+            ) { values ->
+                @Suppress("UNCHECKED_CAST")
+                HomeInputs(
+                    audio = values[0] as List<MediaItem>,
+                    video = values[1] as List<MediaItem>,
+                    history = values[2] as List<PlaybackHistoryEntity>,
+                    repeated = values[3] as List<PlaybackHistoryEntity>,
+                    videoProgress = values[4] as List<VideoProgressEntity>,
+                    audioCount = values[5] as Int,
+                    videoCount = values[6] as Int,
+                )
             }.distinctUntilChanged().collectLatest { inputs ->
                 // Publish the bounded lists/counts first so Home has useful content as soon as
                 // Room produces its snapshot. Enrichment happens off the UI thread and is then

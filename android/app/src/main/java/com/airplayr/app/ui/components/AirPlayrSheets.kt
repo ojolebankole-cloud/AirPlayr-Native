@@ -324,8 +324,9 @@ fun LyricsSheet(
             }
 
             if (hasSynced) {
-                LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
-                    Modifier.fillMaxWidth().height(500.dp),
+                LazyColumn(
+                    state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
+                    modifier = Modifier.fillMaxWidth().height(500.dp),
                     verticalArrangement = Arrangement.spacedBy(1.dp),
                     contentPadding = PaddingValues(vertical = 6.dp),
                 ) {
