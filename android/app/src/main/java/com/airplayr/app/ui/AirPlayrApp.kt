@@ -223,7 +223,6 @@ fun AirPlayrApp(
         Box(Modifier.fillMaxSize()) {
             val contentModifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = reservedBottom)
             NavHost(
                 navController = navController,
                 startDestination = "home",
