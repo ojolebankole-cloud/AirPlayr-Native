@@ -93,7 +93,7 @@ fun AirPlayrBottomDock(
             shape = AirPlayrDockCardShape,
             color = MaterialTheme.colorScheme.surfaceContainer,
             tonalElevation = 1.dp,
-            shadowElevation = 9.dp,
+            shadowElevation = 0.dp,
         ) {
             Column(Modifier.fillMaxWidth()) {
                 if (miniVisible) {
@@ -147,7 +147,7 @@ fun AirPlayrMiniPlayerOnly(
             shape = AirPlayrDockCardShape,
             color = MaterialTheme.colorScheme.surfaceContainer,
             tonalElevation = 1.dp,
-            shadowElevation = 9.dp,
+            shadowElevation = 0.dp,
         ) {
             MiniPlayerSection(playback, onOpenPlayer)
         }
