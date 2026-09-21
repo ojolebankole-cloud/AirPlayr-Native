@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -27,6 +28,12 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.filled.ViewModule
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.BookmarkAdd
+import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
@@ -36,6 +43,8 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.VideoLibrary
@@ -44,7 +53,6 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.FileDownload
-import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Delete
@@ -52,9 +60,17 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import android.content.ContentValues
+import android.content.Intent
+import android.os.Build
+import android.provider.MediaStore
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,6 +83,7 @@ import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.navigation.LibraryViewModel
 import com.airplayr.app.ui.playback.PlaybackController
 import com.airplayr.app.ui.components.AirPlayrMediaRow
+import com.airplayr.app.ui.components.AirPlayrMediaArtwork
 import com.airplayr.app.ui.components.AIRPLAYR_FLOATING_PLAY_BOTTOM
 import com.airplayr.app.ui.components.AIRPLAYR_FLOATING_PLAY_BOTTOM_WITH_MINI
 import com.airplayr.app.ui.components.displayArtworkUri
@@ -74,6 +91,10 @@ import com.airplayr.app.ui.components.AirPlayrScreenHeader
 import com.airplayr.app.ui.components.AirPlayrSectionEmpty
 import com.airplayr.app.ui.components.ActionGroup
 import com.airplayr.app.ui.components.ActionButton
+import com.airplayr.app.ui.feedback.AppFeedback
+import com.airplayr.app.ui.components.HistoryFavoritePlaylistSheet
+import com.airplayr.app.ui.components.TagEditorSheet
+import com.airplayr.app.core.playback.VideoQueueStore
 import com.airplayr.app.ui.theme.AirPlayrColors
 import kotlinx.coroutines.launch
 
@@ -315,6 +336,8 @@ private data class FolderEntry(
     val name: String,
     val audio: List<MediaItem>,
     val video: List<MediaItem>,
+    val dateAdded: Long,
+    val dateModified: Long,
 )
 
 private fun mediaFolderPath(item: MediaItem): String =
@@ -336,6 +359,8 @@ private fun buildFolderEntries(audio: List<MediaItem>, video: List<MediaItem>): 
                 name = mediaFolderName(path),
                 audio = items.filter { it.mediaType == MediaType.AUDIO },
                 video = items.filter { it.mediaType == MediaType.VIDEO },
+                dateAdded = items.maxOfOrNull { it.dateAdded } ?: 0L,
+                dateModified = items.maxOfOrNull { it.dateModified } ?: 0L,
             )
         }
         .sortedBy { it.name.lowercase() }
@@ -406,173 +431,338 @@ private fun FolderSummaryChip(
 @Composable
 private fun FolderCard(
     folder: FolderEntry,
+    selectionMode: Boolean,
+    selected: Boolean,
     onOpen: () -> Unit,
+    onToggleSelection: () -> Unit,
 ) {
     val colors = LocalAirPlayrColors.current
     val (iconContainer, iconContent, accent) = FolderAccent(folder.audio.size, folder.video.size)
+    val shape = RoundedCornerShape(22.dp)
+    val cardModifier = Modifier
+        .fillMaxWidth()
+        .then(if (selected) Modifier.border(2.dp, colors.primary, shape) else Modifier)
+
     AirPlayrCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        containerColor = colors.surfaceSolid,
-        elevation = 5.dp,
-        onClick = onOpen,
+        modifier = cardModifier,
+        shape = shape,
+        containerColor = if (selected) colors.primaryContainer.copy(alpha = 0.34f) else colors.surfaceSolid,
+        elevation = 0.dp,
+        onClick = if (selectionMode) onToggleSelection else onOpen,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier.size(116.dp).clip(RoundedCornerShape(26.dp)).background(iconContainer),
-                contentAlignment = Alignment.Center,
+        Box(Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    Icons.Default.Folder,
-                    contentDescription = null,
-                    tint = iconContent,
-                    modifier = Modifier.size(58.dp),
-                )
-                Surface(
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
-                    shape = RoundedCornerShape(11.dp),
-                    color = accent,
-                    shadowElevation = 2.dp,
+                Box(
+                    modifier = Modifier.size(78.dp).clip(RoundedCornerShape(20.dp)).background(iconContainer),
+                    contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        when {
-                            folder.audio.isNotEmpty() && folder.video.isNotEmpty() -> Icons.Default.PlayArrow
-                            folder.audio.isNotEmpty() -> Icons.Default.MusicNote
-                            else -> Icons.Default.VideoLibrary
-                        },
+                        Icons.Default.Folder,
                         contentDescription = null,
-                        tint = when {
-                            folder.audio.isNotEmpty() && folder.video.isNotEmpty() -> colors.onSecondary
-                            folder.audio.isNotEmpty() -> colors.onPrimary
-                            else -> colors.onTertiary
-                        },
-                        modifier = Modifier.padding(7.dp).size(20.dp),
+                        tint = iconContent,
+                        modifier = Modifier.size(40.dp),
                     )
+                    Surface(
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(5.dp),
+                        shape = RoundedCornerShape(9.dp),
+                        color = accent,
+                        shadowElevation = 0.dp,
+                    ) {
+                        Icon(
+                            when {
+                                folder.audio.isNotEmpty() && folder.video.isNotEmpty() -> Icons.Default.PlayArrow
+                                folder.audio.isNotEmpty() -> Icons.Default.MusicNote
+                                else -> Icons.Default.VideoLibrary
+                            },
+                            contentDescription = null,
+                            tint = when {
+                                folder.audio.isNotEmpty() && folder.video.isNotEmpty() -> colors.onSecondary
+                                folder.audio.isNotEmpty() -> colors.onPrimary
+                                else -> colors.onTertiary
+                            },
+                            modifier = Modifier.padding(5.dp).size(16.dp),
+                        )
+                    }
+                }
+                Column(
+                    modifier = Modifier.weight(1f).padding(start = 13.dp, end = if (selectionMode) 38.dp else 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Text(
+                        folder.name,
+                        fontFamily = AirPlayrFonts.SmoochSans,
+                        fontSize = 18.sp,
+                        lineHeight = 22.sp,
+                        color = colors.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        folder.path,
+                        fontFamily = AirPlayrFonts.OpenSans,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        color = colors.textSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    FolderSummaryChip(folder)
                 }
             }
-            Column(
-                modifier = Modifier.weight(1f).padding(start = 18.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
-                Text(
-                    folder.name,
-                    fontFamily = AirPlayrFonts.SmoochSans,
-                    fontSize = 22.sp,
-                    lineHeight = 27.sp,
-                    color = colors.textPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    folder.path,
-                    fontFamily = AirPlayrFonts.OpenSans,
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                    color = colors.textSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Box(Modifier.padding(top = 3.dp)) {
-                    FolderSummaryChip(folder)
+            if (selectionMode) {
+                Surface(
+                    modifier = Modifier.align(Alignment.TopEnd).padding(top = 10.dp, end = 10.dp).size(30.dp),
+                    shape = androidx.compose.foundation.shape.CircleShape,
+                    color = if (selected) colors.primary else colors.surfaceContainerHighest,
+                    shadowElevation = 0.dp,
+                ) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Icon(
+                            if (selected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                            contentDescription = if (selected) "Selected" else "Not selected",
+                            tint = if (selected) colors.onPrimary else colors.textSecondary,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun FoldersScreen(
     container: AppContainer,
     libraryViewModel: LibraryViewModel,
+    playback: PlaybackController,
     onOpen: (String) -> Unit,
     onBack: () -> Unit = {},
 ) {
     val colors = LocalAirPlayrColors.current
     val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
     var selectedTab by rememberSaveable { mutableStateOf(FolderTab.ALL) }
+    var sortKey by rememberSaveable { mutableStateOf("name") }
     var ascending by rememberSaveable { mutableStateOf(true) }
+    var selectionMode by rememberSaveable { mutableStateOf(false) }
+    var selectedPaths by remember { mutableStateOf<Set<String>>(emptySet()) }
     var menuOpen by remember { mutableStateOf(false) }
+    var sortSheetOpen by remember { mutableStateOf(false) }
+    var playlistSheetOpen by remember { mutableStateOf(false) }
+
     val allFolders = remember(snapshot.audio, snapshot.video) { buildFolderEntries(snapshot.audio, snapshot.video) }
     val musicFolders = remember(allFolders) { allFolders.filter { it.audio.isNotEmpty() } }
     val videoFolders = remember(allFolders) { allFolders.filter { it.video.isNotEmpty() } }
-    val visibleFolders = remember(selectedTab, ascending, allFolders, musicFolders, videoFolders) {
-        val base = when (selectedTab) {
-            FolderTab.ALL -> allFolders
-            FolderTab.MUSIC -> musicFolders
-            FolderTab.VIDEO -> videoFolders
+    val baseFolders = when (selectedTab) {
+        FolderTab.ALL -> allFolders
+        FolderTab.MUSIC -> musicFolders
+        FolderTab.VIDEO -> videoFolders
+    }
+    val visibleFolders = remember(baseFolders, sortKey, ascending) {
+        val sorted = when (sortKey) {
+            "count" -> baseFolders.sortedBy { folder ->
+                when (selectedTab) {
+                    FolderTab.ALL -> folder.audio.size + folder.video.size
+                    FolderTab.MUSIC -> folder.audio.size
+                    FolderTab.VIDEO -> folder.video.size
+                }
+            }
+            "added" -> baseFolders.sortedBy { it.dateAdded }
+            "modified" -> baseFolders.sortedBy { it.dateModified }
+            else -> baseFolders.sortedBy { it.name.lowercase() }
         }
-        if (ascending) base else base.asReversed()
+        if (ascending) sorted else sorted.asReversed()
+    }
+    val visiblePaths = remember(visibleFolders) { visibleFolders.map { it.path }.toSet() }
+    val selectedFolders = remember(allFolders, selectedPaths) { allFolders.filter { it.path in selectedPaths } }
+    val selectedItems = remember(selectedFolders) {
+        selectedFolders.flatMap { it.audio + it.video }.distinctBy { it.id }
+    }
+    val hasSelection = selectedPaths.isNotEmpty()
+
+    fun clearSelection() {
+        selectedPaths = emptySet()
+        selectionMode = false
+    }
+
+    fun enterSelectionMode() {
+        selectionMode = true
+        selectedPaths = emptySet()
+    }
+
+    fun toggleFolderSelection(folder: FolderEntry) {
+        selectedPaths = if (folder.path in selectedPaths) selectedPaths - folder.path else selectedPaths + folder.path
+    }
+
+    fun selectAllVisible() {
+        selectedPaths = visiblePaths
     }
 
     Column(Modifier.fillMaxSize().background(colors.background)) {
         AirPlayrScreenHeader(
             title = "Folders",
             subtitle = "${allFolders.size} folders · media only",
-            onBack = onBack,
+            onBack = if (selectionMode) ({ clearSelection() }) else onBack,
             trailing = {
                 Box {
                     IconButton(onClick = { menuOpen = true }) {
                         Icon(Icons.Default.MoreVert, "Folder options", tint = colors.primary, modifier = Modifier.size(27.dp))
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Refresh library") },
-                            leadingIcon = { Icon(Icons.Default.Refresh, null) },
-                            onClick = { menuOpen = false; libraryViewModel.refresh() },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(if (ascending) "Sort Z–A" else "Sort A–Z") },
-                            leadingIcon = { Icon(Icons.Default.Sort, null) },
-                            onClick = { menuOpen = false; ascending = !ascending },
-                        )
+                        if (!selectionMode) {
+                            DropdownMenuItem(text = { Text("Select") }, leadingIcon = { Icon(Icons.Default.CheckCircle, null) }, onClick = { menuOpen = false; enterSelectionMode() })
+                            DropdownMenuItem(text = { Text("Refresh library") }, leadingIcon = { Icon(Icons.Default.Refresh, null) }, onClick = { menuOpen = false; libraryViewModel.refresh() })
+                            DropdownMenuItem(text = { Text("Sort by") }, leadingIcon = { Icon(Icons.Default.Sort, null) }, onClick = { menuOpen = false; sortSheetOpen = true })
+                            DropdownMenuItem(text = { Text("Blacklist") }, leadingIcon = { Icon(Icons.Default.Block, null) }, onClick = { menuOpen = false; com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Blacklist is not available yet.") })
+                        } else if (!hasSelection) {
+                            DropdownMenuItem(text = { Text("Select all") }, leadingIcon = { Icon(Icons.Default.CheckCircle, null) }, onClick = { menuOpen = false; selectAllVisible() })
+                            DropdownMenuItem(text = { Text("Refresh library") }, leadingIcon = { Icon(Icons.Default.Refresh, null) }, onClick = { menuOpen = false; libraryViewModel.refresh() })
+                            DropdownMenuItem(text = { Text("Sort by") }, leadingIcon = { Icon(Icons.Default.Sort, null) }, onClick = { menuOpen = false; sortSheetOpen = true })
+                            DropdownMenuItem(text = { Text("Blacklist") }, leadingIcon = { Icon(Icons.Default.Block, null) }, onClick = { menuOpen = false; com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Blacklist is not available yet.") })
+                        } else {
+                            DropdownMenuItem(text = { Text("Deselect") }, leadingIcon = { Icon(Icons.Default.RadioButtonUnchecked, null) }, onClick = { menuOpen = false; clearSelection() })
+                            DropdownMenuItem(text = { Text("Play next") }, leadingIcon = { Icon(Icons.Default.SkipNext, null) }, onClick = {
+                                menuOpen = false
+                                val audio = selectedItems.filter { it.mediaType == MediaType.AUDIO }
+                                val video = selectedItems.filter { it.mediaType == MediaType.VIDEO }
+                                audio.asReversed().forEach { playback.playNext(it) }
+                                if (video.isNotEmpty()) VideoQueueStore.playNext(video)
+                                com.airplayr.app.ui.feedback.AppFeedback.showSnackbar(folderQueueMessage(audio.size, video.size, true))
+                                clearSelection()
+                            })
+                            DropdownMenuItem(text = { Text("Add to queue") }, leadingIcon = { Icon(Icons.Default.QueueMusic, null) }, onClick = {
+                                menuOpen = false
+                                val audio = selectedItems.filter { it.mediaType == MediaType.AUDIO }
+                                val video = selectedItems.filter { it.mediaType == MediaType.VIDEO }
+                                audio.forEach { playback.addToQueue(it) }
+                                if (video.isNotEmpty()) VideoQueueStore.add(video)
+                                com.airplayr.app.ui.feedback.AppFeedback.showSnackbar(folderQueueMessage(audio.size, video.size, false))
+                                clearSelection()
+                            })
+                            DropdownMenuItem(text = { Text("Add to playlist") }, leadingIcon = { Icon(Icons.Default.PlaylistAdd, null) }, onClick = { menuOpen = false; playlistSheetOpen = true })
+                        }
                     }
                 }
             },
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            FolderTabButton("All", allFolders.size, selectedTab == FolderTab.ALL) { selectedTab = FolderTab.ALL }
-            FolderTabButton("Music", musicFolders.size, selectedTab == FolderTab.MUSIC) { selectedTab = FolderTab.MUSIC }
-            FolderTabButton("Videos", videoFolders.size, selectedTab == FolderTab.VIDEO) { selectedTab = FolderTab.VIDEO }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            FolderTabButton("All", allFolders.size, selectedTab == FolderTab.ALL) { selectedTab = FolderTab.ALL; if (selectionMode) selectedPaths = emptySet() }
+            FolderTabButton("Music", musicFolders.size, selectedTab == FolderTab.MUSIC) { selectedTab = FolderTab.MUSIC; if (selectionMode) selectedPaths = emptySet() }
+            FolderTabButton("Videos", videoFolders.size, selectedTab == FolderTab.VIDEO) { selectedTab = FolderTab.VIDEO; if (selectionMode) selectedPaths = emptySet() }
+        }
+
+        if (selectionMode) {
+            Text(
+                if (hasSelection) "${selectedPaths.intersect(visiblePaths).size} selected" else "Select folders",
+                fontFamily = AirPlayrFonts.OpenSans,
+                fontSize = 12.sp,
+                color = colors.textSecondary,
+                modifier = Modifier.padding(horizontal = 22.dp, vertical = 2.dp),
+            )
         }
 
         if (!snapshot.ready) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = colors.primary)
-            }
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = colors.primary) }
         } else if (visibleFolders.isEmpty()) {
             EmptyNativeState(
-                when (selectedTab) {
-                    FolderTab.ALL -> "No folders yet"
-                    FolderTab.MUSIC -> "No music folders yet"
-                    FolderTab.VIDEO -> "No video folders yet"
-                },
+                when (selectedTab) { FolderTab.ALL -> "No folders yet"; FolderTab.MUSIC -> "No music folders yet"; FolderTab.VIDEO -> "No video folders yet" },
                 "Grant media access or add a media folder in Settings.",
             )
         } else {
             LazyColumn(
                 state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 10.dp, bottom = airPlayrBottomContentPadding()),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = airPlayrBottomContentPadding()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 items(visibleFolders, key = { "${selectedTab.name}:${it.path}" }) { folder ->
-                    FolderCard(folder) {
-                        val kind = when (selectedTab) {
-                            FolderTab.ALL -> "all"
-                            FolderTab.MUSIC -> "music"
-                            FolderTab.VIDEO -> "video"
-                        }
-                        onOpen("$kind/${java.net.URLEncoder.encode(folder.path, "UTF-8")}/${java.net.URLEncoder.encode(folder.name, "UTF-8")}")
-                    }
+                    FolderCard(
+                        folder = folder,
+                        selectionMode = selectionMode,
+                        selected = folder.path in selectedPaths,
+                        onOpen = {
+                            val kind = when (selectedTab) { FolderTab.ALL -> "all"; FolderTab.MUSIC -> "music"; FolderTab.VIDEO -> "video" }
+                            onOpen("$kind/${java.net.URLEncoder.encode(folder.path, "UTF-8")}/${java.net.URLEncoder.encode(folder.name, "UTF-8")}")
+                        },
+                        onToggleSelection = { toggleFolderSelection(folder) },
+                    )
                 }
             }
         }
+    }
+
+    if (sortSheetOpen) {
+        FolderSortSheet(
+            selectedKey = sortKey,
+            ascending = ascending,
+            countLabel = when (selectedTab) { FolderTab.ALL -> "Song & video count"; FolderTab.MUSIC -> "Song count"; FolderTab.VIDEO -> "Video count" },
+            onSelectKey = { sortKey = it; sortSheetOpen = false },
+            onAscending = { ascending = true },
+            onDescending = { ascending = false },
+            onDismiss = { sortSheetOpen = false },
+        )
+    }
+
+    if (playlistSheetOpen) {
+        HistoryFavoritePlaylistSheet(container, selectedItems, onDismiss = { playlistSheetOpen = false; clearSelection() })
+    }
+}
+
+private fun folderQueueMessage(audio: Int, video: Int, next: Boolean): String {
+    val detail = when {
+        audio > 0 && video > 0 -> "$audio songs and $video videos"
+        audio > 0 -> "$audio ${if (audio == 1) "song" else "songs"}"
+        video > 0 -> "$video ${if (video == 1) "video" else "videos"}"
+        else -> "Nothing"
+    }
+    return if (audio == 0 && video == 0) "No playable media selected." else "$detail added ${if (next) "to play next" else "to the queue"} ✓"
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun FolderSortSheet(
+    selectedKey: String,
+    ascending: Boolean,
+    countLabel: String,
+    onSelectKey: (String) -> Unit,
+    onAscending: () -> Unit,
+    onDescending: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = LocalAirPlayrColors.current
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.surfaceContainerLow) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 22.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("FOLDERS", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, letterSpacing = 1.2.sp, color = colors.textSecondary, modifier = Modifier.padding(top = 4.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Sort by", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 30.sp, color = colors.textPrimary, modifier = Modifier.weight(1f))
+                Row(Modifier.clip(RoundedCornerShape(24.dp)).background(colors.surfaceContainerHigh).padding(4.dp)) {
+                    SortDirectionChip("↑ ASC", ascending, onAscending)
+                    SortDirectionChip("↓ DESC", !ascending, onDescending)
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            listOf("name" to "Name", "count" to countLabel, "modified" to "Date modified", "added" to "Date Added").forEach { (key, label) ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clickable { onSelectKey(key) },
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (selectedKey == key) colors.primaryContainer else colors.surfaceSolid,
+                ) {
+                    Text(label, fontFamily = AirPlayrFonts.OpenSans, fontSize = 16.sp, fontWeight = if (selectedKey == key) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Normal, color = colors.textPrimary, modifier = Modifier.padding(horizontal = 22.dp, vertical = 18.dp))
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+    }
+}
+
+@Composable
+private fun SortDirectionChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val colors = LocalAirPlayrColors.current
+    Surface(onClick = onClick, shape = RoundedCornerShape(20.dp), color = if (selected) colors.primaryContainer else androidx.compose.ui.graphics.Color.Transparent) {
+        Text(label, fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = colors.textPrimary, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
     }
 }
 
@@ -601,6 +791,7 @@ private fun RowScope.FolderTabButton(
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun BrowseFilterScreen(
     title: String,
@@ -613,8 +804,11 @@ fun BrowseFilterScreen(
     onBack: () -> Unit = {},
     folderMode: String? = null,
     folderName: String? = null,
+    container: AppContainer? = null,
 ) {
     val colors = LocalAirPlayrColors.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
     val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
     val isFolder = title.equals("Folders", true) && folderMode != null
     val source = when {
@@ -635,11 +829,53 @@ fun BrowseFilterScreen(
                 else -> true
             }
         }
-    }.let { list -> if (folderMode.equals("video", true)) list.sortedBy { it.title.lowercase() } else list }
+    }
     val playbackState by playback.stableState.collectAsStateWithLifecycle()
-    var ascending by rememberSaveable { mutableStateOf(true) }
-    val ordered = remember(filtered, ascending) {
-        if (ascending) filtered.sortedBy { it.title.lowercase() } else filtered.sortedByDescending { it.title.lowercase() }
+    var sortKey by rememberSaveable { mutableStateOf("name") }
+    var sortAscending by rememberSaveable { mutableStateOf(true) }
+    var sortSheetOpen by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var selectionMode by rememberSaveable { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var selectedMusicItem by remember { mutableStateOf<MediaItem?>(null) }
+    var musicActionOpen by remember { mutableStateOf(false) }
+    var musicPlaylistOpen by remember { mutableStateOf(false) }
+    var editMusicItem by remember { mutableStateOf<MediaItem?>(null) }
+    var videoActionItem by remember { mutableStateOf<MediaItem?>(null) }
+    var videoDetailsItem by remember { mutableStateOf<MediaItem?>(null) }
+    var renameVideoItem by remember { mutableStateOf<MediaItem?>(null) }
+    var renameVideoName by remember { mutableStateOf("") }
+    var pendingRename by remember { mutableStateOf<Pair<MediaItem, String>?>(null) }
+    var videoViewMode by rememberSaveable { mutableStateOf("list") }
+
+    val renameLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        val pending = pendingRename
+        pendingRename = null
+        if (result.resultCode == android.app.Activity.RESULT_OK && pending != null) {
+            val (item, name) = pending
+            val uri = item.mediaStoreId?.let { android.content.ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, it) }
+            if (uri != null) {
+                runCatching {
+                    val values = ContentValues().apply { put(MediaStore.MediaColumns.DISPLAY_NAME, name) }
+                    context.contentResolver.update(uri, values, null, null)
+                }.onSuccess {
+                    libraryViewModel.refresh()
+                    com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Video renamed ✓")
+                }.onFailure {
+                    com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Unable to rename video")
+                }
+            }
+        }
+    }
+
+    val ordered = remember(filtered, sortKey, sortAscending) {
+        val sorted = when (sortKey) {
+            "count" -> filtered.sortedBy { 1 }
+            "modified" -> filtered.sortedBy { it.dateModified }
+            "added" -> filtered.sortedBy { it.dateAdded }
+            else -> filtered.sortedBy { it.title.lowercase() }
+        }
+        if (sortAscending) sorted else sorted.asReversed()
     }
     val folderAudio = ordered.count { it.mediaType == MediaType.AUDIO }
     val folderVideo = ordered.count { it.mediaType == MediaType.VIDEO }
@@ -649,43 +885,128 @@ fun BrowseFilterScreen(
         else -> "$folderVideo ${if (folderVideo == 1) "video" else "videos"}"
     }
     val displayTitle = folderName ?: value.substringAfterLast('/').ifBlank { value }
-    var menuOpen by remember { mutableStateOf(false) }
+    val musicFolder = isFolder && folderMode.equals("music", true)
+    val selectedItems = remember(ordered, selectedIds) { ordered.filter { it.id in selectedIds } }
+    val hasSelection = selectedIds.isNotEmpty()
 
     Box(Modifier.fillMaxSize().background(colors.background)) {
         Column(Modifier.fillMaxSize()) {
             AirPlayrScreenHeader(
                 title = if (isFolder) displayTitle else value,
                 subtitle = subtitle,
-                onBack = onBack,
+                onBack = if (selectionMode) { { selectedIds = emptySet(); selectionMode = false } } else onBack,
                 trailing = if (isFolder) {
-                    { Box {
-                        IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, "Folder options", tint = colors.primary, modifier = Modifier.size(27.dp)) }
-                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            DropdownMenuItem(
-                                text = { Text(if (ascending) "Sort Z–A" else "Sort A–Z") },
-                                leadingIcon = { Icon(Icons.Default.Sort, null) },
-                                onClick = { menuOpen = false; ascending = !ascending },
-                            )
+                    {
+                        Box {
+                            IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, "Folder options", tint = colors.primary, modifier = Modifier.size(27.dp)) }
+                            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                if (!selectionMode) {
+                                    DropdownMenuItem(text = { Text("Select") }, leadingIcon = { Icon(Icons.Default.CheckCircle, null) }, onClick = { menuOpen = false; selectionMode = true; selectedIds = emptySet() })
+                                    DropdownMenuItem(text = { Text("Refresh library") }, leadingIcon = { Icon(Icons.Default.Refresh, null) }, onClick = { menuOpen = false; libraryViewModel.refresh() })
+                                    DropdownMenuItem(text = { Text("Sort by") }, leadingIcon = { Icon(Icons.Default.Sort, null) }, onClick = { menuOpen = false; sortSheetOpen = true })
+                                    DropdownMenuItem(text = { Text("Blacklist") }, leadingIcon = { Icon(Icons.Default.Block, null) }, onClick = { menuOpen = false; com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Blacklist is not available yet.") })
+                                } else if (!hasSelection) {
+                                    DropdownMenuItem(text = { Text("Select all") }, leadingIcon = { Icon(Icons.Default.CheckCircle, null) }, onClick = { menuOpen = false; selectedIds = ordered.map { it.id }.toSet() })
+                                    DropdownMenuItem(text = { Text("Refresh library") }, leadingIcon = { Icon(Icons.Default.Refresh, null) }, onClick = { menuOpen = false; libraryViewModel.refresh() })
+                                    DropdownMenuItem(text = { Text("Sort by") }, leadingIcon = { Icon(Icons.Default.Sort, null) }, onClick = { menuOpen = false; sortSheetOpen = true })
+                                    DropdownMenuItem(text = { Text("Blacklist") }, leadingIcon = { Icon(Icons.Default.Block, null) }, onClick = { menuOpen = false; com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Blacklist is not available yet.") })
+                                } else {
+                                    DropdownMenuItem(text = { Text("Deselect") }, leadingIcon = { Icon(Icons.Default.RadioButtonUnchecked, null) }, onClick = { menuOpen = false; selectedIds = emptySet(); selectionMode = false })
+                                    DropdownMenuItem(text = { Text("Play next") }, leadingIcon = { Icon(Icons.Default.SkipNext, null) }, onClick = {
+                                        menuOpen = false; selectedItems.asReversed().forEach(playback::playNext); com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("${selectedItems.size} ${if (selectedItems.size == 1) "song" else "songs"} added to play next ✓"); selectedIds = emptySet(); selectionMode = false
+                                    })
+                                    DropdownMenuItem(text = { Text("Add to queue") }, leadingIcon = { Icon(Icons.Default.QueueMusic, null) }, onClick = {
+                                        menuOpen = false; selectedItems.forEach(playback::addToQueue); com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("${selectedItems.size} ${if (selectedItems.size == 1) "song" else "songs"} added to the queue ✓"); selectedIds = emptySet(); selectionMode = false
+                                    })
+                                    DropdownMenuItem(text = { Text("Add to playlist") }, leadingIcon = { Icon(Icons.Default.PlaylistAdd, null) }, onClick = { menuOpen = false; musicPlaylistOpen = true })
+                                }
+                            }
                         }
-                    } }
+                    }
                 } else null,
             )
-            LazyColumn(
-                state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
-                contentPadding = PaddingValues(start = 0.dp, end = 0.dp, bottom = airPlayrBottomContentPadding()),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                if (!snapshot.ready) {
-                    item { Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = colors.primary) } }
-                } else if (ordered.isEmpty()) {
-                    item { AirPlayrSectionEmpty("No media in this folder", "The folder is indexed, but no playable media is currently available.") }
-                } else {
+            if (selectionMode) {
+                Text(
+                    if (hasSelection) "${selectedIds.size} selected" else "Select songs",
+                    fontFamily = AirPlayrFonts.OpenSans,
+                    fontSize = 12.sp,
+                    color = colors.textSecondary,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 2.dp),
+                )
+            }
+            if (isFolder && folderMode.equals("video", true) && !selectionMode) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ViewModeButton(Icons.Default.GridView, "Grid", videoViewMode == "grid") { videoViewMode = "grid" }
+                    ViewModeButton(Icons.Default.ViewList, "List", videoViewMode == "list") { videoViewMode = "list" }
+                    ViewModeButton(Icons.Default.ViewModule, "Big list", videoViewMode == "big") { videoViewMode = "big" }
+                }
+            }
+            if (isFolder && folderMode.equals("video", true) && !selectionMode && videoViewMode == "grid") {
+                androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                    columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(2),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = airPlayrBottomContentPadding()),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
                     items(ordered, key = { it.id }) { item ->
-                        MediaListCard(
-                            item,
-                            playing = item.mediaType == MediaType.AUDIO && playbackState.isPlaying && playbackState.currentId == item.id,
-                        ) {
-                            if (item.mediaType == MediaType.AUDIO) playback.play(item) else onOpenVideo(item.id)
+                        VideoGridCard(item, onOpen = { onOpenVideo(item.id) }, onMore = { videoActionItem = item })
+                    }
+                }
+            } else {
+                LazyColumn(
+                    state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
+                    contentPadding = PaddingValues(start = 0.dp, end = 0.dp, bottom = airPlayrBottomContentPadding()),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    if (!snapshot.ready) {
+                        item { Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = colors.primary) } }
+                    } else if (ordered.isEmpty()) {
+                        item { AirPlayrSectionEmpty("No media in this folder", "The folder is indexed, but no playable media is currently available.") }
+                    } else {
+                        items(ordered, key = { it.id }) { item ->
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = if (isFolder && folderMode.equals("video", true)) 8.dp else 12.dp, vertical = 2.dp)
+                                    .then(if (selectionMode && item.id in selectedIds) Modifier.border(2.dp, colors.primary, RoundedCornerShape(18.dp)) else Modifier)
+                                    .clip(RoundedCornerShape(18.dp))
+                            ) {
+                                if (isFolder && folderMode.equals("video", true)) {
+                                    VideoMediaRow(
+                                        item = item,
+                                        big = videoViewMode == "big",
+                                        onOpen = { if (selectionMode) selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id else onOpenVideo(item.id) },
+                                        onPlay = { onOpenVideo(item.id) },
+                                        onMore = { videoActionItem = item },
+                                    )
+                                } else {
+                                    MediaListCard(
+                                        item = item,
+                                        playing = item.mediaType == MediaType.AUDIO && playbackState.isPlaying && playbackState.currentId == item.id,
+                                        showPlayOverlay = !musicFolder,
+                                        onMore = if (musicFolder && !selectionMode) ({ selectedMusicItem = item; musicActionOpen = true }) else null,
+                                    ) {
+                                        if (selectionMode) {
+                                            selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id
+                                        } else if (item.mediaType == MediaType.AUDIO) playback.play(item) else onOpenVideo(item.id)
+                                    }
+                                }
+                                if (selectionMode) {
+                                    Surface(
+                                        modifier = Modifier.align(Alignment.CenterEnd).padding(end = 18.dp).size(30.dp),
+                                        shape = androidx.compose.foundation.shape.CircleShape,
+                                        color = if (item.id in selectedIds) colors.primary else colors.surfaceContainerHighest,
+                                        shadowElevation = 0.dp,
+                                    ) {
+                                        Icon(if (item.id in selectedIds) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked, null, tint = if (item.id in selectedIds) colors.onPrimary else colors.textSecondary, modifier = Modifier.padding(4.dp))
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -697,7 +1018,7 @@ fun BrowseFilterScreen(
                     when {
                         folderAudio > 0 -> {
                             playback.playQueue(ordered.filter { it.mediaType == MediaType.AUDIO }, 0)
-                            onOpenPlayer()
+                            // Folder play intentionally stays in the current screen; the existing player/session continues in the background.
                         }
                         folderVideo > 0 -> onOpenVideo(ordered.first { it.mediaType == MediaType.VIDEO }.id)
                     }
@@ -707,12 +1028,227 @@ fun BrowseFilterScreen(
                 contentColor = colors.onPrimary,
                 shape = RoundedCornerShape(22.dp),
                 elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 10.dp),
-            ) {
-                Icon(Icons.Default.PlayArrow, "Play folder", modifier = Modifier.size(31.dp))
+            ) { Icon(Icons.Default.PlayArrow, "Play folder", modifier = Modifier.size(31.dp)) }
+        }
+    }
+
+    if (sortSheetOpen) {
+        FolderSortSheet(
+            selectedKey = sortKey,
+            ascending = sortAscending,
+            countLabel = if (musicFolder) "Song count" else if (folderMode.equals("video", true)) "Video count" else "Song & video count",
+            onSelectKey = { key -> sortKey = key; sortSheetOpen = false },
+            onAscending = { sortAscending = true },
+            onDescending = { sortAscending = false },
+            onDismiss = { sortSheetOpen = false },
+        )
+    }
+
+    if (musicActionOpen && selectedMusicItem != null) {
+        val item = selectedMusicItem!!
+        ModalBottomSheet(onDismissRequest = { musicActionOpen = false; selectedMusicItem = null }, containerColor = colors.surfaceContainerLow) {
+            ActionGroup {
+                ActionButton("Play", Icons.Default.PlayArrow, onClick = { musicActionOpen = false; selectedMusicItem = null; playback.play(item) })
+                ActionButton("Play next", Icons.Default.SkipNext, onClick = { musicActionOpen = false; selectedMusicItem = null; playback.playNext(item); com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("${item.title} added to play next ✓") })
+                ActionButton("Add to queue", Icons.Default.QueueMusic, onClick = { musicActionOpen = false; selectedMusicItem = null; playback.addToQueue(item); com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("${item.title} added to the queue ✓") })
+                ActionButton(if (snapshot.favorites.any { it.mediaId == item.id }) "Remove from likes" else "Like", Icons.Default.StarBorder, onClick = { musicActionOpen = false; selectedMusicItem = null; scope.launch { container?.structured?.toggleFavorite(item) } })
+                ActionButton("Add to playlist", Icons.Default.PlaylistAdd, onClick = { musicActionOpen = false; musicPlaylistOpen = true })
+                ActionButton("Edit song", Icons.Default.Edit, onClick = { musicActionOpen = false; editMusicItem = item; selectedMusicItem = null })
+            }
+        }
+    }
+
+    if (musicPlaylistOpen && container != null) {
+        val playlistItems = if (selectionMode) selectedItems else listOfNotNull(selectedMusicItem)
+        if (playlistItems.isNotEmpty()) {
+            HistoryFavoritePlaylistSheet(container, playlistItems, onDismiss = {
+                musicPlaylistOpen = false
+                selectedMusicItem = null
+                selectedIds = emptySet()
+                selectionMode = false
+            })
+        }
+    }
+
+    editMusicItem?.let { item ->
+        TagEditorSheet(context, item, com.airplayr.app.core.metadata.MetadataRepository(context), onClose = { editMusicItem = null }) {
+            editMusicItem = null
+            libraryViewModel.refresh()
+        }
+    }
+
+    videoActionItem?.let { item ->
+        val app = container ?: return@let
+        VideoActionSheet(
+            item = item,
+            container = app,
+            onDismiss = { videoActionItem = null },
+            onRename = { videoActionItem = null; renameVideoItem = item; renameVideoName = item.filename.ifBlank { item.title } },
+            onDetails = { videoActionItem = null; videoDetailsItem = item },
+            onPlaylist = { videoActionItem = null; videoPlaylistItem = item },
+            onDelete = { videoActionItem = null; deleteVideoItem = item },
+        )
+    }
+    videoDetailsItem?.let { item -> VideoDetailsSheet(item, onDismiss = { videoDetailsItem = null }) }
+    videoPlaylistItem?.let { item ->
+        val app = container ?: return@let
+        HistoryFavoritePlaylistSheet(app, listOf(item), onDismiss = { videoPlaylistItem = null })
+    }
+    renameVideoItem?.let { item ->
+        AlertDialog(
+            onDismissRequest = { renameVideoItem = null },
+            title = { Text("Rename video") },
+            text = { OutlinedTextField(renameVideoName, { renameVideoName = it }, singleLine = true, modifier = Modifier.fillMaxWidth(), label = { Text("File name") }) },
+            dismissButton = { TextButton(onClick = { renameVideoItem = null }) { Text("Cancel") } },
+            confirmButton = { TextButton(onClick = {
+                val name = renameVideoName.trim()
+                if (name.isNotBlank()) {
+                    val extension = item.filename.substringAfterLast('.', "").takeIf { it.isNotBlank() }
+                    val finalName = if (extension != null && !name.substringAfterLast('.', "").equals(extension, true)) "$name.$extension" else name
+                    renameVideoItem = null
+                    renameVideo(item, finalName)
+                }
+            }) { Text("Rename") } },
+        )
+    }
+    deleteVideoItem?.let { item ->
+        AlertDialog(
+            onDismissRequest = { deleteVideoItem = null },
+            title = { Text("Delete video?") },
+            text = { Text("Delete ${item.title.ifBlank { item.filename }} from this device? Android may ask you to confirm.") },
+            dismissButton = { TextButton(onClick = { deleteVideoItem = null }) { Text("Cancel") } },
+            confirmButton = { TextButton(onClick = { deleteVideoItem = null; deleteVideo(item) }) { Text("Delete", color = colors.error) } },
+        )
+    }
+}
+
+
+@Composable
+private fun ViewModeButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
+    val colors = LocalAirPlayrColors.current
+    IconButton(onClick = onClick) {
+        Icon(icon, label, tint = if (selected) colors.primary else colors.textSecondary)
+    }
+}
+
+@Composable
+private fun VideoMediaRow(item: MediaItem, big: Boolean, onOpen: () -> Unit, onPlay: () -> Unit, onMore: () -> Unit) {
+    val colors = LocalAirPlayrColors.current
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(horizontal = 16.dp, vertical = if (big) 12.dp else 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AirPlayrMediaArtwork(
+            artworkUri = item.thumbnailUri ?: item.artworkUri,
+            modifier = Modifier.size(if (big) 132.dp else 78.dp).clip(RoundedCornerShape(if (big) 18.dp else 14.dp)),
+            radius = if (big) 18.dp else 14.dp,
+            title = item.title,
+            mediaType = MediaType.VIDEO,
+            fallbackIcon = AirPlayrIcons.Video,
+            playing = false,
+            onPlay = null,
+            onMore = null,
+        )
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Text(item.title.ifBlank { item.filename }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = if (big) 18.sp else 16.sp, color = colors.textPrimary, maxLines = if (big) 2 else 1, overflow = TextOverflow.Ellipsis)
+            Text(formatTime(item.durationMs), fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary, modifier = Modifier.padding(top = 3.dp))
+        }
+        IconButton(onClick = onPlay) { Icon(Icons.Default.PlayArrow, "Play", tint = colors.primary) }
+        IconButton(onClick = onMore) { Icon(Icons.Default.MoreVert, "Video options", tint = colors.primary) }
+    }
+}
+
+@Composable
+private fun VideoGridCard(item: MediaItem, onOpen: () -> Unit, onMore: () -> Unit) {
+    val colors = LocalAirPlayrColors.current
+    Column(Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(1.15f).clip(RoundedCornerShape(18.dp))) {
+            AirPlayrMediaArtwork(item.thumbnailUri ?: item.artworkUri, Modifier.fillMaxSize(), 18.dp, item.title, MediaType.VIDEO, AirPlayrIcons.Video, playing = false, onPlay = null, onMore = null)
+            Row(Modifier.align(Alignment.TopEnd).padding(4.dp)) { IconButton(onClick = onMore) { Icon(Icons.Default.MoreVert, "Video options", tint = colors.onSurface) } }
+            IconButton(onClick = onOpen, modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp)) { Icon(Icons.Default.PlayArrow, "Play", tint = colors.onSurface) }
+        }
+        Text(item.title.ifBlank { item.filename }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 16.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun VideoActionSheet(
+    item: MediaItem,
+    container: AppContainer,
+    onDismiss: () -> Unit,
+    onRename: () -> Unit,
+    onDetails: () -> Unit,
+    onPlaylist: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val colors = LocalAirPlayrColors.current
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.surfaceContainerLow) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 22.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                AirPlayrMediaArtwork(item.thumbnailUri ?: item.artworkUri, Modifier.size(62.dp).clip(RoundedCornerShape(14.dp)), 14.dp, item.title, MediaType.VIDEO, AirPlayrIcons.Video, false, null, null)
+                Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                    Text(item.title.ifBlank { item.filename }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("Video", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary)
+                }
+            }
+            ActionGroup {
+                ActionButton("Move to vault", Icons.Default.BookmarkAdd, { AppFeedback.showSnackbar("Move to vault is not available yet.") })
+                ActionButton("Play in background", Icons.Default.PlayArrow, { AppFeedback.showSnackbar("Play in background is not available yet.") })
+                ActionButton("Add to playlist", Icons.Default.PlaylistAdd, onPlaylist)
+            }
+            ActionGroup {
+                ActionButton("Rename", Icons.Default.Edit, onRename)
+                ActionButton("Details", Icons.Default.Info, onDetails)
+                ActionButton("Share", Icons.Default.Share, {
+                    val uri = android.net.Uri.parse(item.uri)
+                    val send = Intent(Intent.ACTION_SEND).apply { type = item.mimeType ?: "video/*"; putExtra(Intent.EXTRA_STREAM, uri); clipData = android.content.ClipData.newRawUri(item.title, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                    runCatching { container.appContext.startActivity(Intent.createChooser(send, "Share ${item.title}").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    onDismiss()
+                })
+                ActionButton("Delete", Icons.Default.Delete, onDelete, destructive = true)
             }
         }
     }
 }
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun VideoDetailsSheet(item: MediaItem, onDismiss: () -> Unit) {
+    val colors = LocalAirPlayrColors.current
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.surfaceContainerLow) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(22.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            AirPlayrMediaArtwork(item.thumbnailUri ?: item.artworkUri, Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(20.dp)), 20.dp, item.title, MediaType.VIDEO, AirPlayrIcons.Video, false, null, null)
+            Text(item.title.ifBlank { item.filename }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 25.sp, color = colors.textPrimary)
+            VideoDetailLine("Resolution", if (item.width > 0 && item.height > 0) "${item.width} × ${item.height}" else "Unknown")
+            VideoDetailLine("Duration", formatTime(item.durationMs))
+            VideoDetailLine("File size", formatBytes(item.sizeBytes))
+            VideoDetailLine("Format", item.mimeType ?: item.filename.substringAfterLast('.', "Unknown").uppercase())
+            VideoDetailLine("Date added", formatDate(item.dateAdded))
+            VideoDetailLine("Date modified", formatDate(item.dateModified))
+            VideoDetailLine("Location", item.path ?: item.relativePath ?: item.folder ?: item.uri)
+        }
+    }
+}
+
+@Composable
+private fun VideoDetailLine(label: String, value: String) {
+    val colors = LocalAirPlayrColors.current
+    Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        Text(label, fontFamily = AirPlayrFonts.OpenSans, fontSize = 11.sp, color = colors.textSecondary)
+        Text(value, fontFamily = AirPlayrFonts.OpenSans, fontSize = 14.sp, color = colors.textPrimary, maxLines = 3, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+private fun formatBytes(bytes: Long): String {
+    if (bytes <= 0L) return "Unknown"
+    val units = listOf("B", "KB", "MB", "GB", "TB")
+    var value = bytes.toDouble(); var index = 0
+    while (value >= 1024 && index < units.lastIndex) { value /= 1024; index++ }
+    return if (index == 0) "${bytes} ${units[index]}" else "%.1f %s".format(value, units[index])
+}
+
+private fun formatDate(seconds: Long): String = if (seconds <= 0L) "Unknown" else java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT).format(java.util.Date(seconds * 1000L))
 
 @Composable
 fun RecentScreen(
@@ -971,8 +1507,14 @@ fun PlaylistDetailScreen(
 fun EmptyNativeState(title: String, message: String) = AirPlayrSectionEmpty(title, message)
 
 @Composable
-private fun MediaListCard(item: MediaItem, playing: Boolean = false, onPlay: () -> Unit) {
-    AirPlayrMediaRow(item, onOpen = onPlay, playing = playing, compact = false)
+private fun MediaListCard(
+    item: MediaItem,
+    playing: Boolean = false,
+    showPlayOverlay: Boolean = true,
+    onMore: (() -> Unit)? = null,
+    onPlay: () -> Unit,
+) {
+    AirPlayrMediaRow(item, onOpen = onPlay, onMore = onMore, playing = playing, compact = false, showPlayOverlay = showPlayOverlay)
 }
 
 @Composable

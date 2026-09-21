@@ -236,6 +236,7 @@ fun AirPlayrMediaRow(
     onMore: (() -> Unit)? = null,
     playing: Boolean = false,
     compact: Boolean = false,
+    showPlayOverlay: Boolean = true,
 ) {
     val c = LocalAirPlayrColors.current
     Row(
@@ -251,7 +252,7 @@ fun AirPlayrMediaRow(
             mediaType = item.mediaType,
             fallbackIcon = if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music,
             playing = playing,
-            onPlay = onOpen,
+            onPlay = if (showPlayOverlay) onOpen else null,
             onMore = onMore,
         )
         Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {

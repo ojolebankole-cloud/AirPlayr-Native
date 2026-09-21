@@ -50,6 +50,9 @@ class PlaybackController(private val appContext: Context) : ViewModel() {
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.Eagerly, PlaybackUiState())
 
+    private val _queueItems = MutableStateFlow<List<MediaItem>>(emptyList())
+    val queueItems: StateFlow<List<MediaItem>> = _queueItems.asStateFlow()
+
     private var controller: MediaController? = null
     private val queueStore = QueueStore(appContext)
     private val preferences = PreferencesRepository(appContext)
@@ -163,6 +166,11 @@ class PlaybackController(private val appContext: Context) : ViewModel() {
     fun playNext(media: MediaItem) { if (media.mediaType == MediaType.AUDIO) controller?.addMediaItem((controller?.currentMediaItemIndex ?: -1) + 1, MediaItemMapper.toExo(media)) }
     fun playLast(media: MediaItem) { if (media.mediaType == MediaType.AUDIO) controller?.addMediaItem(MediaItemMapper.toExo(media)) }
     fun removeFromQueue(index: Int) { controller?.removeMediaItem(index) }
+    fun playQueueIndex(index: Int) {
+        controller?.let { c ->
+            if (index in 0 until c.mediaItemCount) { c.seekToDefaultPosition(index); c.play() }
+        }
+    }
     fun clearQueue() { controller?.clearMediaItems() }
 
     suspend fun saveCurrentQueue(): Boolean {
@@ -227,6 +235,25 @@ class PlaybackController(private val appContext: Context) : ViewModel() {
 
     private fun publish(player: Player) {
         val item = player.currentMediaItem
+        _queueItems.value = (0 until player.mediaItemCount).mapNotNull { index ->
+            val queued = player.getMediaItemAt(index)
+            val local = queued.localConfiguration
+            MediaItem(
+                id = queued.mediaId,
+                mediaStoreId = null,
+                uri = local?.uri?.toString().orEmpty(),
+                title = queued.mediaMetadata.title?.toString().orEmpty().ifBlank { "Media" },
+                filename = queued.mediaMetadata.title?.toString().orEmpty().ifBlank { "Media" },
+                artist = queued.mediaMetadata.artist?.toString(),
+                album = queued.mediaMetadata.albumTitle?.toString(),
+                albumArtist = queued.mediaMetadata.albumArtist?.toString(),
+                durationMs = queued.mediaMetadata.durationMs ?: 0L,
+                width = 0, height = 0, sizeBytes = 0L, dateModified = 0L, dateAdded = 0L,
+                mediaType = MediaType.AUDIO, mimeType = local?.mimeType, albumId = null,
+                artworkUri = queued.mediaMetadata.artworkUri?.toString(), thumbnailUri = null, genre = null,
+                sourceDirectoryUri = null, folderId = null, folder = null, path = null, relativePath = null,
+            )
+        }
         _state.value = PlaybackUiState(
             connected = true,
             isPlaying = player.isPlaying,

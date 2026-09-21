@@ -2,6 +2,11 @@ package com.airplayr.app.ui.components
 
 import com.airplayr.app.ui.theme.AirPlayrIcons
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.mutableStateOf
@@ -30,6 +35,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.outlined.Equalizer
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.FolderOpen
@@ -55,10 +69,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.core.data.media.MediaType
+import com.airplayr.app.core.playback.VideoQueueStore
+import com.airplayr.app.ui.components.AirPlayrMediaArtwork
+import com.airplayr.app.ui.feedback.AppFeedback
 import com.airplayr.app.ui.playback.PlaybackController
 import com.airplayr.app.ui.playback.PlaybackControllerFactory
 import com.airplayr.app.ui.theme.AirPlayrRadii
@@ -86,6 +104,7 @@ fun MenuDrawer(
     onScanMedia: () -> Unit,
     onAbout: () -> Unit,
     onSupport: () -> Unit,
+    onQueueToggle: (() -> Unit)? = null,
 ) {
     if (!visible) return
 
@@ -96,11 +115,15 @@ fun MenuDrawer(
     val drawerWidthPx = with(density) { drawerWidth.toPx() }
     val playback: PlaybackController = viewModel(factory = PlaybackControllerFactory(container.appContext))
     val playbackState by playback.stableState.collectAsStateWithLifecycle()
+    val musicQueue by playback.queueItems.collectAsStateWithLifecycle()
+    val videoQueue by VideoQueueStore.queue.collectAsStateWithLifecycle()
     val recentHistory by container.structured.history(1).collectAsStateWithLifecycle(initialValue = emptyList())
     val latest = recentHistory.firstOrNull()
 
     var showAbout by remember { mutableStateOf(false) }
     var showSupport by remember { mutableStateOf(false) }
+    var playingQueueExpanded by rememberSaveable { mutableStateOf(false) }
+    var musicQueueSheetOpen by remember { mutableStateOf(false) }
     // The drawer is intentionally immediate: no open/close settle animation is used.
     // Dragging is still supported, but releasing a close gesture dismisses immediately.
     var dragFraction by remember { mutableFloatStateOf(0f) }
@@ -216,7 +239,21 @@ fun MenuDrawer(
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     section(entriesLibrary, "YOUR LIBRARY", colors, onClose, onNavigate, onScanMedia, { showAbout = true }, { showSupport = true })
-                    section(entriesPlayback, "PLAYBACK", colors, onClose, onNavigate, onScanMedia, { showAbout = true }, { showSupport = true })
+                    section(entriesPlayback, "PLAYBACK", colors, onClose, onNavigate, onScanMedia, { showAbout = true }, { showSupport = true }, onQueueToggle = { playingQueueExpanded = !playingQueueExpanded })
+                    item {
+                        AnimatedVisibility(
+                            visible = playingQueueExpanded,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut(),
+                        ) {
+                            QueueDrawerCards(
+                                musicCount = musicQueue.size,
+                                videoCount = videoQueue.size,
+                                onMusic = { musicQueueSheetOpen = true },
+                                onVideo = { AppFeedback.showSnackbar("Video queue is coming with the video playback engine.") },
+                            )
+                        }
+                    }
                     section(entriesInsights, "INSIGHTS & TOOLS", colors, onClose, onNavigate, onScanMedia, { showAbout = true }, { showSupport = true })
                     section(entriesAirPlayr, "AIR PLAYR", colors, onClose, onNavigate, onScanMedia, { showAbout = true }, { showSupport = true })
                     item { MaterialInfoCard("Made for your media", "Music first. Video when you want it.", colors) }
@@ -230,6 +267,9 @@ fun MenuDrawer(
                 text = { Text("AirPlayr is a music-first local media player. Your library, playback state and preferences stay on this device.") },
                 confirmButton = { androidx.compose.material3.TextButton(onClick = { showAbout = false }) { Text("Close") } },
             )
+        }
+        if (musicQueueSheetOpen) {
+            MusicQueueSheet(musicQueue, playback, onDismiss = { musicQueueSheetOpen = false })
         }
         if (showSupport) {
             androidx.compose.material3.AlertDialog(
@@ -261,6 +301,7 @@ private fun LazyListScope.section(
                 "__scan" -> { onClose(); onScanMedia() }
                 "__about" -> { onClose(); onAbout() }
                 "__support" -> { onClose(); onSupport() }
+                "queue" -> { onQueueToggle?.invoke() }
                 else -> { onClose(); onNavigate(item.route) }
             }
         }
@@ -283,6 +324,58 @@ private fun DrawerRow(item: MenuEntry, colors: com.airplayr.app.ui.theme.AirPlay
         ) { Icon(item.icon, item.label, tint = if (item.active) colors.primary else colors.textPrimary, modifier = Modifier.size(23.dp)) }
         Text(item.label, style = MaterialTheme.typography.titleMedium.copy(fontFamily = AirPlayrFonts.SmoochSans), color = colors.textPrimary, modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
         item.value?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = colors.textPrimary) }
+    }
+}
+
+@Composable
+private fun QueueDrawerCards(musicCount: Int, videoCount: Int, onMusic: () -> Unit, onVideo: () -> Unit) {
+    val colors = LocalAirPlayrColors.current
+    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Card(Modifier.fillMaxWidth().clickable(onClick = onMusic), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerHigh), elevation = CardDefaults.cardElevation(0.dp), shape = RoundedCornerShape(18.dp)) {
+            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(42.dp).background(colors.primaryContainer, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) { Icon(Icons.Default.MusicNote, null, tint = colors.primary) }
+                Column(Modifier.weight(1f).padding(start = 12.dp)) { Text("Music queue", fontFamily = AirPlayrFonts.SmoochSans, style = MaterialTheme.typography.titleMedium); Text("$musicCount ${if (musicCount == 1) "song" else "songs"}", color = colors.textSecondary, style = MaterialTheme.typography.bodySmall) }
+                Icon(Icons.Default.PlayArrow, null, tint = colors.primary)
+            }
+        }
+        Card(Modifier.fillMaxWidth().clickable(onClick = onVideo), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerHigh), elevation = CardDefaults.cardElevation(0.dp), shape = RoundedCornerShape(18.dp)) {
+            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(42.dp).background(colors.secondaryContainer, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) { Icon(Icons.Default.VideoLibrary, null, tint = colors.secondary) }
+                Column(Modifier.weight(1f).padding(start = 12.dp)) { Text("Video queue", fontFamily = AirPlayrFonts.SmoochSans, style = MaterialTheme.typography.titleMedium); Text("$videoCount ${if (videoCount == 1) "video" else "videos"}", color = colors.textSecondary, style = MaterialTheme.typography.bodySmall) }
+                Text("COMING", style = MaterialTheme.typography.labelSmall, color = colors.textSecondary)
+            }
+        }
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun MusicQueueSheet(queue: List<com.airplayr.app.core.data.media.MediaItem>, playback: PlaybackController, onDismiss: () -> Unit) {
+    val colors = LocalAirPlayrColors.current
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.surfaceContainerLow) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 8.dp)) {
+            Text("MUSIC QUEUE", fontFamily = AirPlayrFonts.OpenSans, fontSize = 11.sp, letterSpacing = 1.3.sp, color = colors.textSecondary)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Music queue", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 29.sp, color = colors.textPrimary, modifier = Modifier.weight(1f))
+                TextButton(onClick = playback::clearQueue, enabled = queue.isNotEmpty()) { Text("Clear") }
+            }
+            if (queue.isEmpty()) {
+                Text("No songs in the queue", color = colors.textSecondary, modifier = Modifier.padding(vertical = 32.dp))
+            } else {
+                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 520.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    items(queue.size, key = { index -> queue[index].id }) { index ->
+                        val item = queue[index]
+                        Row(Modifier.fillMaxWidth().clickable { playback.playQueueIndex(index) }.padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                            AirPlayrMediaArtwork(item.artworkUri, Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)), 12.dp, item.title, MediaType.AUDIO, AirPlayrIcons.Music, false, null, null)
+                            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                                Text(item.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 16.sp, maxLines = 1)
+                                Text(item.artist ?: "Unknown artist", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary, maxLines = 1)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
