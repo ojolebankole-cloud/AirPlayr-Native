@@ -4,6 +4,8 @@ package com.airplayr.app.ui.screens
 import com.airplayr.app.ui.theme.AirPlayrIcons
 
 import android.net.Uri
+import com.airplayr.app.ui.airPlayrBottomContentPadding
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
@@ -119,7 +121,7 @@ fun HistoryScreen(
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
-                contentPadding = PaddingValues(bottom = 24.dp),
+                contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding()),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 item {

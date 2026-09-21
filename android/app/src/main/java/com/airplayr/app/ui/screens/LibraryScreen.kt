@@ -1,5 +1,7 @@
 package com.airplayr.app.ui.screens
 
+import com.airplayr.app.ui.airPlayrBottomContentPadding
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,7 +49,7 @@ fun LibraryScreen(
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
-                contentPadding = PaddingValues(bottom = 24.dp),
+                contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding()),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 items(items, key = { it.id }) { item ->

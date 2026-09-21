@@ -1,5 +1,7 @@
 package com.airplayr.app.ui.screens
 
+import com.airplayr.app.ui.airPlayrBottomContentPadding
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -122,7 +124,7 @@ fun HomeScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
-                bottom = 24.dp,
+                bottom = airPlayrBottomContentPadding(),
             ),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {

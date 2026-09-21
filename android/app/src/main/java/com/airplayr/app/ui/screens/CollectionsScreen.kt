@@ -1,5 +1,7 @@
 package com.airplayr.app.ui.screens
 
+import com.airplayr.app.ui.airPlayrBottomContentPadding
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
@@ -73,7 +75,7 @@ fun CollectionsScreen(container: AppContainer, libraryViewModel: LibraryViewMode
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary) }
         } else if (!hasCollectionItems) {
             AirPlayrSectionEmpty("No collections yet", "Listen to music and AirPlayr will start building these collections.")
-        } else LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        } else LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(definitions, key = { it.title }) { def ->
                 val rows = cached["collection:${def.title}"].orEmpty()
                 if (rows.isNotEmpty()) AirPlayrCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(28.dp), containerColor = c.surfaceContainerLow, elevation = 5.dp) {

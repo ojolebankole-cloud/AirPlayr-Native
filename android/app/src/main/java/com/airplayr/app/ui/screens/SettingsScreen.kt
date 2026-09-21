@@ -6,6 +6,8 @@ import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import com.airplayr.app.ui.airPlayrBottomContentPadding
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -118,7 +120,7 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
     LazyColumn(
         state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = statusBarTop + 22.dp, bottom = 24.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = statusBarTop + 22.dp, bottom = airPlayrBottomContentPadding()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { Text("Settings", style = MaterialTheme.typography.headlineLarge); Text("AirPlayr controls and Android integration", color = colors.textSecondary) }

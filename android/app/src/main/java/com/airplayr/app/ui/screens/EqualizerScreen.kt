@@ -1,4 +1,6 @@
 package com.airplayr.app.ui.screens
+import com.airplayr.app.ui.airPlayrBottomContentPadding
+
 import androidx.compose.foundation.layout.statusBarsPadding
 
 import androidx.compose.foundation.Canvas
@@ -78,7 +80,7 @@ fun EqualizerScreen(container: AppContainer) {
         LazyVerticalGrid(state = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() },
             columns = GridCells.Fixed(1),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, bottom = airPlayrBottomContentPadding()),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {

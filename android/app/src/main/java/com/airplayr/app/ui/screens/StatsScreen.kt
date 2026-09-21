@@ -1,5 +1,7 @@
 package com.airplayr.app.ui.screens
 
+import com.airplayr.app.ui.airPlayrBottomContentPadding
+
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ScrollState
@@ -82,7 +84,7 @@ fun StatsScreen(container: AppContainer, libraryViewModel: LibraryViewModel, pla
 
     Box(Modifier.fillMaxSize().background(colors.background)) {
         LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = airPlayrBottomContentPadding()),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {

@@ -31,6 +31,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Snackbar
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.navigation.AirPlayrNavViewModel
@@ -67,6 +68,7 @@ import com.airplayr.app.ui.components.AirPlayrBottomDock
 import com.airplayr.app.ui.components.AirPlayrMiniPlayerOnly
 import com.airplayr.app.ui.components.MenuDrawer
 import com.airplayr.app.ui.components.WhatsNewSheet
+import com.airplayr.app.ui.LocalAirPlayrBottomOverlayHeight
 import kotlinx.coroutines.launch
 import com.airplayr.app.ui.permissions.StartupPermissionFlow
 import com.airplayr.app.ui.cast.CastPickerSheet
@@ -211,7 +213,14 @@ fun AirPlayrApp(
         val miniPlayerVisible = showMiniPlayer &&
             shellPlaybackState.currentId != null &&
             shellPlaybackState.currentMediaType == com.airplayr.app.core.data.media.MediaType.AUDIO
-        val reservedBottom = when {
+        var bottomOverlayHeightPx by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val bottomOverlayHeight = with(density) { bottomOverlayHeightPx.toDp() }
+    androidx.compose.runtime.LaunchedEffect(showDock, miniPlayerVisible) {
+        if (!showDock && !miniPlayerVisible) bottomOverlayHeightPx = 0
+    }
+
+    val reservedBottom = when {
             showDock -> com.airplayr.app.ui.components.AIRPLAYR_BOTTOM_DOCK_BASE_HEIGHT.dp
             miniPlayerVisible -> com.airplayr.app.ui.components.AIRPLAYR_MINI_PLAYER_ONLY_BASE_HEIGHT.dp
             else -> 0.dp
@@ -220,10 +229,13 @@ fun AirPlayrApp(
         // Keep the shell edge-to-edge. The persistent bottom controls are an overlay surface,
         // while each screen owns any status-bar inset it actually needs. Home intentionally draws
         // behind the transparent status bar so its content can scroll underneath it.
-        Box(Modifier.fillMaxSize()) {
-            val contentModifier = Modifier
-                .fillMaxSize()
-            NavHost(
+        androidx.compose.runtime.CompositionLocalProvider(
+            LocalAirPlayrBottomOverlayHeight provides bottomOverlayHeight,
+        ) {
+            Box(Modifier.fillMaxSize()) {
+                val contentModifier = Modifier
+                    .fillMaxSize()
+                NavHost(
                 navController = navController,
                 startDestination = "home",
                 modifier = contentModifier,
@@ -378,7 +390,9 @@ fun AirPlayrApp(
 
             if (showDock) {
                 AirPlayrBottomDock(
-                    modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter),
+                    modifier = Modifier
+                        .align(androidx.compose.ui.Alignment.BottomCenter)
+                        .onSizeChanged { bottomOverlayHeightPx = it.height },
                     currentRoute = currentRoute,
                     playbackState = shellPlaybackState,
                     playback = playbackController,
@@ -393,7 +407,8 @@ fun AirPlayrApp(
                     onOpenPlayer = { navigate("player") },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .align(androidx.compose.ui.Alignment.BottomCenter),
+                        .align(androidx.compose.ui.Alignment.BottomCenter)
+                        .onSizeChanged { bottomOverlayHeightPx = it.height },
                 )
             }
 
@@ -445,6 +460,7 @@ fun AirPlayrApp(
                         onDismiss = { castOpen = false },
                     )
                 }
+            }
             }
         }
     }

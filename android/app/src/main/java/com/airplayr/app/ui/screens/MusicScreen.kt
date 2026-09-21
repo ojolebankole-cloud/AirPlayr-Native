@@ -1,6 +1,8 @@
 package com.airplayr.app.ui.screens
 import com.airplayr.app.ui.components.AirPlayrMediaArtwork
 import com.airplayr.app.core.data.media.MediaType
+import com.airplayr.app.ui.airPlayrBottomContentPadding
+
 import androidx.compose.foundation.layout.statusBarsPadding
 
 import androidx.compose.material.icons.filled.QueueMusic
@@ -179,7 +181,7 @@ fun MusicScreen(libraryViewModel: LibraryViewModel, appContext: android.content.
                     LazyVerticalGrid(state = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() },
                         columns = GridCells.Fixed(2),
                         modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(start = 12.dp, top = 6.dp, end = 12.dp, bottom = 24.dp),
+                        contentPadding = PaddingValues(start = 12.dp, top = 6.dp, end = 12.dp, bottom = airPlayrBottomContentPadding()),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
@@ -203,7 +205,7 @@ fun MusicScreen(libraryViewModel: LibraryViewModel, appContext: android.content.
                     LazyColumn(
                         modifier = Modifier.weight(1f),
                         state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
-                        contentPadding = PaddingValues(start = 12.dp, top = 6.dp, end = 12.dp, bottom = 24.dp),
+                        contentPadding = PaddingValues(start = 12.dp, top = 6.dp, end = 12.dp, bottom = airPlayrBottomContentPadding()),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         if (filteredSongs.isEmpty()) item { EmptyMusic("No songs found", if (category == "likes") "Like a song to see it here." else "Music on this device will appear here.") }
@@ -324,11 +326,11 @@ private fun NativeMusicTile(item: MediaItem, favorite: Boolean, playing: Boolean
 
 @Composable private fun CollectionGrid(grid:Boolean, data:List<Any>, onClick:(Any)->Unit, circular:Boolean=false, modifier:Modifier=Modifier) {
     val colors=LocalAirPlayrColors.current
-    if(grid) LazyVerticalGrid(GridCells.Fixed(2), modifier, state = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }, contentPadding=PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 24.dp), horizontalArrangement=Arrangement.spacedBy(10.dp), verticalArrangement=Arrangement.spacedBy(16.dp)){items(data){ raw -> val (name,songs)=when(raw){is AlbumGroup->raw.name to raw.songs; is CollectionGroup->raw.name to raw.songs; else->"Unknown" to emptyList()}; Column(Modifier.clickableCompat { onClick(raw) }.fillMaxWidth()){Artwork(songs.firstOrNull()?.artworkUri,Modifier.fillMaxWidth().height(170.dp),if(circular)85.dp else 22.dp,name, com.airplayr.app.core.data.media.MediaType.AUDIO, if(circular) AirPlayrIcons.Artist else AirPlayrIcons.AlbumDisc, fallbackIconSize = if (circular) 48.dp else 48.dp, fallbackIconTint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = com.airplayr.app.ui.theme.AirPlayrArtworkTokens.fallbackIconAlpha));Text(name,style=MaterialTheme.typography.titleSmall,maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.padding(top=6.dp));Text("${songs.size} songs",style=MaterialTheme.typography.labelSmall,color=colors.textSecondary)}}}
-    else LazyColumn(modifier, state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding=PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 24.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){items(data){raw->val(name,songs)=when(raw){is AlbumGroup->raw.name to raw.songs;is CollectionGroup->raw.name to raw.songs;else->"Unknown" to emptyList()};AirPlayrCard(Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp),containerColor=colors.surfaceSolid,elevation=0.dp){Row(Modifier.fillMaxWidth().padding(10.dp).clickableCompat { onClick(raw) },verticalAlignment=Alignment.CenterVertically){Artwork(songs.firstOrNull()?.artworkUri,Modifier.size(66.dp),if(circular)33.dp else 16.dp,name, com.airplayr.app.core.data.media.MediaType.AUDIO, if(circular) AirPlayrIcons.Artist else AirPlayrIcons.AlbumDisc, fallbackIconTint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = com.airplayr.app.ui.theme.AirPlayrArtworkTokens.fallbackIconAlpha));Column(Modifier.weight(1f).padding(horizontal=12.dp)){Text(name,style=MaterialTheme.typography.titleMedium);Text("${songs.size} songs",style=MaterialTheme.typography.bodySmall,color=colors.textSecondary)}}}}}
+    if(grid) LazyVerticalGrid(GridCells.Fixed(2), modifier, state = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }, contentPadding=PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = airPlayrBottomContentPadding()), horizontalArrangement=Arrangement.spacedBy(10.dp), verticalArrangement=Arrangement.spacedBy(16.dp)){items(data){ raw -> val (name,songs)=when(raw){is AlbumGroup->raw.name to raw.songs; is CollectionGroup->raw.name to raw.songs; else->"Unknown" to emptyList()}; Column(Modifier.clickableCompat { onClick(raw) }.fillMaxWidth()){Artwork(songs.firstOrNull()?.artworkUri,Modifier.fillMaxWidth().height(170.dp),if(circular)85.dp else 22.dp,name, com.airplayr.app.core.data.media.MediaType.AUDIO, if(circular) AirPlayrIcons.Artist else AirPlayrIcons.AlbumDisc, fallbackIconSize = if (circular) 48.dp else 48.dp, fallbackIconTint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = com.airplayr.app.ui.theme.AirPlayrArtworkTokens.fallbackIconAlpha));Text(name,style=MaterialTheme.typography.titleSmall,maxLines=1,overflow=TextOverflow.Ellipsis,modifier=Modifier.padding(top=6.dp));Text("${songs.size} songs",style=MaterialTheme.typography.labelSmall,color=colors.textSecondary)}}}
+    else LazyColumn(modifier, state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding=PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = airPlayrBottomContentPadding()),verticalArrangement=Arrangement.spacedBy(8.dp)){items(data){raw->val(name,songs)=when(raw){is AlbumGroup->raw.name to raw.songs;is CollectionGroup->raw.name to raw.songs;else->"Unknown" to emptyList()};AirPlayrCard(Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp),containerColor=colors.surfaceSolid,elevation=0.dp){Row(Modifier.fillMaxWidth().padding(10.dp).clickableCompat { onClick(raw) },verticalAlignment=Alignment.CenterVertically){Artwork(songs.firstOrNull()?.artworkUri,Modifier.size(66.dp),if(circular)33.dp else 16.dp,name, com.airplayr.app.core.data.media.MediaType.AUDIO, if(circular) AirPlayrIcons.Artist else AirPlayrIcons.AlbumDisc, fallbackIconTint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = com.airplayr.app.ui.theme.AirPlayrArtworkTokens.fallbackIconAlpha));Column(Modifier.weight(1f).padding(horizontal=12.dp)){Text(name,style=MaterialTheme.typography.titleMedium);Text("${songs.size} songs",style=MaterialTheme.typography.bodySmall,color=colors.textSecondary)}}}}}
 }
 
-@Composable private fun GenreGrid(data:List<CollectionGroup>, onNavigate:(String)->Unit, modifier:Modifier=Modifier){ val colors=LocalAirPlayrColors.current; LazyVerticalGrid(GridCells.Fixed(2), modifier, state = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() },contentPadding=PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 24.dp),horizontalArrangement=Arrangement.spacedBy(10.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){items(data){g->AirPlayrCard(Modifier.fillMaxWidth().height(148.dp),shape=RoundedCornerShape(24.dp),containerColor=listOf(colors.primaryContainer,colors.secondaryContainer,colors.tertiaryContainer)[(g.name.hashCode() and Int.MAX_VALUE)%3],elevation=0.dp,onClick={onNavigate("genre/${java.net.URLEncoder.encode(g.name,"UTF-8")}")}){Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(colors.surfaceContainer.copy(alpha=.1f),colors.surfaceVariant.copy(alpha=.24f))))){Column(Modifier.padding(16.dp)){Text(g.name,style=MaterialTheme.typography.headlineSmall,maxLines=2);Text("${g.songs.size} songs",style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(top=4.dp))};Artwork(g.songs.firstOrNull()?.artworkUri,Modifier.size(92.dp).align(Alignment.BottomEnd).padding(5.dp),18.dp,g.name)}}}} }
+@Composable private fun GenreGrid(data:List<CollectionGroup>, onNavigate:(String)->Unit, modifier:Modifier=Modifier){ val colors=LocalAirPlayrColors.current; LazyVerticalGrid(GridCells.Fixed(2), modifier, state = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() },contentPadding=PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = airPlayrBottomContentPadding()),horizontalArrangement=Arrangement.spacedBy(10.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){items(data){g->AirPlayrCard(Modifier.fillMaxWidth().height(148.dp),shape=RoundedCornerShape(24.dp),containerColor=listOf(colors.primaryContainer,colors.secondaryContainer,colors.tertiaryContainer)[(g.name.hashCode() and Int.MAX_VALUE)%3],elevation=0.dp,onClick={onNavigate("genre/${java.net.URLEncoder.encode(g.name,"UTF-8")}")}){Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(colors.surfaceContainer.copy(alpha=.1f),colors.surfaceVariant.copy(alpha=.24f))))){Column(Modifier.padding(16.dp)){Text(g.name,style=MaterialTheme.typography.headlineSmall,maxLines=2);Text("${g.songs.size} songs",style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(top=4.dp))};Artwork(g.songs.firstOrNull()?.artworkUri,Modifier.size(92.dp).align(Alignment.BottomEnd).padding(5.dp),18.dp,g.name)}}}} }
 
 @Composable
 private fun PlaylistGrid(
@@ -354,7 +356,7 @@ private fun PlaylistGrid(
             LazyVerticalGrid(state = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() },
                 columns = GridCells.Fixed(2),
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 24.dp),
+                contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = airPlayrBottomContentPadding()),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
@@ -365,7 +367,7 @@ private fun PlaylistGrid(
         } else {
             LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 24.dp),
+                contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = airPlayrBottomContentPadding()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(data, key = { it.id }) { playlist ->
