@@ -220,7 +220,7 @@ fun AirPlayrApp(
         // Keep the shell edge-to-edge. The persistent bottom controls are an overlay surface,
         // while each screen owns any status-bar inset it actually needs. Home intentionally draws
         // behind the transparent status bar so its content can scroll underneath it.
-        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Box(Modifier.fillMaxSize()) {
             val contentModifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = reservedBottom)
