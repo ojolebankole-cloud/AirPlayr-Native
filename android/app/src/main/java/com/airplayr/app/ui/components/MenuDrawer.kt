@@ -175,7 +175,23 @@ fun MenuDrawer(
                 val artist = playbackState.currentArtist ?: latest?.artist ?: "Start playing your library"
                 val artwork = playbackState.artworkUri ?: latest?.artworkUri
                 Box(Modifier.fillMaxWidth().height(184.dp)) {
-                    Box(Modifier.fillMaxSize().background(colors.surfaceContainer))
+                    ArtworkBackdrop(
+                        artwork,
+                        Modifier.fillMaxSize(),
+                        alpha = 1f,
+                        scale = 1.08f,
+                    )
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(
+                                androidx.compose.ui.graphics.Brush.verticalGradient(
+                                    0f to Color.Transparent,
+                                    0.52f to Color.Transparent,
+                                    1f to colors.surfaceContainer,
+                                )
+                            )
+                    )
                     Row(
                         Modifier.fillMaxWidth().align(Alignment.BottomStart).padding(horizontal = 8.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,

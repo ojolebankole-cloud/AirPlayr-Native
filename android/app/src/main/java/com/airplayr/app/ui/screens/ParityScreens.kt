@@ -36,6 +36,9 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.StarBorder
@@ -305,31 +308,295 @@ fun QueueScreen(appContext: android.content.Context) {
     }
 }
 
+private enum class FolderTab { ALL, MUSIC, VIDEO }
+
+private data class FolderEntry(
+    val path: String,
+    val name: String,
+    val audio: List<MediaItem>,
+    val video: List<MediaItem>,
+)
+
+private fun mediaFolderPath(item: MediaItem): String =
+    (item.folder ?: item.relativePath ?: item.path)
+        ?.trim()
+        ?.trim('/')
+        ?.takeIf { it.isNotBlank() }
+        ?: "Root"
+
+private fun mediaFolderName(path: String): String =
+    path.trim('/').substringAfterLast('/').ifBlank { "Root" }
+
+private fun buildFolderEntries(audio: List<MediaItem>, video: List<MediaItem>): List<FolderEntry> =
+    (audio + video)
+        .groupBy(::mediaFolderPath)
+        .map { (path, items) ->
+            FolderEntry(
+                path = path,
+                name = mediaFolderName(path),
+                audio = items.filter { it.mediaType == MediaType.AUDIO },
+                video = items.filter { it.mediaType == MediaType.VIDEO },
+            )
+        }
+        .sortedBy { it.name.lowercase() }
+
 @Composable
-fun FoldersScreen(container: AppContainer, libraryViewModel: LibraryViewModel, onOpen: (String) -> Unit) {
+private fun FolderAccent(audioCount: Int, videoCount: Int): Triple<androidx.compose.ui.graphics.Color, androidx.compose.ui.graphics.Color, androidx.compose.ui.graphics.Color> {
+    val colors = LocalAirPlayrColors.current
+    return when {
+        audioCount > 0 && videoCount > 0 -> Triple(colors.secondaryContainer, colors.onSecondaryContainer, colors.secondary)
+        audioCount > 0 -> Triple(colors.primaryContainer, colors.onPrimaryContainer, colors.primary)
+        else -> Triple(colors.tertiaryContainer, colors.onTertiaryContainer, colors.tertiary)
+    }
+}
+
+@Composable
+private fun FolderSummaryChip(
+    folder: FolderEntry,
+) {
+    val colors = LocalAirPlayrColors.current
+    val (container, content, _) = FolderAccent(folder.audio.size, folder.video.size)
+    val label = when {
+        folder.audio.isNotEmpty() && folder.video.isNotEmpty() -> "MIXED"
+        folder.audio.isNotEmpty() -> "MUSIC"
+        else -> "VIDEO"
+    }
+    val countText = when {
+        folder.audio.isNotEmpty() && folder.video.isNotEmpty() -> "${folder.audio.size} songs · ${folder.video.size} videos"
+        folder.audio.isNotEmpty() -> "${folder.audio.size} ${if (folder.audio.size == 1) "song" else "songs"}"
+        else -> "${folder.video.size} ${if (folder.video.size == 1) "video" else "videos"}"
+    }
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = container,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 13.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            Icon(
+                when {
+                    folder.audio.isNotEmpty() && folder.video.isNotEmpty() -> Icons.Default.PlayArrow
+                    folder.audio.isNotEmpty() -> Icons.Default.MusicNote
+                    else -> Icons.Default.VideoLibrary
+                },
+                contentDescription = null,
+                tint = content,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(
+                label,
+                fontFamily = AirPlayrFonts.OpenSans,
+                fontSize = 12.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                letterSpacing = 1.sp,
+                color = content,
+            )
+            Text(
+                countText,
+                fontFamily = AirPlayrFonts.OpenSans,
+                fontSize = 12.sp,
+                color = content,
+            )
+        }
+    }
+}
+
+@Composable
+private fun FolderCard(
+    folder: FolderEntry,
+    onOpen: () -> Unit,
+) {
+    val colors = LocalAirPlayrColors.current
+    val (iconContainer, iconContent, accent) = FolderAccent(folder.audio.size, folder.video.size)
+    AirPlayrCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        containerColor = colors.surfaceSolid,
+        elevation = 5.dp,
+        onClick = onOpen,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier.size(116.dp).clip(RoundedCornerShape(26.dp)).background(iconContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Default.Folder,
+                    contentDescription = null,
+                    tint = iconContent,
+                    modifier = Modifier.size(58.dp),
+                )
+                Surface(
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
+                    shape = RoundedCornerShape(11.dp),
+                    color = accent,
+                    shadowElevation = 2.dp,
+                ) {
+                    Icon(
+                        when {
+                            folder.audio.isNotEmpty() && folder.video.isNotEmpty() -> Icons.Default.PlayArrow
+                            folder.audio.isNotEmpty() -> Icons.Default.MusicNote
+                            else -> Icons.Default.VideoLibrary
+                        },
+                        contentDescription = null,
+                        tint = when {
+                            folder.audio.isNotEmpty() && folder.video.isNotEmpty() -> colors.onSecondary
+                            folder.audio.isNotEmpty() -> colors.onPrimary
+                            else -> colors.onTertiary
+                        },
+                        modifier = Modifier.padding(7.dp).size(20.dp),
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f).padding(start = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Text(
+                    folder.name,
+                    fontFamily = AirPlayrFonts.SmoochSans,
+                    fontSize = 22.sp,
+                    lineHeight = 27.sp,
+                    color = colors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    folder.path,
+                    fontFamily = AirPlayrFonts.OpenSans,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    color = colors.textSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Box(Modifier.padding(top = 3.dp)) {
+                    FolderSummaryChip(folder)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun FoldersScreen(
+    container: AppContainer,
+    libraryViewModel: LibraryViewModel,
+    onOpen: (String) -> Unit,
+    onBack: () -> Unit = {},
+) {
+    val colors = LocalAirPlayrColors.current
     val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
-    val audio = snapshot.audio
-    val video = snapshot.video
-    val folders = (audio + video).groupBy { it.folder ?: it.relativePath ?: "Unknown folder" }.toList().sortedBy { it.first.lowercase() }
-    Column(Modifier.fillMaxSize()) {
-        ListTopBar("Folders", "${folders.size} media folders")
-        if (!snapshot.ready) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = LocalAirPlayrColors.current.primary) }
-        else if (folders.isEmpty()) EmptyNativeState("No folders yet", "Grant media access or add a media folder in Settings.")
-        else LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = airPlayrBottomContentPadding()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(folders, key = { it.first }) { (folder, items) ->
-                AirPlayrCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(22.dp), containerColor = LocalAirPlayrColors.current.surfaceSolid, elevation = 5.dp, onClick = { onOpen(java.net.URLEncoder.encode(folder, "UTF-8")) }) {
-                    Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(LocalAirPlayrColors.current.primaryContainer), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Folder, null, tint = LocalAirPlayrColors.current.primary, modifier = Modifier.size(26.dp))
+    var selectedTab by rememberSaveable { mutableStateOf(FolderTab.ALL) }
+    var ascending by rememberSaveable { mutableStateOf(true) }
+    var menuOpen by remember { mutableStateOf(false) }
+    val allFolders = remember(snapshot.audio, snapshot.video) { buildFolderEntries(snapshot.audio, snapshot.video) }
+    val musicFolders = remember(allFolders) { allFolders.filter { it.audio.isNotEmpty() } }
+    val videoFolders = remember(allFolders) { allFolders.filter { it.video.isNotEmpty() } }
+    val visibleFolders = remember(selectedTab, ascending, allFolders, musicFolders, videoFolders) {
+        val base = when (selectedTab) {
+            FolderTab.ALL -> allFolders
+            FolderTab.MUSIC -> musicFolders
+            FolderTab.VIDEO -> videoFolders
+        }
+        if (ascending) base else base.asReversed()
+    }
+
+    Column(Modifier.fillMaxSize().background(colors.background)) {
+        AirPlayrScreenHeader(
+            title = "Folders",
+            subtitle = "${allFolders.size} folders · media only",
+            onBack = onBack,
+            trailing = {
+                Box {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Default.MoreVert, "Folder options", tint = colors.primary, modifier = Modifier.size(27.dp))
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Refresh library") },
+                            leadingIcon = { Icon(Icons.Default.Refresh, null) },
+                            onClick = { menuOpen = false; libraryViewModel.refresh() },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (ascending) "Sort Z–A" else "Sort A–Z") },
+                            leadingIcon = { Icon(Icons.Default.Sort, null) },
+                            onClick = { menuOpen = false; ascending = !ascending },
+                        )
+                    }
+                }
+            },
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            FolderTabButton("All", allFolders.size, selectedTab == FolderTab.ALL) { selectedTab = FolderTab.ALL }
+            FolderTabButton("Music", musicFolders.size, selectedTab == FolderTab.MUSIC) { selectedTab = FolderTab.MUSIC }
+            FolderTabButton("Videos", videoFolders.size, selectedTab == FolderTab.VIDEO) { selectedTab = FolderTab.VIDEO }
+        }
+
+        if (!snapshot.ready) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = colors.primary)
+            }
+        } else if (visibleFolders.isEmpty()) {
+            EmptyNativeState(
+                when (selectedTab) {
+                    FolderTab.ALL -> "No folders yet"
+                    FolderTab.MUSIC -> "No music folders yet"
+                    FolderTab.VIDEO -> "No video folders yet"
+                },
+                "Grant media access or add a media folder in Settings.",
+            )
+        } else {
+            LazyColumn(
+                state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 10.dp, bottom = airPlayrBottomContentPadding()),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                items(visibleFolders, key = { "${selectedTab.name}:${it.path}" }) { folder ->
+                    FolderCard(folder) {
+                        val kind = when (selectedTab) {
+                            FolderTab.ALL -> "all"
+                            FolderTab.MUSIC -> "music"
+                            FolderTab.VIDEO -> "video"
                         }
-                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                            Text(folder, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, color = LocalAirPlayrColors.current.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("${items.size} media items · local folder", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = LocalAirPlayrColors.current.textSecondary, maxLines = 1)
-                        }
-                        Icon(Icons.Default.ArrowForward, null, tint = LocalAirPlayrColors.current.primary, modifier = Modifier.size(22.dp))
+                        onOpen("$kind/${java.net.URLEncoder.encode(folder.path, "UTF-8")}/${java.net.URLEncoder.encode(folder.name, "UTF-8")}")
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.FolderTabButton(
+    label: String,
+    count: Int,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = LocalAirPlayrColors.current
+    Surface(
+        modifier = Modifier.weight(1f).height(72.dp).clickable(onClick = onClick),
+        shape = RoundedCornerShape(36.dp),
+        color = if (selected) colors.primary else androidx.compose.ui.graphics.Color.Transparent,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(label, fontFamily = AirPlayrFonts.OpenSans, fontSize = 16.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = if (selected) colors.onPrimary else colors.textPrimary)
+            Spacer(Modifier.width(7.dp))
+            Text(count.toString(), fontFamily = AirPlayrFonts.OpenSans, fontSize = 14.sp, color = if (selected) colors.onPrimary else colors.textSecondary)
         }
     }
 }
@@ -342,49 +609,106 @@ fun BrowseFilterScreen(
     libraryViewModel: LibraryViewModel,
     playback: PlaybackController,
     onOpenPlayer: () -> Unit = {},
+    onOpenVideo: (String) -> Unit = {},
+    onBack: () -> Unit = {},
+    folderMode: String? = null,
+    folderName: String? = null,
 ) {
     val colors = LocalAirPlayrColors.current
     val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
-    val source = if (type == MediaType.AUDIO) snapshot.audio else snapshot.video
-    val filtered = remember(source, value) {
+    val isFolder = title.equals("Folders", true) && folderMode != null
+    val source = when {
+        isFolder && folderMode.equals("all", true) -> snapshot.audio + snapshot.video
+        isFolder && folderMode.equals("music", true) -> snapshot.audio
+        isFolder && folderMode.equals("video", true) -> snapshot.video
+        type == MediaType.AUDIO -> snapshot.audio
+        else -> snapshot.video
+    }
+    val filtered = remember(source, value, folderMode) {
         source.filter {
-            when (title.lowercase()) {
-                "artists" -> it.artist.equals(value, true)
-                "albums" -> it.album.equals(value, true)
-                "genres" -> it.genre.equals(value, true)
-                "folders" -> (it.folder ?: it.relativePath ?: "").equals(value, true)
+            when {
+                isFolder -> mediaFolderPath(it).equals(value, true)
+                title.equals("artists", true) -> it.artist.equals(value, true)
+                title.equals("albums", true) -> it.album.equals(value, true)
+                title.equals("genres", true) -> it.genre.equals(value, true)
+                title.equals("folders", true) -> mediaFolderPath(it).equals(value, true)
                 else -> true
             }
         }
-    }
+    }.let { list -> if (folderMode.equals("video", true)) list.sortedBy { it.title.lowercase() } else list }
     val playbackState by playback.stableState.collectAsStateWithLifecycle()
-    Box(Modifier.fillMaxSize()) {
+    var ascending by rememberSaveable { mutableStateOf(true) }
+    val ordered = remember(filtered, ascending) {
+        if (ascending) filtered.sortedBy { it.title.lowercase() } else filtered.sortedByDescending { it.title.lowercase() }
+    }
+    val folderAudio = ordered.count { it.mediaType == MediaType.AUDIO }
+    val folderVideo = ordered.count { it.mediaType == MediaType.VIDEO }
+    val subtitle = when {
+        folderAudio > 0 && folderVideo > 0 -> "$folderAudio songs · $folderVideo videos"
+        folderAudio > 0 -> "$folderAudio ${if (folderAudio == 1) "song" else "songs"}"
+        else -> "$folderVideo ${if (folderVideo == 1) "video" else "videos"}"
+    }
+    val displayTitle = folderName ?: value.substringAfterLast('/').ifBlank { value }
+    var menuOpen by remember { mutableStateOf(false) }
+
+    Box(Modifier.fillMaxSize().background(colors.background)) {
         Column(Modifier.fillMaxSize()) {
-            ListTopBar(value, "${filtered.size} items")
-            LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = airPlayrBottomContentPadding()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (!snapshot.ready) item { Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = colors.primary) } }
-                items(filtered, key = { it.id }) { item -> MediaListCard(item, playing = playbackState.isPlaying && playbackState.currentId == item.id) { if (item.mediaType == MediaType.AUDIO) playback.play(item) else Unit } }
+            AirPlayrScreenHeader(
+                title = if (isFolder) displayTitle else value,
+                subtitle = subtitle,
+                onBack = onBack,
+                trailing = if (isFolder) {
+                    { Box {
+                        IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, "Folder options", tint = colors.primary, modifier = Modifier.size(27.dp)) }
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text(if (ascending) "Sort Z–A" else "Sort A–Z") },
+                                leadingIcon = { Icon(Icons.Default.Sort, null) },
+                                onClick = { menuOpen = false; ascending = !ascending },
+                            )
+                        }
+                    } }
+                } else null,
+            )
+            LazyColumn(
+                state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
+                contentPadding = PaddingValues(start = 0.dp, end = 0.dp, bottom = airPlayrBottomContentPadding()),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                if (!snapshot.ready) {
+                    item { Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = colors.primary) } }
+                } else if (ordered.isEmpty()) {
+                    item { AirPlayrSectionEmpty("No media in this folder", "The folder is indexed, but no playable media is currently available.") }
+                } else {
+                    items(ordered, key = { it.id }) { item ->
+                        MediaListCard(
+                            item,
+                            playing = item.mediaType == MediaType.AUDIO && playbackState.isPlaying && playbackState.currentId == item.id,
+                        ) {
+                            if (item.mediaType == MediaType.AUDIO) playback.play(item) else onOpenVideo(item.id)
+                        }
+                    }
+                }
             }
         }
-        if (filtered.any { it.mediaType == MediaType.AUDIO }) {
+        if (ordered.isNotEmpty()) {
             FloatingActionButton(
                 onClick = {
-                    val songs = filtered.filter { it.mediaType == MediaType.AUDIO }
-                    if (songs.isNotEmpty()) {
-                        playback.playQueue(songs, 0)
-                        onOpenPlayer()
+                    when {
+                        folderAudio > 0 -> {
+                            playback.playQueue(ordered.filter { it.mediaType == MediaType.AUDIO }, 0)
+                            onOpenPlayer()
+                        }
+                        folderVideo > 0 -> onOpenVideo(ordered.first { it.mediaType == MediaType.VIDEO }.id)
                     }
                 },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 22.dp, bottom = airPlayrFloatingPlayBottomPadding())
-                    .size(68.dp),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 22.dp, bottom = airPlayrFloatingPlayBottomPadding()).size(68.dp),
                 containerColor = colors.primary,
                 contentColor = colors.onPrimary,
                 shape = RoundedCornerShape(22.dp),
                 elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 10.dp),
             ) {
-                Icon(Icons.Default.PlayArrow, "Play", modifier = Modifier.size(31.dp))
+                Icon(Icons.Default.PlayArrow, "Play folder", modifier = Modifier.size(31.dp))
             }
         }
     }
