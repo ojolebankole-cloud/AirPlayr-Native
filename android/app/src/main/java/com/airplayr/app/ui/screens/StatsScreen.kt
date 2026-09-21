@@ -1,6 +1,7 @@
 package com.airplayr.app.ui.screens
 
 import com.airplayr.app.ui.airPlayrBottomContentPadding
+import com.airplayr.app.ui.airPlayrFloatingPlayBottomPadding
 
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.background
@@ -150,7 +151,7 @@ fun StatsScreen(container: AppContainer, libraryViewModel: LibraryViewModel, pla
                         onOpenVideo(fabTarget.id)
                     }
                 },
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 22.dp, bottom = 24.dp).size(68.dp),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 22.dp, bottom = airPlayrFloatingPlayBottomPadding()).size(68.dp),
                 containerColor = colors.primary,
                 contentColor = colors.onPrimary,
                 shape = RoundedCornerShape(22.dp),

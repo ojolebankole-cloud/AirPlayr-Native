@@ -7,6 +7,7 @@ import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.components.AirPlayrCard
 import com.airplayr.app.ui.components.airPlayrShadow
 import com.airplayr.app.ui.airPlayrBottomContentPadding
+import com.airplayr.app.ui.airPlayrFloatingPlayBottomPadding
 
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.ui.unit.sp
@@ -191,7 +192,7 @@ fun FeatureCollectionScreen(
             },
             containerColor = colors.primary,
             contentColor = colors.onPrimary,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 22.dp, bottom = 24.dp).size(68.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 22.dp, bottom = airPlayrFloatingPlayBottomPadding()).size(68.dp),
             shape = RoundedCornerShape(22.dp),
                 elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 10.dp),
         ) { Icon(Icons.Default.PlayArrow, "Play mix", modifier = Modifier.size(31.dp)) }
@@ -376,7 +377,7 @@ fun BrowseFilterScreen(
                 },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 22.dp, bottom = 24.dp)
+                    .padding(end = 22.dp, bottom = airPlayrFloatingPlayBottomPadding())
                     .size(68.dp),
                 containerColor = colors.primary,
                 contentColor = colors.onPrimary,
@@ -455,7 +456,7 @@ fun RecentScreen(
                         data.firstOrNull()?.let { onOpen(it.id) }
                     }
                 },
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 22.dp, bottom = 24.dp).size(68.dp),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 22.dp, bottom = airPlayrFloatingPlayBottomPadding()).size(68.dp),
                 containerColor = com.airplayr.app.ui.theme.LocalAirPlayrColors.current.primary,
                 contentColor = com.airplayr.app.ui.theme.LocalAirPlayrColors.current.onPrimary,
                 shape = RoundedCornerShape(22.dp),
@@ -629,7 +630,7 @@ fun PlaylistDetailScreen(
                 onClick = { playback.playQueue(items); onOpenPlayer() },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 22.dp, bottom = 24.dp)
+                    .padding(end = 22.dp, bottom = airPlayrFloatingPlayBottomPadding())
                     .size(68.dp),
                 containerColor = colors.primary,
                 contentColor = colors.onPrimary,

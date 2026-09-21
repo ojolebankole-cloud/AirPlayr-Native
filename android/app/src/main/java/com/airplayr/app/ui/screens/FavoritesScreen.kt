@@ -2,6 +2,7 @@
 
 package com.airplayr.app.ui.screens
 import com.airplayr.app.ui.airPlayrBottomContentPadding
+import com.airplayr.app.ui.airPlayrFloatingPlayBottomPadding
 
 import androidx.compose.foundation.lazy.items
 
@@ -183,7 +184,7 @@ fun FavoritesScreen(
         if (snapshot.ready && songs.isNotEmpty()) {
             FloatingActionButton(
                 onClick = { playSong(songs.first()) },
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 24.dp),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = airPlayrFloatingPlayBottomPadding()),
                 containerColor = colors.primary,
                 contentColor = colors.onPrimary,
                 shape = RoundedCornerShape(22.dp),
