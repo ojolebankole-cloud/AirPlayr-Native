@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.ArrowBack
@@ -843,6 +844,8 @@ fun BrowseFilterScreen(
     var editMusicItem by remember { mutableStateOf<MediaItem?>(null) }
     var videoActionItem by remember { mutableStateOf<MediaItem?>(null) }
     var videoDetailsItem by remember { mutableStateOf<MediaItem?>(null) }
+    var videoPlaylistItem by remember { mutableStateOf<MediaItem?>(null) }
+    var deleteVideoItem by remember { mutableStateOf<MediaItem?>(null) }
     var renameVideoItem by remember { mutableStateOf<MediaItem?>(null) }
     var renameVideoName by remember { mutableStateOf("") }
     var pendingRename by remember { mutableStateOf<Pair<MediaItem, String>?>(null) }
@@ -864,6 +867,57 @@ fun BrowseFilterScreen(
                 }.onFailure {
                     com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Unable to rename video")
                 }
+            }
+        }
+    }
+
+    val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            libraryViewModel.refresh()
+            AppFeedback.showSnackbar("Video deleted ✓")
+        }
+    }
+
+    val renameVideo: (MediaItem, String) -> Unit = { item, name ->
+        val storeId = item.mediaStoreId
+        if (storeId == null) {
+            AppFeedback.showSnackbar("Unable to rename video")
+        } else {
+            val uri = android.content.ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, storeId)
+            runCatching {
+                if (Build.VERSION.SDK_INT >= 30) {
+                    pendingRename = item to name
+                    val request = MediaStore.createWriteRequest(context.contentResolver, listOf(uri))
+                    renameLauncher.launch(IntentSenderRequest.Builder(request.intentSender).build())
+                } else {
+                    val values = ContentValues().apply { put(MediaStore.MediaColumns.DISPLAY_NAME, name) }
+                    context.contentResolver.update(uri, values, null, null)
+                    libraryViewModel.refresh()
+                    AppFeedback.showSnackbar("Video renamed ✓")
+                }
+            }.onFailure {
+                AppFeedback.showSnackbar("Unable to rename video")
+            }
+        }
+    }
+
+    val deleteVideo: (MediaItem) -> Unit = { item ->
+        val storeId = item.mediaStoreId
+        if (storeId == null) {
+            AppFeedback.showSnackbar("Unable to delete video")
+        } else {
+            val uri = android.content.ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, storeId)
+            runCatching {
+                if (Build.VERSION.SDK_INT >= 30) {
+                    val request = MediaStore.createDeleteRequest(context.contentResolver, listOf(uri))
+                    deleteLauncher.launch(IntentSenderRequest.Builder(request.intentSender).build())
+                } else {
+                    context.contentResolver.delete(uri, null, null)
+                    libraryViewModel.refresh()
+                    AppFeedback.showSnackbar("Video deleted ✓")
+                }
+            }.onFailure {
+                AppFeedback.showSnackbar("Unable to delete video")
             }
         }
     }
@@ -953,7 +1007,7 @@ fun BrowseFilterScreen(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    items(ordered, key = { it.id }) { item ->
+                    gridItems(ordered, key = { it.id }) { item ->
                         VideoGridCard(item, onOpen = { onOpenVideo(item.id) }, onMore = { videoActionItem = item })
                     }
                 }
@@ -1186,7 +1240,7 @@ private fun VideoActionSheet(
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.surfaceContainerLow) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 22.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                AirPlayrMediaArtwork(item.thumbnailUri ?: item.artworkUri, Modifier.size(62.dp).clip(RoundedCornerShape(14.dp)), 14.dp, item.title, MediaType.VIDEO, AirPlayrIcons.Video, false, null, null)
+                AirPlayrMediaArtwork(item.thumbnailUri ?: item.artworkUri, Modifier.size(62.dp).clip(RoundedCornerShape(14.dp)), 14.dp, item.title, MediaType.VIDEO, AirPlayrIcons.Video, playing = false, onPlay = null, onMore = null)
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
                     Text(item.title.ifBlank { item.filename }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("Video", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary)
@@ -1218,7 +1272,7 @@ private fun VideoDetailsSheet(item: MediaItem, onDismiss: () -> Unit) {
     val colors = LocalAirPlayrColors.current
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.surfaceContainerLow) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(22.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            AirPlayrMediaArtwork(item.thumbnailUri ?: item.artworkUri, Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(20.dp)), 20.dp, item.title, MediaType.VIDEO, AirPlayrIcons.Video, false, null, null)
+            AirPlayrMediaArtwork(item.thumbnailUri ?: item.artworkUri, Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(20.dp)), 20.dp, item.title, MediaType.VIDEO, AirPlayrIcons.Video, playing = false, onPlay = null, onMore = null)
             Text(item.title.ifBlank { item.filename }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 25.sp, color = colors.textPrimary)
             VideoDetailLine("Resolution", if (item.width > 0 && item.height > 0) "${item.width} × ${item.height}" else "Unknown")
             VideoDetailLine("Duration", formatTime(item.durationMs))
@@ -1238,6 +1292,15 @@ private fun VideoDetailLine(label: String, value: String) {
         Text(label, fontFamily = AirPlayrFonts.OpenSans, fontSize = 11.sp, color = colors.textSecondary)
         Text(value, fontFamily = AirPlayrFonts.OpenSans, fontSize = 14.sp, color = colors.textPrimary, maxLines = 3, overflow = TextOverflow.Ellipsis)
     }
+}
+
+private fun formatTime(ms: Long): String {
+    val totalSeconds = (ms.coerceAtLeast(0L) / 1000L)
+    val hours = totalSeconds / 3600L
+    val minutes = (totalSeconds % 3600L) / 60L
+    val seconds = totalSeconds % 60L
+    return if (hours > 0L) String.format(java.util.Locale.getDefault(), "%d:%02d:%02d", hours, minutes, seconds)
+    else String.format(java.util.Locale.getDefault(), "%d:%02d", minutes, seconds)
 }
 
 private fun formatBytes(bytes: Long): String {

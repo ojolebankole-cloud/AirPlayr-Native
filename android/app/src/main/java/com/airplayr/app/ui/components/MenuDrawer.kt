@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.background
@@ -291,6 +292,7 @@ private fun LazyListScope.section(
     onScanMedia: () -> Unit,
     onAbout: () -> Unit,
     onSupport: () -> Unit,
+    onQueueToggle: (() -> Unit)? = null,
 ) {
     item {
         Text(title, style = MaterialTheme.typography.labelSmall, color = colors.textSecondary, modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
@@ -366,7 +368,7 @@ private fun MusicQueueSheet(queue: List<com.airplayr.app.core.data.media.MediaIt
                     items(queue.size, key = { index -> queue[index].id }) { index ->
                         val item = queue[index]
                         Row(Modifier.fillMaxWidth().clickable { playback.playQueueIndex(index) }.padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                            AirPlayrMediaArtwork(item.artworkUri, Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)), 12.dp, item.title, MediaType.AUDIO, AirPlayrIcons.Music, false, null, null)
+                            AirPlayrMediaArtwork(item.artworkUri, Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)), 12.dp, item.title, MediaType.AUDIO, AirPlayrIcons.Music, playing = false, onPlay = null, onMore = null)
                             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                                 Text(item.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 16.sp, maxLines = 1)
                                 Text(item.artist ?: "Unknown artist", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary, maxLines = 1)
