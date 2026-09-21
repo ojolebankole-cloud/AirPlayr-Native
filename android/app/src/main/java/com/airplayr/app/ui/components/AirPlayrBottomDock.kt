@@ -1,6 +1,13 @@
 package com.airplayr.app.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -47,6 +54,8 @@ import com.airplayr.app.ui.playback.PlaybackController
 import com.airplayr.app.ui.playback.PlaybackUiState
 import com.airplayr.app.ui.theme.AirPlayrIcons
 
+private val AirPlayrDockCardShape = RoundedCornerShape(28.dp)
+
 @Composable
 fun AirPlayrBottomDock(
     modifier: Modifier = Modifier,
@@ -58,39 +67,53 @@ fun AirPlayrBottomDock(
     showMiniPlayer: Boolean = true,
 ) {
     val miniVisible = showMiniPlayer && playbackState.currentId != null && playbackState.currentMediaType == MediaType.AUDIO
-    Surface(
+
+    // The outer layout is deliberately transparent. There is exactly one painted card for
+    // the mini-player + bottom navigation, so nothing can create a background underneath it.
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .wrapContentHeight()
             .navigationBarsPadding()
             .padding(horizontal = 10.dp, vertical = 8.dp)
             .testTag(AirPlayrQaTags.DOCK),
-        shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
+        contentAlignment = Alignment.BottomCenter,
     ) {
-        Column(Modifier.fillMaxWidth()) {
-            if (miniVisible) {
-                MiniPlayerSection(playback, onOpenPlayer)
-                androidx.compose.material3.HorizontalDivider(
-                    thickness = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(
+                    BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.24f)),
+                    AirPlayrDockCardShape,
                 )
-            }
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .height(72.dp)
-                    .padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceEvenly,
-            ) {
-                DockItem(AirPlayrIcons.Home, currentRoute == "home", "Home") { onNavigate("home") }
-                DockItem(AirPlayrIcons.Music, currentRoute == "music", "Music") { onNavigate("music") }
-                Spacer(Modifier.size(1.dp))
-                DockItem(AirPlayrIcons.Video, currentRoute == "videos", "Videos") { onNavigate("videos") }
-                DockItem(AirPlayrIcons.Settings, currentRoute == "settings", "Settings") { onNavigate("settings") }
+                .threeDEdge(
+                    highlight = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.20f),
+                    shadow = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f),
+                ),
+            shape = AirPlayrDockCardShape,
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            tonalElevation = 1.dp,
+            shadowElevation = 9.dp,
+        ) {
+            Column(Modifier.fillMaxWidth()) {
+                if (miniVisible) {
+                    MiniPlayerSection(playback, onOpenPlayer)
+                }
+
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(72.dp)
+                        .padding(horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                ) {
+                    DockItem(AirPlayrIcons.Home, currentRoute == "home", "Home") { onNavigate("home") }
+                    DockItem(AirPlayrIcons.Music, currentRoute == "music", "Music") { onNavigate("music") }
+                    Spacer(Modifier.size(1.dp))
+                    DockItem(AirPlayrIcons.Video, currentRoute == "videos", "Videos") { onNavigate("videos") }
+                    DockItem(AirPlayrIcons.Settings, currentRoute == "settings", "Settings") { onNavigate("settings") }
+                }
             }
         }
     }
@@ -109,11 +132,22 @@ fun AirPlayrMiniPlayerOnly(
                 .fillMaxWidth()
                 .wrapContentHeight()
                 .navigationBarsPadding()
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-            shape = RoundedCornerShape(28.dp),
+                .padding(horizontal = 10.dp, vertical = 8.dp)
+                .border(
+                    BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.24f),
+                    ),
+                    AirPlayrDockCardShape,
+                )
+                .threeDEdge(
+                    highlight = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.20f),
+                    shadow = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f),
+                ),
+            shape = AirPlayrDockCardShape,
             color = MaterialTheme.colorScheme.surfaceContainer,
-            tonalElevation = 0.dp,
-            shadowElevation = 0.dp,
+            tonalElevation = 1.dp,
+            shadowElevation = 9.dp,
         ) {
             MiniPlayerSection(playback, onOpenPlayer)
         }
@@ -246,3 +280,42 @@ const val AIRPLAYR_MINI_PLAYER_ONLY_BASE_HEIGHT = 128
 const val AIRPLAYR_FLOATING_PLAY_BOTTOM_WITH_MINI = 24
 /** Floating play FAB bottom inset when no MiniPlayer is visible. */
 const val AIRPLAYR_FLOATING_PLAY_BOTTOM = 24
+
+
+/**
+ * Gives the single dock card a restrained raised/3D edge: a light upper/left edge and a
+ * darker lower/right edge. This is an edge treatment only; it does not paint anything outside
+ * the card itself.
+ */
+private fun Modifier.threeDEdge(
+    highlight: Color,
+    shadow: Color,
+): Modifier = drawWithCache {
+    val stroke = 1.dp.toPx()
+    val radius = 28.dp.toPx()
+    val inset = stroke / 2f
+    val rectSize = Size(size.width - stroke, size.height - stroke)
+    val corner = CornerRadius(radius, radius)
+
+    onDrawWithContent {
+        drawContent()
+
+        // Fine highlight around the upper/left edge.
+        drawRoundRect(
+            color = highlight,
+            topLeft = Offset(inset, inset),
+            size = rectSize,
+            cornerRadius = corner,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(stroke),
+        )
+
+        // Slightly offset dark edge creates the raised-card depth without another background.
+        drawRoundRect(
+            color = shadow,
+            topLeft = Offset(inset + 0.8.dp.toPx(), inset + 0.8.dp.toPx()),
+            size = rectSize,
+            cornerRadius = corner,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(stroke),
+        )
+    }
+}
