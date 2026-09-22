@@ -109,7 +109,7 @@ fun HistoryFavoritePlaylistSheet(container: AppContainer, items: List<MediaItem>
             OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("New playlist") }, singleLine = true)
             Button(enabled = name.trim().isNotEmpty(), onClick = { scope.launch { val p = container.structured.createPlaylist(name.trim()); itemIds.forEach { container.structured.addToPlaylist(p.id, it) }; AppFeedback.showSnackbar("Added to ${p.name}."); onDismiss() } }, modifier = Modifier.fillMaxWidth()) { Text("Create playlist") }
             if (playlists.isNotEmpty()) Text("YOUR PLAYLISTS", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 12.sp, letterSpacing = 1.1.sp, color = colors.textSecondary)
-            playlists.forEach { p -> TextButton(onClick = { scope.launch { itemIds.forEach { container.structured.addToPlaylist(p.id, it) }; AppFeedback.showSnackbar("Added to ${p.name}."); onDismiss() } }, modifier = Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.QueueMusic, null, tint = colors.primary); Spacer(Modifier.width(14.dp)); Text(p.name, color = colors.textPrimary) } }
+            playlists.forEach { p -> TextButton(onClick = { scope.launch { itemIds.forEach { container.structured.addToPlaylist(p.id, it) }; AppFeedback.showSnackbar("Added to ${p.name}."); onDismiss() } }, modifier = Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.QueueMusic, null, tint = colors.primary); Spacer(Modifier.width(14.dp)); Text(p.name, color = colors.textPrimary) } }}
         }
     }
 }
@@ -197,6 +197,4 @@ fun HistoryFavoriteLyricsSheet(container: AppContainer, item: MediaItem, onDismi
             }
         }
     }
-}
-
 }
