@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.NewReleases
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card

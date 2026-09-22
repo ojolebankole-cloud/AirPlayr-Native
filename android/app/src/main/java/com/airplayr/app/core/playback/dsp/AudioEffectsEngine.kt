@@ -89,7 +89,7 @@ class AudioEffectsEngine {
         return runCatching {
             if (bands.isEmpty()) return@runCatching true
             val logical = (0..9).map { index -> bands[index] ?: 0 }
-            val count = eq.numberOfBands
+            val count = eq.numberOfBands.toInt()
             if (count <= 0) return@runCatching false
             val range = eq.bandLevelRange
             for (bandIndex in 0 until count) {
