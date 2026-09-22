@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.airplayr.app.ui.components
 
 import com.airplayr.app.ui.theme.AirPlayrIcons
@@ -196,4 +197,6 @@ fun HistoryFavoriteLyricsSheet(container: AppContainer, item: MediaItem, onDismi
             }
         }
     }
+}
+
 }

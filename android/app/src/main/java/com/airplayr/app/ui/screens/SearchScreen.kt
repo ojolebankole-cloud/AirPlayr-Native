@@ -728,7 +728,7 @@ private fun SearchActionSheet(
                 AirPlayrMediaMenuAction("Tag editor", Icons.Default.Edit, onEditMetadata),
                 AirPlayrMediaMenuAction("Edit lyrics", AirPlayrIcons.Lyrics, onEditLyrics),
             ),
-            listOf(common),
+            common,
         )
     }
     AirPlayrPremiumMediaActionSheet(

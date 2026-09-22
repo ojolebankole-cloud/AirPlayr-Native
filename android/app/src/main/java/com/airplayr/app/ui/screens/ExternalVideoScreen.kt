@@ -186,9 +186,10 @@ fun ExternalVideoScreen(container: AppContainer, uri: String, mimeType: String?,
                             Icons.Default.AspectRatio,
                             fitMode.label,
                             onClick = {
-                            fitMode = VideoFitMode.entries[(fitMode.ordinal + 1) % VideoFitMode.entries.size]
-                            touch()
-                        }
+                                fitMode = VideoFitMode.entries[(fitMode.ordinal + 1) % VideoFitMode.entries.size]
+                                touch()
+                            },
+                        )
                     }
                 }
             }
