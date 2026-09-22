@@ -90,6 +90,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.airplayr.app.core.data.media.MediaItem
 import com.airplayr.app.core.lyrics.LyricsRepository
 import com.airplayr.app.core.lyrics.LyricsService
+import com.airplayr.app.core.lyrics.LyricsTrack
 import com.airplayr.app.core.metadata.MetadataMatch
 import com.airplayr.app.core.metadata.MetadataRepository
 import com.airplayr.app.core.playback.dsp.DspRepository
@@ -283,10 +284,12 @@ fun LyricsSheet(
         val fetched = withContext(Dispatchers.IO) {
             service.fetch(
                 state.currentId.orEmpty(),
-                state.currentTitle.orEmpty(),
-                state.currentArtist.orEmpty(),
-                state.currentAlbum,
-                state.durationMs / 1000.0,
+                LyricsTrack(
+                    state.currentTitle.orEmpty(),
+                    state.currentArtist.orEmpty(),
+                    state.currentAlbum.orEmpty(),
+                    state.durationMs / 1000.0,
+                ),
                 true,
             )
         }
@@ -457,7 +460,7 @@ fun LyricsEditorSheet(context: Context, repository: LyricsRepository, item: Medi
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(item.title, style = MaterialTheme.typography.titleLarge); Text(item.artist.orEmpty(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { scope.launch { status = "Searching online…"; val r = withContext(Dispatchers.IO) { service.fetch(item.id, item.title, item.artist.orEmpty(), item.album, item.durationMs / 1000.0, true) }; if (r != null) { text = r.syncedLyrics ?: r.plainLyrics.orEmpty(); provider = r.provider; status = "Found ${r.provider}" } else status = "No confident match found" } }) { Icon(Icons.Default.CloudDownload, null); Spacer(Modifier.width(6.dp)); Text("Search online") }
+                    Button(onClick = { scope.launch { status = "Searching online…"; val r = withContext(Dispatchers.IO) { service.fetch(item.id, LyricsTrack(item.title, item.artist.orEmpty(), item.album.orEmpty(), item.durationMs / 1000.0), true) }; if (r != null) { text = r.syncedLyrics ?: r.plainLyrics.orEmpty(); provider = r.provider; status = "Found ${r.provider}" } else status = "No confident match found" } }) { Icon(Icons.Default.CloudDownload, null); Spacer(Modifier.width(6.dp)); Text("Search online") }
                     OutlinedButton(onClick = { picker.launch(arrayOf("text/plain", "text/x-lrc", "text/*", "application/octet-stream")) }) { Text("Open file") }
                     IconButton(onClick = ::paste) { Icon(Icons.Default.ContentPaste, "Paste") }
                 }

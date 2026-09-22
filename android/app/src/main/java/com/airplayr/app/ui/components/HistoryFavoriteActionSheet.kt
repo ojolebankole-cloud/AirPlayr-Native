@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.airplayr.app.core.data.media.MediaItem
 import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.core.lyrics.LyricsService
+import com.airplayr.app.core.lyrics.LyricsTrack
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.feedback.AppFeedback
 import com.airplayr.app.ui.theme.AirPlayrFonts
@@ -192,7 +193,7 @@ fun HistoryFavoriteLyricsSheet(container: AppContainer, item: MediaItem, onDismi
             Text(item.title, color = colors.textPrimary)
             OutlinedTextField(lyrics, { lyrics = it }, Modifier.fillMaxWidth().height(260.dp), label = { Text("Lyrics") })
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(enabled = !loading, onClick = { scope.launch { loading = true; val result = withContext(Dispatchers.IO) { service.fetch(item.id, item.title, item.artist.orEmpty(), item.album, item.durationMs / 1000.0, true) }; lyrics = result?.plainLyrics.orEmpty(); loading = false } }, modifier = Modifier.weight(1f)) { Text(if (loading) "Searching…" else "Fetch") }
+                OutlinedButton(enabled = !loading, onClick = { scope.launch { loading = true; val result = withContext(Dispatchers.IO) { service.fetch(item.id, LyricsTrack(item.title, item.artist.orEmpty(), item.album.orEmpty(), item.durationMs / 1000.0), true) }; lyrics = result?.plainLyrics.orEmpty(); loading = false } }, modifier = Modifier.weight(1f)) { Text(if (loading) "Searching…" else "Fetch") }
                 Button(onClick = { scope.launch {
                     val old = withContext(Dispatchers.IO) { service.getCached(item.id) }
                     val syncedText = if (Regex("\\[\\d{1,3}:\\d{2}(?:[.:]\\d{1,3})?\\]").containsMatchIn(lyrics)) lyrics else null

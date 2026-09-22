@@ -40,6 +40,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airplayr.app.core.data.media.MediaItem
 import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.core.lyrics.LyricsService
+import com.airplayr.app.core.lyrics.LyricsTrack
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.components.AirPlayrSheetScaffold
 import com.airplayr.app.ui.components.AirPlayrMediaMenuAction
@@ -847,7 +848,7 @@ private fun SearchLyricsSheet(
                         loading = true
                         status = "Searching…"
                         val result = withContext(Dispatchers.IO) {
-                            service.fetch(item.id, item.title, item.artist.orEmpty(), item.album, item.durationMs / 1000.0, true)
+                            service.fetch(item.id, LyricsTrack(item.title, item.artist.orEmpty(), item.album.orEmpty(), item.durationMs / 1000.0), true)
                         }
                         lyrics = result?.plainLyrics.orEmpty()
                         status = if (result != null) "Lyrics found" else "Lyrics not found"

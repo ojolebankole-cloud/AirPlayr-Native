@@ -44,7 +44,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.C
-import androidx.media3.common.CueGroup
+import androidx.media3.common.text.CueGroup
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
@@ -445,11 +445,16 @@ fun VideoScreen(
         )
 
         if (locked) {
-            GlassIconButton(Icons.Default.Lock, "Unlock controls", Modifier.align(Alignment.CenterEnd).padding(18.dp)) {
-                locked = false
-                controlsVisible = true
-                interactionTick++
-            }
+            GlassIconButton(
+                Icons.Default.Lock,
+                "Unlock controls",
+                Modifier.align(Alignment.CenterEnd).padding(18.dp),
+                onClick = {
+                    locked = false
+                    controlsVisible = true
+                    interactionTick++
+                },
+            )
         }
 
         seekFeedback?.let { text ->

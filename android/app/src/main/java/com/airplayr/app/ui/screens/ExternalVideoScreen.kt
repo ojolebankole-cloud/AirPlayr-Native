@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.C
-import androidx.media3.common.CueGroup
+import androidx.media3.common.text.CueGroup
 import androidx.media3.common.Player
 import com.airplayr.app.di.AppContainer
 import kotlinx.coroutines.delay
@@ -200,53 +200,53 @@ fun ExternalVideoScreen(
                 Box(Modifier.fillMaxWidth().height(145.dp).align(Alignment.TopCenter).background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .62f), Color.Transparent))))
                 Box(Modifier.fillMaxWidth().height(180.dp).align(Alignment.BottomCenter).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .72f)))))
                 Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.Top) {
-                    GlassIconButton(Icons.Default.ArrowBack, "Back", Modifier.size(54.dp)) { (context as? ComponentActivity)?.onBackPressedDispatcher?.onBackPressed() }
+                    GlassIconButton(Icons.Default.ArrowBack, "Back", Modifier.size(54.dp), onClick = { (context as? ComponentActivity)?.onBackPressedDispatcher?.onBackPressed() })
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 2.dp)) {
                         Text(title.ifBlank { "Video" }, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text("EXTERNAL VIDEO", color = Color.White.copy(alpha = .65f), fontSize = 10.sp, letterSpacing = 1.1.sp)
                     }
                     GlassIconButton(Icons.Default.Cast, "Cast", Modifier.size(48.dp), onCast)
                     Spacer(Modifier.width(6.dp))
-                    GlassIconButton(Icons.Default.GraphicEq, "Equalizer", Modifier.size(48.dp)) { onNavigate("equalizer") }
+                    GlassIconButton(Icons.Default.GraphicEq, "Equalizer", Modifier.size(48.dp), onClick = { onNavigate("equalizer") })
                     Spacer(Modifier.width(6.dp))
                     GlassIconButton(if (subtitleOn) Icons.Default.ClosedCaption else Icons.Default.SubtitlesOff, "Subtitles", Modifier.size(48.dp), ::toggleSubtitles)
                     Spacer(Modifier.width(6.dp))
                     GlassIconButton(if (muted) Icons.Default.VolumeOff else Icons.Default.VolumeUp, "Mute", Modifier.size(48.dp), ::toggleMute)
                     Spacer(Modifier.width(6.dp))
-                    GlassIconButton(Icons.Default.MoreHoriz, "More", Modifier.size(48.dp)) { fitMode = VideoFitMode.entries[(fitMode.ordinal + 1) % VideoFitMode.entries.size]; touch() }
+                    GlassIconButton(Icons.Default.MoreHoriz, "More", Modifier.size(48.dp), onClick = { fitMode = VideoFitMode.entries[(fitMode.ordinal + 1) % VideoFitMode.entries.size]; touch() })
                 }
                 Row(Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.spacedBy(30.dp), verticalAlignment = Alignment.CenterVertically) {
-                    GlassIconButton(if (player?.isPlaying == true) Icons.Default.Pause else Icons.Default.PlayArrow, if (player?.isPlaying == true) "Pause" else "Play", Modifier.size(82.dp), primary = true, iconSize = 38.dp) { player?.let { if (it.isPlaying) it.pause() else it.play(); touch() } }
+                    GlassIconButton(if (player?.isPlaying == true) Icons.Default.Pause else Icons.Default.PlayArrow, if (player?.isPlaying == true) "Pause" else "Play", Modifier.size(82.dp), onClick = { player?.let { if (it.isPlaying) it.pause() else it.play(); touch() } }, primary = true, iconSize = 38.dp)
                 }
                 Row(Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(start = 18.dp, bottom = 76.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GlassIconButton(Icons.Default.Replay10, "Back 10 seconds", Modifier.size(50.dp)) { seek(-10_000L) }
+                    GlassIconButton(Icons.Default.Replay10, "Back 10 seconds", Modifier.size(50.dp), onClick = { seek(-10_000L) })
                     GlassIconButton(Icons.Default.VolumeUp, "Volume", Modifier.size(50.dp), ::toggleMute)
-                    GlassIconButton(Icons.Default.ScreenRotation, "Rotate", Modifier.size(50.dp)) {
+                    GlassIconButton(Icons.Default.ScreenRotation, "Rotate", Modifier.size(50.dp), onClick = {
                         val a = context as? Activity
                         a?.let { it.requestedOrientation = if (it.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
                         touch()
                     }
                 }
                 Row(Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 18.dp, bottom = 76.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GlassIconButton(Icons.Default.Forward10, "Forward 10 seconds", Modifier.size(50.dp)) { seek(10_000L) }
-                    GlassIconButton(Icons.Default.PictureInPictureAlt, "Picture in picture", Modifier.size(50.dp)) { if (Build.VERSION.SDK_INT >= 26) (context as? Activity)?.enterPictureInPictureMode(); touch() }
+                    GlassIconButton(Icons.Default.Forward10, "Forward 10 seconds", Modifier.size(50.dp), onClick = { seek(10_000L) })
+                    GlassIconButton(Icons.Default.PictureInPictureAlt, "Picture in picture", Modifier.size(50.dp), onClick = { if (Build.VERSION.SDK_INT >= 26) (context as? Activity)?.enterPictureInPictureMode(); touch() })
                     GlassIconButton(if (fullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, "Fullscreen", Modifier.size(50.dp), ::toggleFullscreen)
                 }
                 Column(Modifier.fillMaxWidth().align(Alignment.BottomCenter).navigationBarsPadding().padding(horizontal = 18.dp, vertical = 12.dp)) {
                     val progress = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(formatTime(position), color = Color.White, fontSize = 11.sp, modifier = Modifier.width(54.dp))
+                        Text(formatVideoTime(position), color = Color.White, fontSize = 11.sp, modifier = Modifier.width(54.dp))
                         Box(Modifier.weight(1f).height(28.dp), contentAlignment = Alignment.Center) {
                             Box(Modifier.fillMaxWidth().height(4.dp).background(Color.White.copy(alpha = .26f), RoundedCornerShape(4.dp)))
                             Box(Modifier.fillMaxWidth(progress).height(4.dp).background(Color.White, RoundedCornerShape(4.dp)))
                             Box(Modifier.fillMaxWidth().height(28.dp).pointerInput(duration) { detectTapGestures { p -> if (size.width > 0) player?.seekTo((duration * (p.x / size.width).coerceIn(0f, 1f)).toLong()) } })
                         }
-                        Text(formatTime(duration), color = Color.White, fontSize = 11.sp, modifier = Modifier.width(54.dp), textAlign = TextAlign.End)
+                        Text(formatVideoTime(duration), color = Color.White, fontSize = 11.sp, modifier = Modifier.width(54.dp), textAlign = TextAlign.End)
                     }
                 }
             }
         }
-        seekFeedback?.let { text -> GlassPill(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 8.dp)) { Icon(Icons.Default.PlayArrow, null, tint = Color.White, Modifier.size(16.dp)); Text(text, color = Color.White); Text(formatTime(position), color = Color.White.copy(alpha = .7f), fontSize = 12.sp) } }
+        seekFeedback?.let { text -> GlassPill(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 8.dp)) { Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp), tint = Color.White); Text(text, color = Color.White); Text(formatVideoTime(position), color = Color.White.copy(alpha = .7f), fontSize = 12.sp) } }
         if (volumeOverlay) VideoVolumeOverlay(volumeOverlayValue, muted, Modifier.align(Alignment.CenterEnd).padding(end = 22.dp))
         brightnessFeedback?.let { VideoBrightnessOverlay(it, Modifier.align(Alignment.CenterEnd).padding(end = 22.dp)) }
     }

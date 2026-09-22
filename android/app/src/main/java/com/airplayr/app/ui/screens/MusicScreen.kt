@@ -89,6 +89,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -151,6 +152,7 @@ fun MusicScreen(
     onNavigate: (String) -> Unit = {},
 ) {
     val colors = LocalAirPlayrColors.current
+    val appContext = LocalContext.current
     val settings by container.preferences.settings.collectAsStateWithLifecycle(initialValue = null)
     val librarySnapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
     val songs = librarySnapshot.audio
