@@ -1,5 +1,4 @@
 package com.airplayr.app.ui.screens
-import androidx.compose.ui.unit.toPx
 import androidx.compose.foundation.layout.fillMaxHeight
 
 import android.content.Context
@@ -89,6 +88,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -656,7 +656,7 @@ private fun AirPlayrFastScrollHandle(state: LazyListState) {
     BoxWithConstraints(Modifier.fillMaxSize().padding(end = 4.dp, top = 18.dp, bottom = 72.dp)) {
         val trackHeight = maxHeight - 12.dp
         val thumbHeight = 52.dp
-        val dragRangePx = (trackHeight - thumbHeight).toPx().coerceAtLeast(1f)
+        val dragRangePx = with(LocalDensity.current) { (trackHeight - thumbHeight).toPx() }.coerceAtLeast(1f)
         val y = (trackHeight - thumbHeight).coerceAtLeast(0.dp) * fraction
         Box(Modifier.align(Alignment.TopEnd).width(30.dp).height(trackHeight), contentAlignment = Alignment.TopCenter) {
             Box(
@@ -696,7 +696,7 @@ private fun AirPlayrFastScrollGridHandle(state: LazyGridState) {
     BoxWithConstraints(Modifier.fillMaxSize().padding(end = 4.dp, top = 18.dp, bottom = 72.dp)) {
         val trackHeight = maxHeight - 12.dp
         val thumbHeight = 48.dp
-        val dragRangePx = (trackHeight - thumbHeight).toPx().coerceAtLeast(1f)
+        val dragRangePx = with(LocalDensity.current) { (trackHeight - thumbHeight).toPx() }.coerceAtLeast(1f)
         val y = (trackHeight - thumbHeight).coerceAtLeast(0.dp) * fraction
         Box(Modifier.align(Alignment.TopEnd).width(30.dp).height(trackHeight), contentAlignment = Alignment.TopCenter) {
             Box(

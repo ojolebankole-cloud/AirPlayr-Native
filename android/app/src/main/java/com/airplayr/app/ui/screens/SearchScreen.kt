@@ -544,6 +544,61 @@ private fun RecentSearchRow(value: String, colors: com.airplayr.app.ui.theme.Air
 }
 
 @Composable
+private fun SearchGenericRow(
+    entry: SearchEntry,
+    colors: com.airplayr.app.ui.theme.AirPlayrColors,
+    onClick: () -> Unit,
+) {
+    val icon = when (entry.type) {
+        "artist" -> AirPlayrIcons.Artist
+        "album" -> AirPlayrIcons.AlbumDisc
+        "playlist" -> Icons.Default.QueueMusic
+        "genre" -> AirPlayrIcons.Music
+        "video" -> AirPlayrIcons.Video
+        else -> AirPlayrIcons.Music
+    }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = colors.primary,
+            modifier = Modifier.size(42.dp),
+        )
+
+        Column(
+            Modifier
+                .weight(1f)
+                .padding(horizontal = 14.dp),
+        ) {
+            Text(
+                entry.title,
+                color = colors.textPrimary,
+                fontFamily = AirPlayrFonts.SmoochSans,
+                fontSize = 18.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+
+            Text(
+                entry.subtitle,
+                color = colors.textSecondary,
+                fontFamily = AirPlayrFonts.OpenSans,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
 private fun SearchContentRow(entry: SearchEntry, colors: com.airplayr.app.ui.theme.AirPlayrColors, playing: Boolean, selected: Boolean = false, onClick: () -> Unit, onLongPress: () -> Unit, onMore: () -> Unit) {
     if (entry.item == null) {
         SearchGenericRow(entry, colors, onClick)

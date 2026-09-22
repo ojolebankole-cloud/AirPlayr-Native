@@ -139,9 +139,23 @@ fun ExternalVideoScreen(container: AppContainer, uri: String, mimeType: String?,
                     VideoTopButton(if (fullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, "Fullscreen", ::toggleFullscreen)
                 }
                 Row(Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.spacedBy(28.dp), verticalAlignment = Alignment.CenterVertically) {
-                    VideoRoundControl(Icons.Default.Replay10, "Back 10") { seek(-10_000L) }
-                    VideoRoundControl(if (player?.isPlaying == true) Icons.Default.Pause else Icons.Default.PlayArrow, "Play/Pause", { player?.let { if (it.isPlaying) it.pause() else it.play(); touch() } }, 78.dp, true)
-                    VideoRoundControl(Icons.Default.Forward10, "Forward 10") { seek(10_000L) }
+                    VideoRoundControl(
+                        Icons.Default.Replay10,
+                        "Back 10",
+                        onClick = { seek(-10_000L) },
+                    )
+                    VideoRoundControl(
+                        if (player?.isPlaying == true) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        "Play/Pause",
+                        onClick = { player?.let { if (it.isPlaying) it.pause() else it.play(); touch() } },
+                        size = 78.dp,
+                        primary = true,
+                    )
+                    VideoRoundControl(
+                        Icons.Default.Forward10,
+                        "Forward 10",
+                        onClick = { seek(10_000L) },
+                    )
                 }
                 Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(Color.Black.copy(alpha = .72f)).padding(horizontal = 18.dp, vertical = 10.dp).navigationBarsPadding()) {
                     val progress = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f
@@ -151,10 +165,27 @@ fun ExternalVideoScreen(container: AppContainer, uri: String, mimeType: String?,
                         Text(formatTime(duration), color = Color.White, fontSize = 11.sp, modifier = Modifier.width(54.dp))
                     }
                     Row(Modifier.fillMaxWidth().padding(top = 3.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                        VideoBottomButton(Icons.Default.Replay10, "Replay 10") { seek(-10_000L) }
-                        VideoBottomButton(if (player?.isPlaying == true) Icons.Default.Pause else Icons.Default.PlayArrow, if (player?.isPlaying == true) "Pause" else "Play", { player?.let { if (it.isPlaying) it.pause() else it.play(); touch() } }, prominent = true, playing = player?.isPlaying == true)
-                        VideoBottomButton(Icons.Default.Forward10, "Forward 10") { seek(10_000L) }
-                        VideoBottomButton(Icons.Default.AspectRatio, fitMode.label) {
+                        VideoBottomButton(
+                            Icons.Default.Replay10,
+                            "Replay 10",
+                            onClick = { seek(-10_000L) },
+                        )
+                        VideoBottomButton(
+                            if (player?.isPlaying == true) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            if (player?.isPlaying == true) "Pause" else "Play",
+                            onClick = { player?.let { if (it.isPlaying) it.pause() else it.play(); touch() } },
+                            prominent = true,
+                            playing = player?.isPlaying == true,
+                        )
+                        VideoBottomButton(
+                            Icons.Default.Forward10,
+                            "Forward 10",
+                            onClick = { seek(10_000L) },
+                        )
+                        VideoBottomButton(
+                            Icons.Default.AspectRatio,
+                            fitMode.label,
+                            onClick = {
                             fitMode = VideoFitMode.entries[(fitMode.ordinal + 1) % VideoFitMode.entries.size]
                             touch()
                         }

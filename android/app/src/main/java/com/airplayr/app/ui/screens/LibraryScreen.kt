@@ -20,6 +20,7 @@ import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.components.*
 import com.airplayr.app.ui.navigation.LibraryViewModel
 import com.airplayr.app.ui.playback.PlaybackController
+import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import kotlinx.coroutines.launch
 
@@ -108,7 +109,7 @@ fun LibraryScreen(
                 add(listOf(
                     AirPlayrMediaMenuAction("Share", Icons.Default.Share, {
                         val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                            type = item.mimeType ?: if (isVideo) "video/*" else "audio/*"
+                            this.type = item.mimeType ?: if (isVideo) "video/*" else "audio/*"
                             putExtra(android.content.Intent.EXTRA_TEXT, item.uri)
                             putExtra(android.content.Intent.EXTRA_TITLE, item.title)
                         }

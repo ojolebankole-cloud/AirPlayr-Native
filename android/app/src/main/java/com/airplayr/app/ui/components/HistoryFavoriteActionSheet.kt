@@ -197,3 +197,4 @@ fun HistoryFavoriteLyricsSheet(container: AppContainer, item: MediaItem, onDismi
         }
     }
 }
+}

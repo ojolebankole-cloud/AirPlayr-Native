@@ -477,6 +477,61 @@ fun AirPlayrSelectionBar(
 }
 
 @Composable
+fun ActionGroup(
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        content = content,
+    )
+}
+
+@Composable
+fun ActionButton(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    destructive: Boolean = false,
+) {
+    val c = LocalAirPlayrColors.current
+
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = c.surfaceContainerHigh,
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = if (destructive) c.error else c.primary,
+                modifier = Modifier.size(22.dp),
+            )
+
+            Text(
+                label,
+                color = if (destructive) c.error else c.textPrimary,
+                fontFamily = AirPlayrFonts.OpenSans,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 14.dp),
+            )
+        }
+    }
+}
+
+@Composable
 fun AirPlayrSectionEmpty(title: String, message: String) {
     val c = LocalAirPlayrColors.current
     Column(
