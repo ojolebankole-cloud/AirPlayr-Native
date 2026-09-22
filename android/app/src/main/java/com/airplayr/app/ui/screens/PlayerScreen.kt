@@ -1,4 +1,6 @@
 package com.airplayr.app.ui.screens
+
+import com.airplayr.app.core.data.media.MediaType
 import androidx.compose.foundation.layout.statusBarsPadding
 
 import com.airplayr.app.core.data.preferences.PreferencesRepository

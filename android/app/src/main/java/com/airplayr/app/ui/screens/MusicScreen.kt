@@ -615,7 +615,7 @@ private fun MusicSortSheet(
     }
 }
 
-private fun musicSongItems(
+private fun LazyListScope.musicSongItems(
     filteredSongs: List<MediaItem>,
     favoriteIds: Set<String>,
     selected: Set<String>,
@@ -624,7 +624,7 @@ private fun musicSongItems(
     onLongPress: (MediaItem) -> Unit,
     onFavorite: (MediaItem) -> Unit,
     onMore: (MediaItem) -> Unit,
-): LazyListScope {
+) {
     if (filteredSongs.isEmpty()) {
         item { EmptyMusic("No songs found", "Music on this device will appear here.") }
     }

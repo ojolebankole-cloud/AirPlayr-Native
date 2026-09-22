@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Settings as SettingsIcon
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
