@@ -52,6 +52,9 @@ interface MediaItemDao {
     @Query("DELETE FROM media_items WHERE mediaType = :type AND sourceDirectoryUri = :rootUri")
     suspend fun deleteSupplementalRoot(type: String, rootUri: String)
 
+    @Query("SELECT * FROM media_items WHERE mediaType = :type AND sourceDirectoryUri = :rootUri")
+    suspend fun getSupplementalRoot(type: String, rootUri: String): List<MediaItemEntity>
+
     @Transaction
     suspend fun replaceMediaStoreType(type: String, items: List<MediaItemEntity>) {
         deleteMediaStoreType(type)

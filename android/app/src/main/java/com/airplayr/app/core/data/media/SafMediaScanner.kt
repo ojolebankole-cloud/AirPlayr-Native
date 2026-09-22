@@ -8,24 +8,29 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class SafMediaScanner(private val context: Context) {
-    suspend fun scanTree(treeUri: Uri, mediaStoreRepository: MediaLibraryRepository): Int = withContext(Dispatchers.IO) {
-        val root = DocumentFile.fromTreeUri(context, treeUri) ?: return@withContext 0
+    suspend fun scanTree(treeUri: Uri, mediaStoreRepository: MediaLibraryRepository): Int {
+        if (DocumentFile.fromTreeUri(context, treeUri) == null) return 0
+        return scanTreeDetailed(treeUri, mediaStoreRepository).total
+    }
+
+    suspend fun scanTreeDetailed(
+        treeUri: Uri,
+        mediaStoreRepository: MediaLibraryRepository,
+        onProgress: ((found: Int) -> Unit)? = null,
+    ): SafScanResult = withContext(Dispatchers.IO) {
+        val root = DocumentFile.fromTreeUri(context, treeUri)
+            ?: throw IllegalStateException("The selected folder is no longer accessible")
         val rootString = treeUri.toString()
-        // Reconcile this SAF root before inserting the current scan. This removes files that
-        // were deleted or moved since the previous scan instead of leaving stale library rows.
-        mediaStoreRepository.clearSupplementalRoot(MediaType.AUDIO, rootString)
-        mediaStoreRepository.clearSupplementalRoot(MediaType.VIDEO, rootString)
         val items = ArrayList<MediaItem>()
-        walk(root, rootUri = rootString, relativePath = "", output = items)
-        if (items.isNotEmpty()) {
-            val audio = items.filter { it.mediaType == MediaType.AUDIO }
-            val video = items.filter { it.mediaType == MediaType.VIDEO }
-            // SAF media is supplementary to MediaStore. Persisting it through the same Room
-            // table gives the native library one consistent source for UI consumers.
-            if (audio.isNotEmpty()) mediaStoreRepository.insertSupplemental(MediaType.AUDIO, audio)
-            if (video.isNotEmpty()) mediaStoreRepository.insertSupplemental(MediaType.VIDEO, video)
-        }
-        items.size
+        walk(root, rootUri = rootString, relativePath = "", output = items, onProgress = onProgress)
+        val refresh = mediaStoreRepository.syncSupplementalRoot(rootString, items)
+        SafScanResult(
+            total = items.size,
+            addedAudio = refresh.addedAudio,
+            updatedAudio = refresh.updatedAudio,
+            addedVideo = refresh.addedVideo,
+            updatedVideo = refresh.updatedVideo,
+        )
     }
 
     private fun walk(
@@ -33,12 +38,15 @@ class SafMediaScanner(private val context: Context) {
         rootUri: String,
         relativePath: String,
         output: MutableList<MediaItem>,
+        onProgress: ((found: Int) -> Unit)?,
     ) {
         if (output.size >= MediaLibraryRepository.MAX_LIBRARY_ITEMS) return
         for (child in node.listFiles()) {
             if (child.isDirectory) {
-                val childPath = listOf(relativePath, child.name.orEmpty()).filter { it.isNotBlank() }.joinToString("/")
-                walk(child, rootUri, childPath, output)
+                val childPath = listOf(relativePath, child.name.orEmpty())
+                    .filter { it.isNotBlank() }
+                    .joinToString("/")
+                walk(child, rootUri, childPath, output, onProgress)
                 continue
             }
             if (!child.isFile) continue
@@ -79,6 +87,7 @@ class SafMediaScanner(private val context: Context) {
                 path = relative,
                 relativePath = relative,
             )
+            if (output.size == 1 || output.size % 25 == 0) onProgress?.invoke(output.size)
             if (output.size >= MediaLibraryRepository.MAX_LIBRARY_ITEMS) return
         }
     }
@@ -111,5 +120,13 @@ class SafMediaScanner(private val context: Context) {
         private val VIDEO_EXTENSIONS = setOf("mp4", "m4v", "mov", "mkv", "webm", "avi", "wmv", "3gp", "ts", "m2ts", "mts", "flv")
     }
 }
+
+data class SafScanResult(
+    val total: Int,
+    val addedAudio: Int,
+    val updatedAudio: Int,
+    val addedVideo: Int,
+    val updatedVideo: Int,
+)
 
 private fun String.extensionLower(): String = substringAfterLast('.', "").lowercase()

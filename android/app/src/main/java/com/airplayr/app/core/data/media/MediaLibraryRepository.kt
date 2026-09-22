@@ -194,6 +194,34 @@ class MediaLibraryRepository(
     }
 
     /**
+     * Replaces one SAF root atomically and reports whether the discovered media was already
+     * represented by that same selected folder in AirPlayr. Existing rows are refreshed so
+     * metadata/file changes are reflected without creating duplicates.
+     */
+    suspend fun syncSupplementalRoot(rootUri: String, items: List<MediaItem>): SafRefreshResult = refreshMutex.withLock {
+        database.withTransaction {
+            val dao = database.mediaItemDao()
+            val incoming = items.take(MAX_LIBRARY_ITEMS)
+            val audioIncoming = incoming.filter { it.mediaType == MediaType.AUDIO }
+            val videoIncoming = incoming.filter { it.mediaType == MediaType.VIDEO }
+            val existingAudio = dao.getSupplementalRoot(MediaType.AUDIO.value, rootUri).associateBy { it.id }
+            val existingVideo = dao.getSupplementalRoot(MediaType.VIDEO.value, rootUri).associateBy { it.id }
+
+            dao.deleteSupplementalRoot(MediaType.AUDIO.value, rootUri)
+            dao.deleteSupplementalRoot(MediaType.VIDEO.value, rootUri)
+            if (audioIncoming.isNotEmpty()) dao.insertAll(audioIncoming.map(MediaItem::asEntity))
+            if (videoIncoming.isNotEmpty()) dao.insertAll(videoIncoming.map(MediaItem::asEntity))
+
+            SafRefreshResult(
+                addedAudio = audioIncoming.count { it.id !in existingAudio },
+                updatedAudio = audioIncoming.count { it.id in existingAudio },
+                addedVideo = videoIncoming.count { it.id !in existingVideo },
+                updatedVideo = videoIncoming.count { it.id in existingVideo },
+            )
+        }
+    }
+
+    /**
      * Backfills MediaStore-provided genre metadata for existing Room rows without replacing a
      * genre that is already stored. This is intended as a one-time post-update task because older
      * builds stored null genres even though modern MediaStore exposes indexed genre metadata.
@@ -247,4 +275,12 @@ private data class DeltaResult(
     val added: Int,
     val updated: Int,
     val deleted: Int,
+)
+
+
+data class SafRefreshResult(
+    val addedAudio: Int = 0,
+    val updatedAudio: Int = 0,
+    val addedVideo: Int = 0,
+    val updatedVideo: Int = 0,
 )

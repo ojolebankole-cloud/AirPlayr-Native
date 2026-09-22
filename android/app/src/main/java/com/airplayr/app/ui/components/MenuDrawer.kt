@@ -121,8 +121,6 @@ fun MenuDrawer(
     val recentHistory by container.structured.history(1).collectAsStateWithLifecycle(initialValue = emptyList())
     val latest = recentHistory.firstOrNull()
 
-    var showAbout by remember { mutableStateOf(false) }
-    var showSupport by remember { mutableStateOf(false) }
     var playingQueueExpanded by rememberSaveable { mutableStateOf(false) }
     var musicQueueSheetOpen by remember { mutableStateOf(false) }
     // The drawer is intentionally immediate: no open/close settle animation is used.
@@ -239,8 +237,15 @@ fun MenuDrawer(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 14.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    section(entriesLibrary, "YOUR LIBRARY", colors, onClose, onNavigate, onScanMedia, { showAbout = true }, { showSupport = true })
-                    section(entriesPlayback, "PLAYBACK", colors, onClose, onNavigate, onScanMedia, { showAbout = true }, { showSupport = true }, onQueueToggle = { playingQueueExpanded = !playingQueueExpanded })
+                    section(entriesLibrary, "YOUR LIBRARY", colors, onClose, onNavigate, onScanMedia, onAbout, onSupport)
+                    item {
+                        Text("PLAYBACK", style = MaterialTheme.typography.labelSmall, color = colors.textSecondary, modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp))
+                    }
+                    item {
+                        DrawerRow(entriesPlayback[0], colors) {
+                            playingQueueExpanded = !playingQueueExpanded
+                        }
+                    }
                     item {
                         AnimatedVisibility(
                             visible = playingQueueExpanded,
@@ -255,30 +260,20 @@ fun MenuDrawer(
                             )
                         }
                     }
-                    section(entriesInsights, "INSIGHTS & TOOLS", colors, onClose, onNavigate, onScanMedia, { showAbout = true }, { showSupport = true })
-                    section(entriesAirPlayr, "AIR PLAYR", colors, onClose, onNavigate, onScanMedia, { showAbout = true }, { showSupport = true })
+                    item {
+                        DrawerRow(entriesPlayback[1], colors) {
+                            onClose()
+                            onNavigate(entriesPlayback[1].route)
+                        }
+                    }
+                    section(entriesInsights, "INSIGHTS & TOOLS", colors, onClose, onNavigate, onScanMedia, onAbout, onSupport)
+                    section(entriesAirPlayr, "AIR PLAYR", colors, onClose, onNavigate, onScanMedia, onAbout, onSupport)
                     item { MaterialInfoCard("Made for your media", "Music first. Video when you want it.", colors) }
                 }
             }
         }
-        if (showAbout) {
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = { showAbout = false },
-                title = { Text("About AirPlayr") },
-                text = { Text("AirPlayr is a music-first local media player. Your library, playback state and preferences stay on this device.") },
-                confirmButton = { androidx.compose.material3.TextButton(onClick = { showAbout = false }) { Text("Close") } },
-            )
-        }
         if (musicQueueSheetOpen) {
             MusicQueueSheet(musicQueue, playback, onDismiss = { musicQueueSheetOpen = false })
-        }
-        if (showSupport) {
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = { showSupport = false },
-                title = { Text("Support AirPlayr") },
-                text = { Text("Thanks for supporting AirPlayr. Your feedback helps improve the player and its accessibility, stability and media features.") },
-                confirmButton = { androidx.compose.material3.TextButton(onClick = { showSupport = false }) { Text("Close") } },
-            )
         }
     }
 }

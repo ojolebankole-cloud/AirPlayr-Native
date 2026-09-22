@@ -33,6 +33,8 @@ import com.airplayr.app.core.data.media.MediaItem
 import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.di.LibrarySyncProgress
+import com.airplayr.app.di.SafScanUiState
+import com.airplayr.app.di.SafScanPhase
 import com.airplayr.app.ui.components.*
 import com.airplayr.app.ui.navigation.LibraryViewModel
 import com.airplayr.app.ui.navigation.HomeViewModel
@@ -243,6 +245,91 @@ fun HomeScreen(
             }
             item {
                 CurrentPlaybackHost(playback)
+            }
+        }
+
+    }
+}
+
+@Composable
+fun SafScanOverlay(state: SafScanUiState) {
+    val colors = LocalAirPlayrColors.current
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.scrim.copy(alpha = 0.58f))
+            .clickable(onClick = {}),
+        contentAlignment = Alignment.Center,
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.84f)
+                .heightIn(min = 156.dp),
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = colors.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 26.dp),
+                verticalArrangement = Arrangement.spacedBy(22.dp),
+            ) {
+                Text(
+                    text = when (state.phase) {
+                        SafScanPhase.SCANNING -> "Scanning files"
+                        SafScanPhase.COMPLETE -> when {
+                            state.addedAudio + state.addedVideo > 0 && state.updatedAudio + state.updatedVideo == 0 -> "Media added"
+                            state.updatedAudio + state.updatedVideo > 0 -> "Library updated"
+                            else -> "Scan complete"
+                        }
+                        SafScanPhase.ERROR -> "Scan failed"
+                    },
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Normal),
+                    color = colors.textPrimary,
+                )
+
+                when (state.phase) {
+                    SafScanPhase.SCANNING -> {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            LinearProgressIndicator(
+                                modifier = Modifier.weight(1f).height(6.dp),
+                                color = colors.primary,
+                                trackColor = colors.primaryContainer,
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Box(Modifier.width(12.dp).height(6.dp).clip(RoundedCornerShape(4.dp)).background(colors.primary))
+                        }
+                        Text(
+                            text = if (state.found == 0) "Looking for music and videos…" else "Found ${state.found} media files…",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.textSecondary,
+                        )
+                    }
+                    SafScanPhase.COMPLETE -> {
+                        Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            val added = listOf(
+                                state.addedAudio.takeIf { it > 0 }?.let { "$it ${if (it == 1) "song" else "songs"}" },
+                                state.addedVideo.takeIf { it > 0 }?.let { "$it ${if (it == 1) "video" else "videos"}" },
+                            ).filterNotNull().joinToString(" • ")
+                            val updated = listOf(
+                                state.updatedAudio.takeIf { it > 0 }?.let { "$it ${if (it == 1) "song" else "songs"}" },
+                                state.updatedVideo.takeIf { it > 0 }?.let { "$it ${if (it == 1) "video" else "videos"}" },
+                            ).filterNotNull().joinToString(" • ")
+                            if (added.isNotBlank()) Text("Added $added to your library", style = MaterialTheme.typography.bodyLarge, color = colors.textPrimary)
+                            if (updated.isNotBlank()) Text("Updated $updated in your library", style = MaterialTheme.typography.bodyLarge, color = colors.textPrimary)
+                            if (added.isBlank() && updated.isBlank()) Text("No new media files were found", style = MaterialTheme.typography.bodyLarge, color = colors.textPrimary)
+                        }
+                    }
+                    SafScanPhase.ERROR -> {
+                        Text(
+                            text = state.error ?: "The selected folder could not be scanned.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.textSecondary,
+                        )
+                    }
+                }
             }
         }
     }

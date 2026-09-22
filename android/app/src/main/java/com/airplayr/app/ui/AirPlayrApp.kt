@@ -12,6 +12,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import android.content.Intent
 import androidx.compose.runtime.Composable
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.SideEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -34,10 +36,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import com.airplayr.app.di.AppContainer
+import com.airplayr.app.di.SafScanUiState
 import com.airplayr.app.ui.navigation.AirPlayrNavViewModel
 import com.airplayr.app.ui.navigation.LibraryViewModel
 import com.airplayr.app.ui.navigation.LibraryViewModelFactory
 import com.airplayr.app.ui.screens.HomeScreen
+import com.airplayr.app.ui.screens.SafScanOverlay
 import com.airplayr.app.ui.screens.LibraryScreen
 import com.airplayr.app.ui.screens.MusicScreen
 import com.airplayr.app.ui.screens.PlayerScreen
@@ -52,6 +56,7 @@ import com.airplayr.app.ui.screens.PlaylistsScreen
 import com.airplayr.app.ui.playback.PlaybackController
 import com.airplayr.app.ui.playback.PlaybackControllerFactory
 import com.airplayr.app.ui.screens.SettingsScreen
+import com.airplayr.app.ui.screens.AboutScreen
 import com.airplayr.app.ui.screens.QueueScreen
 import com.airplayr.app.ui.screens.StatsScreen
 import com.airplayr.app.ui.screens.FoldersScreen
@@ -99,8 +104,17 @@ fun AirPlayrApp(
     var startupContentReady by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var menuOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val syncState by container.syncState.collectAsStateWithLifecycle()
+    val safScanState by container.safScanState.collectAsStateWithLifecycle()
     val rootScope = androidx.compose.runtime.rememberCoroutineScope()
     val snackbarHostState = androidx.compose.runtime.remember { SnackbarHostState() }
+    val scanMediaLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+            container.appContext.contentResolver.takePersistableUriPermission(uri, flags)
+        }
+        container.startSafMediaScan(uri)
+    }
     androidx.compose.runtime.LaunchedEffect(Unit) {
         AppFeedback.snackbar.collect { message ->
             snackbarHostState.currentSnackbarData?.dismiss()
@@ -283,11 +297,12 @@ fun AirPlayrApp(
                         onOpen = { navigate("video/${it.id}") },
                     )
                 }
+                composable("about") { AboutScreen(onBack = { navController.popBackStack() }, appVersion = appVersion) }
                 composable("settings") {
                     SettingsScreen(container = container, onDiagnostics = { navigate("diagnostics") }, onMetadata = { navigate("metadata") }, onNavigate = { route -> navigate(route) })
                 }
                 composable("player") { PlayerScreen(container.appContext, onBack = { navController.popBackStack() }, onEqualizer = { navigate("equalizer") }, onQueue = { navigate("queue") }, onNavigate = { route -> navigate(route) }) }
-                composable("equalizer") { EqualizerScreen(container) }
+                composable("equalizer") { EqualizerScreen(container, onBack = { navController.popBackStack() }) }
                 composable("search") {
                     SearchScreen(
                         container = container,
@@ -426,10 +441,14 @@ fun AirPlayrApp(
                     container = container,
                     onClose = { menuOpen = false },
                     onNavigate = { route -> navigate(route) },
-                    onScanMedia = { libraryViewModel.refresh() },
-                    onAbout = {},
-                    onSupport = {},
+                    onScanMedia = { scanMediaLauncher.launch(null) },
+                    onAbout = { navigate("about") },
+                    onSupport = { navigate("about") },
                 )
+            }
+
+            if (safScanState.visible) {
+                SafScanOverlay(safScanState)
             }
 
             StartupPermissionFlow(

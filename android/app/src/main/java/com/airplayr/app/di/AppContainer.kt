@@ -41,6 +41,8 @@ class AppContainer(context: Context) {
     val syncState: StateFlow<LibrarySyncState> = _syncState
     private val _syncProgress = MutableStateFlow(LibrarySyncProgress())
     val syncProgress: StateFlow<LibrarySyncProgress> = _syncProgress
+    private val _safScanState = MutableStateFlow(SafScanUiState())
+    val safScanState: StateFlow<SafScanUiState> = _safScanState
 
     // The launch theme is mirrored in SharedPreferences so it can be read synchronously before
     // Android releases the splash screen. DataStore remains the authoritative settings stream
@@ -266,6 +268,40 @@ class AppContainer(context: Context) {
         }
     }
 
+    /** Starts a user-requested SAF folder scan without blocking the Home UI. */
+    fun startSafMediaScan(treeUri: android.net.Uri) {
+        if (_safScanState.value.visible) return
+        _safScanState.value = SafScanUiState(visible = true, phase = SafScanPhase.SCANNING)
+        applicationScope.launch {
+            try {
+                val result = safMediaScanner.scanTreeDetailed(treeUri, mediaLibrary) { found ->
+                    _safScanState.value = _safScanState.value.copy(found = found)
+                }
+                preferences.addSafRoot(treeUri.toString())
+                _safScanState.value = SafScanUiState(
+                    visible = true,
+                    phase = SafScanPhase.COMPLETE,
+                    found = result.total,
+                    addedAudio = result.addedAudio,
+                    updatedAudio = result.updatedAudio,
+                    addedVideo = result.addedVideo,
+                    updatedVideo = result.updatedVideo,
+                )
+                runCatching { homeRepository.prewarm() }
+                kotlinx.coroutines.delay(3_200L)
+                _safScanState.value = SafScanUiState()
+            } catch (error: Throwable) {
+                _safScanState.value = SafScanUiState(
+                    visible = true,
+                    phase = SafScanPhase.ERROR,
+                    error = error.message ?: "The selected folder could not be scanned",
+                )
+                kotlinx.coroutines.delay(3_200L)
+                _safScanState.value = SafScanUiState()
+            }
+        }
+    }
+
     private fun scheduleLibraryRefresh() {
         val request = PeriodicWorkRequestBuilder<LibraryRefreshWorker>(6, TimeUnit.HOURS)
             .setInitialDelay(6, TimeUnit.HOURS)
@@ -288,3 +324,16 @@ data class LibrarySyncProgress(
 )
 
 enum class LibrarySyncState { IDLE, INITIAL_SCAN, DELTA, FAILED }
+
+enum class SafScanPhase { SCANNING, COMPLETE, ERROR }
+
+data class SafScanUiState(
+    val visible: Boolean = false,
+    val phase: SafScanPhase = SafScanPhase.SCANNING,
+    val found: Int = 0,
+    val addedAudio: Int = 0,
+    val updatedAudio: Int = 0,
+    val addedVideo: Int = 0,
+    val updatedVideo: Int = 0,
+    val error: String? = null,
+)
