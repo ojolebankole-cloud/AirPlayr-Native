@@ -2,8 +2,8 @@ package com.airplayr.app.ui
 
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import android.content.Intent
+import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -198,8 +199,13 @@ fun AirPlayrApp(
         "dark" -> true
         else -> androidx.compose.foundation.isSystemInDarkTheme()
     }
+    val accentColor = settings?.accentColor ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) "dynamic" else "blue"
 
-    AirPlayrTheme(darkTheme = darkTheme, highContrast = settings?.highContrast == true) {
+    AirPlayrTheme(
+        darkTheme = darkTheme,
+        accentColor = accentColor,
+        highContrast = settings?.highContrast == true,
+    ) {
         val context = LocalContext.current
         // Read the composable theme value before entering SideEffect.
         // SideEffect itself is not a composable context.
@@ -256,19 +262,19 @@ fun AirPlayrApp(
                 modifier = contentModifier,
                 enterTransition = {
                     if (initialShellFrame || settings?.reduceMotion == true) fadeIn(tween(1))
-                    else fadeIn(tween(140)) + scaleIn(initialScale = 0.99f, animationSpec = tween(140))
+                    else fadeIn(tween(95)) + slideInHorizontally(initialOffsetX = { it / 18 }, animationSpec = tween(110))
                 },
                 exitTransition = {
                     if (initialShellFrame || settings?.reduceMotion == true) fadeOut(tween(1))
-                    else fadeOut(tween(100)) + scaleOut(targetScale = 0.99f, animationSpec = tween(100))
+                    else fadeOut(tween(75)) + slideOutHorizontally(targetOffsetX = { -it / 24 }, animationSpec = tween(75))
                 },
                 popEnterTransition = {
                     if (initialShellFrame || settings?.reduceMotion == true) fadeIn(tween(1))
-                    else fadeIn(tween(140)) + scaleIn(initialScale = 0.99f, animationSpec = tween(140))
+                    else fadeIn(tween(95)) + slideInHorizontally(initialOffsetX = { -it / 18 }, animationSpec = tween(110))
                 },
                 popExitTransition = {
                     if (initialShellFrame || settings?.reduceMotion == true) fadeOut(tween(1))
-                    else fadeOut(tween(100)) + scaleOut(targetScale = 0.99f, animationSpec = tween(100))
+                    else fadeOut(tween(75)) + slideOutHorizontally(targetOffsetX = { it / 24 }, animationSpec = tween(75))
                 },
             ) {
                 composable("home") {
@@ -296,6 +302,7 @@ fun AirPlayrApp(
                         viewModel = libraryViewModel,
                         playback = playbackController,
                         onOpen = { navigate("video/${it.id}") },
+                        container = container,
                     )
                 }
                 composable("about") { AboutScreen(onBack = { navController.popBackStack() }, appVersion = appVersion) }
@@ -371,7 +378,7 @@ fun AirPlayrApp(
                 composable("album/{id}") { entry -> BrowseFilterScreen("Albums", java.net.URLDecoder.decode(entry.arguments?.getString("id").orEmpty(), "UTF-8"), com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController, onOpenPlayer = { navigate("player") }) }
                 composable("artist/{id}") { entry -> BrowseFilterScreen("Artists", java.net.URLDecoder.decode(entry.arguments?.getString("id").orEmpty(), "UTF-8"), com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController, onOpenPlayer = { navigate("player") }) }
                 composable("genre/{id}") { entry -> BrowseFilterScreen("Genres", java.net.URLDecoder.decode(entry.arguments?.getString("id").orEmpty(), "UTF-8"), com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController, onOpenPlayer = { navigate("player") }) }
-                composable("open") { LibraryScreen("Open media", com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController, onOpen = { playbackController.play(it); navigate("player") }) }
+                composable("open") { LibraryScreen("Open media", com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController, onOpen = { playbackController.play(it); navigate("player") }, container = container) }
                 composable("video/{id}") { entry -> VideoScreen(container, entry.arguments?.getString("id").orEmpty()) }
                 composable("external-video") {
                     val request = externalVideo

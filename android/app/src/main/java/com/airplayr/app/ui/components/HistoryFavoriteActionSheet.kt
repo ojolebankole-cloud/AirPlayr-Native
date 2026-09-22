@@ -53,87 +53,48 @@ fun HistoryFavoriteActionSheet(
     onEdit: () -> Unit,
     onLyrics: () -> Unit,
 ) {
-    val colors = LocalAirPlayrColors.current
     val isVideo = item.mediaType == MediaType.VIDEO
-    ModalBottomSheet(
-        onDismissRequest = onClose,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        sheetGesturesEnabled = true,
-        containerColor = colors.surfaceContainerLow,
-        tonalElevation = 0.dp,
-    ) {
-        Column(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 22.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Artwork(
-                    item.artworkUri ?: item.thumbnailUri,
-                    Modifier.size(64.dp),
-                    14.dp,
-                    item.title,
-                    item.mediaType,
-                    if (isVideo) AirPlayrIcons.Video else AirPlayrIcons.Music,
-                    isPlaying = playing,
-                )
-                Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                    Text(item.title.ifBlank { if (isVideo) "Video" else "Song" }, color = colors.textPrimary, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, maxLines = 1)
-                    Text(listOfNotNull(item.artist, item.album).joinToString("  ·  ").ifBlank { if (isVideo) "Video" else "Unknown artist" }, color = colors.textSecondary, fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, maxLines = 1)
-                }
-                IconButton(onClick = onFavorite) { Icon(if (favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, if (favorite) "Remove from favorites" else "Add to favorites", tint = colors.primary) }
+    val musicGroups = listOf(
+        listOf(
+            AirPlayrMediaMenuAction("Play next", Icons.Default.SkipNext, onPlayNext),
+            AirPlayrMediaMenuAction("Add to queue", Icons.Default.QueueMusic, onAddQueue),
+            AirPlayrMediaMenuAction("Add to playlist", Icons.Default.PlaylistAdd, onPlaylist),
+        ),
+        listOf(
+            AirPlayrMediaMenuAction("Go to album", Icons.Default.Album, onGoAlbum, enabled = !item.album.isNullOrBlank()),
+            AirPlayrMediaMenuAction("Go to artist", Icons.Default.Person, onGoArtist, enabled = !item.artist.isNullOrBlank()),
+            AirPlayrMediaMenuAction("Go to album artist", Icons.Default.People, onGoArtist, enabled = !item.albumArtist.isNullOrBlank()),
+            AirPlayrMediaMenuAction("Go to folder", Icons.Default.Folder, onGoFolder, enabled = !item.folderId.isNullOrBlank() || !item.folder.isNullOrBlank() || !item.relativePath.isNullOrBlank()),
+        ),
+        listOf(
+            AirPlayrMediaMenuAction("Tag editor", Icons.Default.Edit, onEdit),
+            AirPlayrMediaMenuAction("Edit lyrics", AirPlayrIcons.Lyrics, onLyrics),
+        ),
+    )
+    val commonGroup = buildList {
+        if (!isVideo && onBlacklist != null) add(AirPlayrMediaMenuAction("Blacklist", Icons.Default.Block, onBlacklist))
+        add(AirPlayrMediaMenuAction("Details", Icons.Default.Info, onDetails))
+        add(AirPlayrMediaMenuAction("Share", Icons.Default.Share, {
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = if (isVideo) item.mimeType ?: "video/*" else item.mimeType ?: "audio/*"
+                putExtra(Intent.EXTRA_TEXT, item.uri)
+                putExtra(Intent.EXTRA_TITLE, item.title)
             }
-            ActionGroup {
-                ActionButton("Play next", Icons.Default.SkipNext, onPlayNext)
-                ActionButton("Add to queue", Icons.Default.QueueMusic, onAddQueue)
-                ActionButton("Add to playlist", Icons.Default.PlaylistAdd, onPlaylist)
-            }
-            if (!isVideo) {
-                ActionGroup {
-                    ActionButton("Go to album", Icons.Default.Album, onGoAlbum)
-                    ActionButton("Go to artist", Icons.Default.Person, onGoArtist)
-                    ActionButton("Go to album artist", Icons.Default.People, onGoArtist)
-                    ActionButton("Go to folder", Icons.Default.Folder, onGoFolder)
-                }
-                ActionGroup {
-                    ActionButton("Tag editor", Icons.Default.Edit, onEdit)
-                    ActionButton("Edit lyrics", AirPlayrIcons.Music, onLyrics)
-                }
-            }
-            ActionGroup {
-                if (!isVideo && onBlacklist != null) ActionButton("Blacklist", Icons.Default.Block, onBlacklist)
-                ActionButton("Details", Icons.Default.Info, onDetails)
-                ActionButton("Share", Icons.Default.Share, {
-                    val send = Intent(Intent.ACTION_SEND).apply { type = if (isVideo) "video/*" else "audio/*"; putExtra(Intent.EXTRA_TEXT, item.uri) }
-                    runCatching { container.appContext.startActivity(Intent.createChooser(send, "Share ${item.title}").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                    onClose()
-                })
-                ActionButton("Delete from device", Icons.Default.Delete, onDelete, destructive = true)
-            }
-        }
+            runCatching { container.appContext.startActivity(Intent.createChooser(send, "Share ${item.title}").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            onClose()
+        }))
+        add(AirPlayrMediaMenuAction("Delete from device", Icons.Default.Delete, onDelete, destructive = true))
     }
+    AirPlayrPremiumMediaActionSheet(
+        item = item,
+        playing = playing,
+        favorite = favorite,
+        onFavorite = onFavorite,
+        groups = if (isVideo) listOf(commonGroup) else musicGroups + listOf(commonGroup),
+        onDismiss = onClose,
+    )
 }
 
-@Composable
-fun ActionGroup(content: @Composable ColumnScope.() -> Unit) {
-    val colors = LocalAirPlayrColors.current
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerHigh), elevation = CardDefaults.cardElevation(0.dp)) {
-        Column(Modifier.fillMaxWidth().padding(vertical = 5.dp), content = content)
-    }
-}
-
-@Composable
-fun ActionButton(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit, destructive: Boolean = false) {
-    val colors = LocalAirPlayrColors.current
-    TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = if (destructive) colors.error else colors.primary)
-            Spacer(Modifier.width(14.dp))
-            Text(label, color = if (destructive) colors.error else colors.textPrimary, modifier = Modifier.weight(1f))
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryFavoritePlaylistSheet(container: AppContainer, items: List<MediaItem>, onDismiss: () -> Unit) {
     val colors = LocalAirPlayrColors.current
@@ -150,7 +111,6 @@ fun HistoryFavoritePlaylistSheet(container: AppContainer, items: List<MediaItem>
             playlists.forEach { p -> TextButton(onClick = { scope.launch { itemIds.forEach { container.structured.addToPlaylist(p.id, it) }; AppFeedback.showSnackbar("Added to ${p.name}."); onDismiss() } }, modifier = Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.QueueMusic, null, tint = colors.primary); Spacer(Modifier.width(14.dp)); Text(p.name, color = colors.textPrimary) } }
         }
     }
-}
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

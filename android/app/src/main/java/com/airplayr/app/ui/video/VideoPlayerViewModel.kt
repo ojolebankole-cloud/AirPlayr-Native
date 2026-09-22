@@ -32,6 +32,8 @@ class VideoPlayerViewModel(
     private var activeSessionId: String? = null
     private var completedSessionId: String? = null
     private var startJob: Job? = null
+    private var lastProgressPersistAtMs: Long = 0L
+    private var lastProgressPersistPositionMs: Long = -1L
 
     fun load(id: String) {
         viewModelScope.launch {
@@ -45,6 +47,8 @@ class VideoPlayerViewModel(
         if (requestedSessionId == item.id) return
         requestedSessionId = item.id
         completedSessionId = null
+        lastProgressPersistAtMs = 0L
+        lastProgressPersistPositionMs = -1L
         startJob = viewModelScope.launch {
             sessionMutex.withLock {
                 if (activeSessionId == item.id) return@withLock
@@ -68,11 +72,26 @@ class VideoPlayerViewModel(
             awaitSessionStart(item)
             sessionMutex.withLock {
                 if (activeSessionId != item.id) return@withLock
-                // Progress is useful while paused too, but statistics must count playback time only
-                // while the video is actually playing.
-                structured.saveVideoProgress(item.id, positionMs, durationMs)
+                // Avoid hammering Room on every UI progress sample. While playing, persist only
+                // after a meaningful position delta/time window; always flush when paused.
+                val now = System.currentTimeMillis()
+                val shouldPersist = !isPlaying ||
+                    lastProgressPersistPositionMs < 0L ||
+                    kotlin.math.abs(positionMs - lastProgressPersistPositionMs) >= 5_000L ||
+                    now - lastProgressPersistAtMs >= 8_000L
+                if (shouldPersist) {
+                    structured.saveVideoProgress(item.id, positionMs, durationMs)
+                    lastProgressPersistAtMs = now
+                    lastProgressPersistPositionMs = positionMs
+                }
                 if (isPlaying) stats.track(item, positionMs)
-                if (durationMs > 0L && positionMs.toDouble() / durationMs.toDouble() >= VIDEO_COMPLETION_FRACTION) {
+                if (durationMs > 0L &&
+                    positionMs.toDouble() / durationMs.toDouble() >= VIDEO_COMPLETION_FRACTION &&
+                    completedSessionId != item.id
+                ) {
+                    // Mark completion at the threshold itself. Do not set the guard first:
+                    // completePlayback() must not be able to skip the durable completion write.
+                    structured.markCompleted(item.id)
                     completedSessionId = item.id
                 }
             }
@@ -106,6 +125,8 @@ class VideoPlayerViewModel(
                 activeSessionId = null
                 requestedSessionId = null
                 completedSessionId = null
+                lastProgressPersistAtMs = 0L
+                lastProgressPersistPositionMs = -1L
                 startJob = null
             }
         }

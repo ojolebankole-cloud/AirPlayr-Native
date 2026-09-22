@@ -3,29 +3,25 @@ package com.airplayr.app.ui.screens
 import com.airplayr.app.ui.airPlayrBottomContentPadding
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airplayr.app.core.data.media.MediaItem
 import com.airplayr.app.core.data.media.MediaType
-import com.airplayr.app.ui.components.AirPlayrMediaRow
-import com.airplayr.app.ui.components.AirPlayrScreenHeader
-import com.airplayr.app.ui.components.AirPlayrSectionEmpty
+import com.airplayr.app.di.AppContainer
+import com.airplayr.app.ui.components.*
 import com.airplayr.app.ui.navigation.LibraryViewModel
 import com.airplayr.app.ui.playback.PlaybackController
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
+import kotlinx.coroutines.launch
 
 @Composable
 fun LibraryScreen(
@@ -34,33 +30,98 @@ fun LibraryScreen(
     viewModel: LibraryViewModel,
     playback: PlaybackController,
     onOpen: (MediaItem) -> Unit = {},
+    container: AppContainer,
 ) {
     val colors = LocalAirPlayrColors.current
     val snapshot by viewModel.snapshot.collectAsStateWithLifecycle()
     val playbackState by playback.stableState.collectAsStateWithLifecycle()
     val items = if (type == MediaType.AUDIO) snapshot.audio else snapshot.video
-    androidx.compose.foundation.layout.Column(Modifier.fillMaxSize().background(colors.background)) {
-        AirPlayrScreenHeader(title, "${items.size} cached items")
-        if (!snapshot.ready) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = colors.primary) }
-        } else if (items.isEmpty()) {
-            AirPlayrSectionEmpty("No media cached yet", "Grant media access and refresh from Home.")
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
-                contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding()),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                items(items, key = { it.id }) { item ->
-                    AirPlayrMediaRow(
-                        item = item,
-                        onOpen = { onOpen(item) },
-                        playing = playbackState.isPlaying && playbackState.currentId == item.id,
-                        compact = false,
-                    )
+    var selectedIds by rememberSaveable(type) { mutableStateOf<Set<String>>(emptySet()) }
+    var menuItem by remember { mutableStateOf<MediaItem?>(null) }
+    var menuFavorite by remember { mutableStateOf(false) }
+    var detailsTarget by remember { mutableStateOf<MediaItem?>(null) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(menuItem?.id) {
+        val item = menuItem
+        menuFavorite = item?.let { runCatching { container.structured.isFavorite(it.id) }.getOrDefault(false) } ?: false
+    }
+
+    Box(Modifier.fillMaxSize().background(colors.background)) {
+        Column(Modifier.fillMaxSize()) {
+            AirPlayrScreenHeader(title, "${items.size} cached items")
+            if (selectedIds.isNotEmpty()) {
+                val chosen = items.filter { it.id in selectedIds }
+                AirPlayrSelectionBar(
+                    count = selectedIds.size,
+                    onClear = { selectedIds = emptySet() },
+                    onSelectAll = { selectedIds = items.map { it.id }.toSet() },
+                    onPlay = if (type == MediaType.AUDIO) ({ if (chosen.isNotEmpty()) { onOpen(chosen.first()); selectedIds = emptySet() } }) else null,
+                    onPlayNext = if (type == MediaType.AUDIO) ({ chosen.forEach(playback::playNext); selectedIds = emptySet() }) else null,
+                    onLike = if (type == MediaType.AUDIO) ({ scope.launch { chosen.forEach { container.structured.toggleFavorite(it) }; selectedIds = emptySet() } }) else null,
+                )
+            }
+            // The library snapshot is populated from Room/MediaStore flows. Do not block navigation
+            // behind a spinner: the screen chrome enters immediately and the rows simply arrive.
+            if (items.isEmpty() && snapshot.ready) {
+                AirPlayrSectionEmpty("No media cached yet", "Grant media access and refresh from Home.")
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
+                    contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding()),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    items(items, key = { it.id }) { item ->
+                        val playing = playbackState.isPlaying && playbackState.currentId == item.id
+                        AirPlayrMediaRow(
+                            item = item,
+                            onOpen = { if (selectedIds.isNotEmpty()) selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id else onOpen(item) },
+                            onMore = { menuItem = item },
+                            playing = playing,
+                            compact = false,
+                            selected = item.id in selectedIds,
+                            onLongPress = { selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id },
+                        )
+                    }
                 }
             }
         }
+    }
+
+    menuItem?.let { item ->
+        val isVideo = item.mediaType == MediaType.VIDEO
+        AirPlayrPremiumMediaActionSheet(
+            item = item,
+            playing = playbackState.isPlaying && playbackState.currentId == item.id,
+            favorite = menuFavorite,
+            onFavorite = { scope.launch { menuFavorite = container.structured.toggleFavorite(item) } },
+            groups = buildList {
+                add(listOf(
+                    AirPlayrMediaMenuAction("Open", if (isVideo) AirPlayrIcons.Video else AirPlayrIcons.Music, { menuItem = null; onOpen(item) }),
+                    AirPlayrMediaMenuAction("Details", Icons.Default.Info, { menuItem = null; detailsTarget = item }),
+                ))
+                if (!isVideo) add(listOf(
+                    AirPlayrMediaMenuAction("Play next", Icons.Default.SkipNext, { menuItem = null; playback.playNext(item) }),
+                    AirPlayrMediaMenuAction("Add to queue", Icons.Default.QueueMusic, { menuItem = null; playback.addToQueue(item) }),
+                ))
+                add(listOf(
+                    AirPlayrMediaMenuAction("Share", Icons.Default.Share, {
+                        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = item.mimeType ?: if (isVideo) "video/*" else "audio/*"
+                            putExtra(android.content.Intent.EXTRA_TEXT, item.uri)
+                            putExtra(android.content.Intent.EXTRA_TITLE, item.title)
+                        }
+                        runCatching { container.appContext.startActivity(android.content.Intent.createChooser(send, "Share ${item.title}").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                        menuItem = null
+                    }),
+                ))
+            },
+            onDismiss = { menuItem = null },
+        )
+    }
+
+    detailsTarget?.let { item ->
+        HistoryFavoriteDetailsSheet(item, playing = playbackState.isPlaying && playbackState.currentId == item.id) { detailsTarget = null }
     }
 }

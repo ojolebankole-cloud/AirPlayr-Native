@@ -65,9 +65,44 @@ class LyricsService(private val context: Context) {
     private data class Input(val title: String, val artist: String, val album: String, val duration: Double)
 
     private fun lrclib(i: Input): Result? {
-        val q = params(mapOf("track_name" to i.title, "artist_name" to i.artist, "album_name" to i.album, "duration" to i.duration.roundToString()))
-        val o = getJson("https://lrclib.net/api/get?$q") ?: return null
-        return normalize("LRCLIB", o.optString("trackName"), o.optString("artistName"), o.optString("albumName"), o.optDouble("duration", i.duration), o.optString("plainLyrics"), o.optString("syncedLyrics"))
+        val exact = params(
+            mapOf(
+                "track_name" to i.title,
+                "artist_name" to i.artist,
+                "album_name" to i.album,
+                "duration" to i.duration.roundToString(),
+            ),
+        )
+        getJson("https://lrclib.net/api/get?$exact")?.let { o ->
+            normalize(
+                "LRCLIB",
+                o.optString("trackName"),
+                o.optString("artistName"),
+                o.optString("albumName"),
+                o.optDouble("duration", i.duration),
+                o.optString("plainLyrics"),
+                o.optString("syncedLyrics"),
+            )?.let { return it }
+        }
+
+        // /api/get is an exact-match endpoint and legitimately returns 404 for many tagged
+        // files. Fall back to LRCLIB's search endpoint before moving to slower providers.
+        val search = params(mapOf("q" to "${i.title} ${i.artist}", "track_name" to i.title, "artist_name" to i.artist))
+        val results = getJsonArray("https://lrclib.net/api/search?$search") ?: return null
+        val candidates = mutableListOf<Result>()
+        for (index in 0 until minOf(results.length(), 20)) {
+            val o = results.optJSONObject(index) ?: continue
+            normalize(
+                "LRCLIB",
+                o.optString("trackName"),
+                o.optString("artistName"),
+                o.optString("albumName"),
+                o.optDouble("duration", i.duration),
+                o.optString("plainLyrics"),
+                o.optString("syncedLyrics"),
+            )?.let { candidates += it }
+        }
+        return candidates.maxByOrNull { score(i.title, i.artist, i.album, i.duration, it) }
     }
 
     private fun netease(i: Input): Result? {
@@ -152,12 +187,34 @@ class LyricsService(private val context: Context) {
         return out.mapIndexed { index, cue -> cue.copy(end = out.getOrNull(index + 1)?.start ?: Double.POSITIVE_INFINITY) }
     }
 
-    private fun getJson(url: String): JSONObject? = runCatching { JSONObject(getText(url).orEmpty()) }.getOrNull()
-    private fun getText(url: String): String? = runCatching {
-        val c = URL(url).openConnection() as HttpURLConnection
-        c.connectTimeout = 7000; c.readTimeout = 7000; c.requestMethod = "GET"; c.setRequestProperty("User-Agent", "AirPlayr/1.0")
-        c.inputStream.bufferedReader().use { it.readText() }.also { c.disconnect() }
+    private fun getJson(url: String): JSONObject? = runCatching {
+        val body = getText(url) ?: return@runCatching null
+        JSONObject(body)
     }.getOrNull()
+
+    private fun getJsonArray(url: String): JSONArray? = runCatching {
+        val body = getText(url) ?: return@runCatching null
+        JSONArray(body)
+    }.getOrNull()
+
+    private fun getText(url: String): String? {
+        val connection = runCatching { URL(url).openConnection() as HttpURLConnection }.getOrNull() ?: return null
+        return try {
+            connection.connectTimeout = 5_000
+            connection.readTimeout = 5_000
+            connection.requestMethod = "GET"
+            connection.instanceFollowRedirects = true
+            connection.useCaches = true
+            connection.setRequestProperty("User-Agent", "AirPlayr/1.0")
+            connection.setRequestProperty("Accept", "application/json,text/plain,*/*")
+            val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream ?: return null
+            stream.bufferedReader(Charsets.UTF_8).use { it.readText() }.takeIf { it.isNotBlank() && connection.responseCode in 200..299 }
+        } catch (_: Exception) {
+            null
+        } finally {
+            connection.disconnect()
+        }
+    }
     private fun params(map: Map<String, String>): String = map.filterValues { it.isNotBlank() }.entries.joinToString("&") { "${enc(it.key)}=${enc(it.value)}" }
     private fun enc(v: String) = URLEncoder.encode(v, "UTF-8")
     private fun JSONArray?.joinNames(): String = buildString { this@joinNames?.let { for (i in 0 until it.length()) { if (i > 0) append(" & "); append(it.optJSONObject(i)?.optString("name").orEmpty()) } } }

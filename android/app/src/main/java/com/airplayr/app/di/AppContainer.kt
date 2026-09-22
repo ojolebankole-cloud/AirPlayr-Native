@@ -49,9 +49,9 @@ class AppContainer(context: Context) {
     // after the first frame, but it must never block startup/re-entry.
     private val _startupTheme = MutableStateFlow(
         appContext.getSharedPreferences("airplayr_startup", Context.MODE_PRIVATE)
-            .getString("theme", "system")
+            .getString("theme", "light")
             ?.takeIf { it == "light" || it == "dark" || it == "system" }
-            ?: "system"
+            ?: "light"
     )
     val startupTheme: StateFlow<String> = _startupTheme
 

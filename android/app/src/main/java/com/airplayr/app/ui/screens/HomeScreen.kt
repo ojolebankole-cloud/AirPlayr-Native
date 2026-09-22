@@ -390,7 +390,7 @@ private fun HomeHeader(
                 } else {
                     if (showSearchPrompt) {
                         Text(
-                            "Search your music",
+                            "Search your plays",
                             fontFamily = AirPlayrFonts.SmoochSans,
                             fontSize = 14.sp,
                             color = colors.textPrimary,

@@ -60,6 +60,7 @@ fun HistoryScreen(
     var blacklist by rememberSaveable { mutableStateOf<Set<String>>(emptySet()) }
     var headerMenu by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<MediaItem?>(null) }
+    var selectedIds by rememberSaveable { mutableStateOf<Set<String>>(emptySet()) }
     var playlistTarget by remember { mutableStateOf<List<MediaItem>?>(null) }
     var detailsTarget by remember { mutableStateOf<MediaItem?>(null) }
     var editTarget by remember { mutableStateOf<MediaItem?>(null) }
@@ -113,12 +114,7 @@ fun HistoryScreen(
     }
 
     Box(Modifier.fillMaxSize().background(colors.background)) {
-        if (!snapshot.ready) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = colors.primary)
-            }
-        } else {
-            LazyColumn(
+        LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
                 contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding()),
@@ -135,6 +131,21 @@ fun HistoryScreen(
                         IconButton(onClick = { headerMenu = true }) { Icon(Icons.Default.MoreVert, "History options", tint = colors.primary, modifier = Modifier.size(25.dp)) }
                     }
                 }
+
+                if (selectedIds.isNotEmpty()) {
+                    val chosen = (songs + videos).filter { it.id in selectedIds }.distinctBy { it.id }
+                    item {
+                        AirPlayrSelectionBar(
+                            count = selectedIds.size,
+                            onClear = { selectedIds = emptySet() },
+                            onSelectAll = { selectedIds = (songs + videos).map { it.id }.toSet() },
+                            onPlay = { val chosenSongs = chosen.filter { it.mediaType == MediaType.AUDIO }; if (chosenSongs.isNotEmpty()) { playSong(chosenSongs.first()); selectedIds = emptySet() } },
+                            onPlayNext = { chosen.filter { it.mediaType == MediaType.AUDIO }.forEach(playback::playNext); selectedIds = emptySet() },
+                            onPlaylist = { val chosenSongs = chosen.filter { it.mediaType == MediaType.AUDIO }; if (chosenSongs.isNotEmpty()) playlistTarget = chosenSongs },
+                            onLike = { scope.launch { chosen.forEach { if (it.id !in favoriteSet) container.structured.toggleFavorite(it) }; selectedIds = emptySet() } },
+                        )
+                    }
+                }
                 if (visibleHistory.isEmpty()) {
                     item {
                         AirPlayrSectionEmpty(
@@ -149,9 +160,11 @@ fun HistoryScreen(
                         val playing = playbackState.isPlaying && playbackState.currentId == item.id
                         AirPlayrMediaRow(
                             item = item,
-                            onOpen = { playSong(item) },
+                            onOpen = { if (selectedIds.isNotEmpty()) selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id else playSong(item) },
                             onMore = { selected = item },
                             playing = playing,
+                            selected = item.id in selectedIds,
+                            onLongPress = { selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id },
                         )
                     }
                     item {
@@ -198,15 +211,16 @@ fun HistoryScreen(
                     items(list, key = { "video:${title}:${it.id}" }) { item ->
                         AirPlayrMediaRow(
                             item = item,
-                            onOpen = { onOpenVideo(item.id) },
+                            onOpen = { if (selectedIds.isNotEmpty()) selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id else onOpenVideo(item.id) },
                             onMore = { selected = item },
+                            selected = item.id in selectedIds,
+                            onLongPress = { selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id },
                         )
                     }
                 }
                 videoSection("Recently played videos", recentVideos)
                 videoSection("Completed videos", completedVideos)
             }
-        }
     }
 
     if (headerMenu) {

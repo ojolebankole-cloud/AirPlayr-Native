@@ -49,9 +49,7 @@ fun PlaylistsScreen(container: AppContainer, libraryViewModel: LibraryViewModel,
                 }
             }
         }
-        if (!snapshot.ready) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary) }
-        } else if (lists.isEmpty()) AirPlayrSectionEmpty("No playlists yet", "Create your first playlist above.")
+        if (lists.isEmpty()) AirPlayrSectionEmpty("No playlists yet", "Create your first playlist above.")
         else LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(lists, key = { it.id }) { playlist ->
                 AirPlayrCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(22.dp), containerColor = c.surfaceSolid, elevation = 5.dp, onClick = { onOpen(playlist.id) }) {

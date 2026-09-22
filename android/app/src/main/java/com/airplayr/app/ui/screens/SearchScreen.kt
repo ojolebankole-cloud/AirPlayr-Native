@@ -9,6 +9,7 @@ import com.airplayr.app.ui.airPlayrBottomContentPadding
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.material.icons.Icons
@@ -40,7 +42,10 @@ import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.core.lyrics.LyricsService
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.components.AirPlayrSheetScaffold
-import com.airplayr.app.ui.components.AirPlayrMediaArtwork
+import com.airplayr.app.ui.components.AirPlayrMediaMenuAction
+import com.airplayr.app.ui.components.AirPlayrMoreButton
+import com.airplayr.app.ui.components.AirPlayrPremiumMediaActionSheet
+import com.airplayr.app.ui.components.AirPlayrSelectionBar
 import com.airplayr.app.ui.components.Artwork
 import com.airplayr.app.ui.components.displayArtworkUri
 import com.airplayr.app.ui.feedback.AppFeedback
@@ -104,6 +109,7 @@ fun SearchScreen(
     var debounced by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf("all") }
     var selected by remember { mutableStateOf<MediaItem?>(null) }
+    var selectedIds by rememberSaveable { mutableStateOf<Set<String>>(emptySet()) }
     var playlistTarget by remember { mutableStateOf<MediaItem?>(null) }
     var detailsSheet by remember { mutableStateOf<MediaItem?>(null) }
     var deletePending by remember { mutableStateOf<MediaItem?>(null) }
@@ -162,36 +168,59 @@ fun SearchScreen(
         songs + albums + artists + pls + genres + videos
     }
 
-    val recentItems = remember(snapshot.history, snapshot.audio, lookup) {
-        val recentArtists = mutableListOf<SearchEntry>()
-        val seenArtists = mutableSetOf<String>()
-        history.forEach { h ->
-            val artistName = h.artist?.trim().takeUnless { it.isNullOrBlank() } ?: return@forEach
-            val key = normalize(artistName)
-            if (!seenArtists.add(key)) return@forEach
-            val first = audio.firstOrNull { normalize(it.artist) == key } ?: return@forEach
-            recentArtists += SearchEntry(
-                "artist:${first.artist}",
-                "artist",
-                first.artist.orEmpty(),
-                "${audio.count { normalize(it.artist) == key }} songs",
-                first,
-                first.artist,
-            )
-            if (recentArtists.size == 3) return@forEach
-        }
-        val recentMedia = history.take(8).mapNotNull { h ->
-            lookup[h.mediaId]?.let {
-                SearchEntry(
-                    it.id,
-                    if (it.mediaType == MediaType.VIDEO) "video" else "song",
-                    it.title.ifBlank { it.filename },
-                    it.artist ?: if (it.mediaType == MediaType.VIDEO) "Video" else "Unknown artist",
-                    it,
-                )
+    val recentArtists = remember(snapshot.history, audio) {
+        val byArtist = audio.filter { !it.artist.isNullOrBlank() }.groupBy { normalize(it.artist) }
+        val seen = mutableSetOf<String>()
+        history.asSequence()
+            .filter { it.mediaType == MediaType.AUDIO.value }
+            .mapNotNull { h ->
+                val artistName = h.artist?.trim().takeUnless { it.isNullOrBlank() } ?: return@mapNotNull null
+                val key = normalize(artistName)
+                if (!seen.add(key)) return@mapNotNull null
+                val group = byArtist[key].orEmpty()
+                val first = group.firstOrNull() ?: return@mapNotNull null
+                SearchEntry("artist:${first.artist}", "artist", first.artist.orEmpty(), "${group.size} songs", first, first.artist)
             }
-        }
-        (recentArtists + recentMedia).distinctBy { "${it.type}:${it.id}" }
+            .take(8).toList()
+    }
+
+    val recentSongs = remember(snapshot.history, lookup) {
+        history.asSequence()
+            .filter { it.mediaType == MediaType.AUDIO.value }
+            .mapNotNull { h ->
+                lookup[h.mediaId]?.takeIf { it.mediaType == MediaType.AUDIO }?.let { item ->
+                    SearchEntry(item.id, "song", item.title.ifBlank { item.filename }, item.artist ?: "Unknown artist", item)
+                }
+            }
+            .take(8)
+            .toList()
+    }
+
+    val recentAlbums = remember(snapshot.history, audio) {
+        val byAlbum = audio.filter { !it.album.isNullOrBlank() }.groupBy { normalize(it.album) }
+        val seen = mutableSetOf<String>()
+        history.asSequence()
+            .filter { it.mediaType == MediaType.AUDIO.value }
+            .mapNotNull { h ->
+                val albumName = h.album?.trim().takeUnless { it.isNullOrBlank() } ?: return@mapNotNull null
+                val key = normalize(albumName)
+                if (!seen.add(key)) return@mapNotNull null
+                val first = byAlbum[key]?.firstOrNull() ?: return@mapNotNull null
+                SearchEntry("album:${first.album}", "album", first.album.orEmpty(), first.artist ?: "Unknown artist", first, first.album)
+            }
+            .take(8).toList()
+    }
+
+    val recentVideos = remember(snapshot.history, lookup) {
+        history.asSequence()
+            .filter { it.mediaType == MediaType.VIDEO.value }
+            .mapNotNull { h ->
+                lookup[h.mediaId]?.takeIf { it.mediaType == MediaType.VIDEO }?.let { item ->
+                    SearchEntry(item.id, "video", item.title.ifBlank { item.filename }, item.artist ?: "Video", item)
+                }
+            }
+            .take(8)
+            .toList()
     }
 
     val filtered = remember(entries, debounced, filter) {
@@ -206,9 +235,6 @@ fun SearchScreen(
         }
         if (debounced.isBlank()) base else base.filter { matches(it, debounced) }
     }
-    val display = if (debounced.isBlank()) {
-        if (recentItems.isNotEmpty()) recentItems else filtered.take(12)
-    } else filtered
 
     fun openEntry(entry: SearchEntry) {
         when (entry.type) {
@@ -219,6 +245,8 @@ fun SearchScreen(
             "playlist" -> entry.routeKey?.let { onNavigate("music-playlist/$it") }
         }
     }
+
+    val recentSearches by container.preferences.recentSearches.collectAsStateWithLifecycle(initialValue = emptyList())
 
     Column(Modifier.fillMaxSize().background(colors.background)) {
         Row(
@@ -235,19 +263,22 @@ fun SearchScreen(
                 tonalElevation = 0.dp,
             ) {
                 Row(Modifier.fillMaxSize().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Search, null, tint = colors.primary, modifier = Modifier.size(21.dp))
+                    Icon(Icons.Default.Search, "Search", tint = colors.primary, modifier = Modifier.size(21.dp))
                     BasicTextField(
                         value = query,
                         onValueChange = { query = it },
                         modifier = Modifier.weight(1f).padding(horizontal = 10.dp).focusRequester(focusRequester),
                         singleLine = true,
-                        textStyle = LocalTextStyle.current.copy(
-                            color = colors.textPrimary, fontSize = 17.sp, fontFamily = AirPlayrFonts.OpenSans
-                        ),
+                        textStyle = LocalTextStyle.current.copy(color = colors.textPrimary, fontSize = 17.sp, fontFamily = AirPlayrFonts.OpenSans),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = {
+                            val value = debounced.trim()
+                            if (value.isNotBlank()) scope.launch { container.preferences.recordRecentSearch(value) }
+                            focus.clearFocus()
+                        }),
                         decorationBox = { inner ->
                             if (query.isEmpty()) Text(
-                                "Search your music",
+                                "Search your plays",
                                 color = colors.textSecondary,
                                 fontSize = 15.sp,
                                 fontFamily = AirPlayrFonts.SmoochSans,
@@ -255,10 +286,9 @@ fun SearchScreen(
                             inner()
                         },
                     )
-                    if (query.isNotEmpty()) IconButton(
-                        onClick = { query = ""; focus.clearFocus() },
-                        modifier = Modifier.size(32.dp),
-                    ) { Icon(Icons.Default.Close, "Clear", tint = colors.primary) }
+                    if (query.isNotEmpty()) IconButton(onClick = { query = ""; focus.clearFocus() }, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Close, "Clear", tint = colors.primary)
+                    }
                 }
             }
         }
@@ -278,71 +308,83 @@ fun SearchScreen(
             }
         }
 
+        if (selectedIds.isNotEmpty()) {
+            val chosen = (audio + video).filter { it.id in selectedIds }
+            AirPlayrSelectionBar(
+                count = selectedIds.size,
+                onClear = { selectedIds = emptySet() },
+                onSelectAll = { selectedIds = (audio + video).map { it.id }.toSet() },
+                onPlay = chosen.firstOrNull { it.mediaType == MediaType.AUDIO }?.let { song -> ({ onOpen(song); selectedIds = emptySet() }) },
+                onPlayNext = chosen.filter { it.mediaType == MediaType.AUDIO }.takeIf { it.isNotEmpty() }?.let { songs -> ({ songs.forEach(playback::playNext); selectedIds = emptySet() }) },
+                onPlaylist = chosen.firstOrNull { it.mediaType == MediaType.AUDIO }?.let { song -> ({ playlistTarget = song }) },
+                onLike = { scope.launch { chosen.filter { it.mediaType == MediaType.AUDIO }.forEach { if (it.id !in favoriteIdSet) container.structured.toggleFavorite(it) }; selectedIds = emptySet() } },
+            )
+        }
+
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
             contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding()),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            item {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        if (debounced.isNotBlank()) {
-                            if (filter == "all") "RESULTS" else FILTERS.first { it.first == filter }.second.uppercase(Locale.ROOT)
-                        } else if (recentItems.isNotEmpty()) "RECENTLY PLAYED" else "YOUR LIBRARY",
-                        fontFamily = AirPlayrFonts.SmoochSans,
-                        fontSize = 12.sp,
-                        letterSpacing = 1.1.sp,
-                        color = colors.textPrimary,
-                    )
-                    if (debounced.isNotBlank()) Text(
-                        "${filtered.size}",
-                        fontSize = 12.sp,
-                        color = colors.textPrimary,
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
+            if (debounced.isNotBlank()) {
+                item { SearchSectionHeader(if (filter == "all") "RESULTS" else FILTERS.first { it.first == filter }.second.uppercase(Locale.ROOT), colors) }
+                items(filtered, key = { "result:${it.type}:${it.id}" }) { entry ->
+                    val playing = entry.item?.let { it.mediaType == MediaType.AUDIO && playbackState.isPlaying && playbackState.currentId == it.id } == true
+                    val id = entry.item?.id
+                    SearchContentRow(entry, colors, playing, selected = id in selectedIds, onClick = { if (selectedIds.isNotEmpty() && id != null) selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id else openEntry(entry) }, onLongPress = { if (id != null) selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id }, onMore = { entry.item?.let { selected = it } })
                 }
-            }
-            if (!snapshot.ready) {
-                item {
-                    Box(Modifier.fillMaxWidth().padding(vertical = 56.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = colors.primary)
+                if (snapshot.ready && filtered.isEmpty()) {
+                    item {
+                        Column(Modifier.fillMaxWidth().padding(top = 50.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.Search, null, Modifier.size(42.dp), tint = colors.primary)
+                            Text("No results found", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 22.sp, color = colors.textPrimary, modifier = Modifier.padding(top = 12.dp))
+                            Text("Nothing matched “$debounced”.", fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, color = colors.textPrimary, modifier = Modifier.padding(top = 5.dp))
+                        }
                     }
                 }
-            } else items(display, key = { "${it.type}:${it.id}" }) { entry ->
-                val playing = entry.item?.let { it.mediaType == MediaType.AUDIO && playbackState.isPlaying && playbackState.currentId == it.id } == true
-                SearchResultRow(
-                    entry = entry,
-                    colors = colors,
-                    playing = playing,
-                    onClick = { openEntry(entry) },
-                    onMore = { entry.item?.let { selected = it } },
-                )
-            }
-            if (snapshot.ready && display.isEmpty()) {
-                item {
-                    Column(
-                        Modifier.fillMaxWidth().padding(top = 50.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Icon(Icons.Default.Search, null, Modifier.size(42.dp), tint = colors.primary)
-                        Text(
-                            if (debounced.isNotBlank()) "No results found" else "Your library is empty",
-                            fontFamily = AirPlayrFonts.SmoochSans,
-                            fontSize = 22.sp,
-                            color = colors.textPrimary,
-                            modifier = Modifier.padding(top = 12.dp),
-                        )
-                        Text(
-                            if (debounced.isNotBlank()) "Nothing matched “$debounced”." else "Your recently played and available media will appear here.",
-                            fontFamily = AirPlayrFonts.OpenSans,
-                            fontSize = 13.sp,
-                            color = colors.textPrimary,
-                            modifier = Modifier.padding(top = 5.dp),
-                        )
+            } else {
+                item { SearchSectionHeader("RECENT SEARCHES", colors) }
+                if (recentSearches.isEmpty()) {
+                    item { Text("Your recent searches will appear here.", modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp), fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, color = colors.textSecondary) }
+                } else {
+                    items(recentSearches, key = { "search:$it" }) { value ->
+                        RecentSearchRow(value, colors, onClick = { query = value; scope.launch { container.preferences.recordRecentSearch(value) } }, onRemove = { scope.launch { container.preferences.removeRecentSearch(value) } })
+                    }
+                }
+
+                if (recentArtists.isNotEmpty()) {
+                    item { SearchSectionHeader("RECENTLY PLAYED ARTISTS", colors) }
+                    items(recentArtists, key = { "recent-artist:${it.id}" }) { entry ->
+                        SearchArtistRow(entry, colors, selected = entry.item?.id in selectedIds, onClick = { val id = entry.item?.id; if (selectedIds.isNotEmpty() && id != null) selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id else openEntry(entry) }, onLongPress = { entry.item?.id?.let { selectedIds = if (it in selectedIds) selectedIds - it else selectedIds + it } }, onMore = { entry.item?.let { selected = it } })
+                    }
+                }
+                if (recentSongs.isNotEmpty()) {
+                    item { SearchSectionHeader("RECENTLY PLAYED SONGS", colors) }
+                    items(recentSongs, key = { "recent-song:${it.id}" }) { entry ->
+                        val playing = entry.item?.let { playbackState.isPlaying && playbackState.currentId == it.id } == true
+                        SearchSongRow(entry, colors, playing, selected = entry.item?.id in selectedIds, onClick = { val id = entry.item?.id; if (selectedIds.isNotEmpty() && id != null) selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id else openEntry(entry) }, onLongPress = { entry.item?.id?.let { selectedIds = if (it in selectedIds) selectedIds - it else selectedIds + it } }, onMore = { entry.item?.let { selected = it } })
+                    }
+                }
+                if (recentAlbums.isNotEmpty()) {
+                    item { SearchSectionHeader("RECENTLY PLAYED ALBUMS", colors) }
+                    items(recentAlbums, key = { "recent-album:${it.id}" }) { entry ->
+                        SearchAlbumRow(entry, colors, selected = entry.item?.id in selectedIds, onClick = { val id = entry.item?.id; if (selectedIds.isNotEmpty() && id != null) selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id else openEntry(entry) }, onLongPress = { entry.item?.id?.let { selectedIds = if (it in selectedIds) selectedIds - it else selectedIds + it } }, onMore = { entry.item?.let { selected = it } })
+                    }
+                }
+                if (recentVideos.isNotEmpty()) {
+                    item { SearchSectionHeader("RECENTLY PLAYED VIDEOS", colors) }
+                    items(recentVideos, key = { "recent-video:${it.id}" }) { entry ->
+                        SearchVideoRow(entry, colors, selected = entry.item?.id in selectedIds, onClick = { val id = entry.item?.id; if (selectedIds.isNotEmpty() && id != null) selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id else openEntry(entry) }, onLongPress = { entry.item?.id?.let { selectedIds = if (it in selectedIds) selectedIds - it else selectedIds + it } }, onMore = { entry.item?.let { selected = it } })
+                    }
+                }
+                if (snapshot.ready && recentSearches.isEmpty() && recentArtists.isEmpty() && recentSongs.isEmpty() && recentAlbums.isEmpty() && recentVideos.isEmpty()) {
+                    item {
+                        Column(Modifier.fillMaxWidth().padding(top = 50.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.Search, null, Modifier.size(42.dp), tint = colors.primary)
+                            Text("Your library is empty", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 22.sp, color = colors.textPrimary, modifier = Modifier.padding(top = 12.dp))
+                            Text("Your recently played and available media will appear here.", fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, color = colors.textSecondary, modifier = Modifier.padding(top = 5.dp))
+                        }
                     }
                 }
             }
@@ -487,58 +529,95 @@ private fun formatDuration(durationMs: Long): String {
 }
 
 @Composable
-private fun SearchResultRow(
-    entry: SearchEntry,
-    colors: com.airplayr.app.ui.theme.AirPlayrColors,
-    playing: Boolean,
-    onClick: () -> Unit,
-    onMore: () -> Unit,
-) {
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 24.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (entry.item != null) {
-            AirPlayrMediaArtwork(
-                artworkUri = entry.item.displayArtworkUri(),
-                modifier = Modifier.size(64.dp),
-                radius = 16.dp,
-                title = entry.title,
-                mediaType = entry.item.mediaType,
-                fallbackIcon = when (entry.type) {
-                    "artist" -> AirPlayrIcons.Artist
-                    "album" -> AirPlayrIcons.AlbumDisc
-                    "video" -> AirPlayrIcons.Video
-                    else -> AirPlayrIcons.Music
-                },
-                fallbackIconTint = colors.onSurfaceVariant.copy(alpha = com.airplayr.app.ui.theme.AirPlayrArtworkTokens.fallbackIconAlpha),
-                playing = playing,
-                onPlay = if (entry.type == "song" || entry.type == "video") onClick else null,
-                onMore = if (entry.type == "song" || entry.type == "video") onMore else null,
-            )
-        } else {
-            Box(
-                Modifier.size(64.dp).clip(RoundedCornerShape(16.dp)).background(colors.surfaceVariant),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    when (entry.type) {
-                        "playlist" -> Icons.Default.QueueMusic
-                        "genre" -> Icons.Default.LocalOffer
-                        "artist" -> AirPlayrIcons.Artist
-                        "album" -> AirPlayrIcons.AlbumDisc
-                        else -> AirPlayrIcons.Music
-                    },
-                    null,
-                    tint = colors.onSurfaceVariant.copy(alpha = com.airplayr.app.ui.theme.AirPlayrArtworkTokens.fallbackIconAlpha),
-                    modifier = Modifier.size(28.dp),
-                )
-            }
-        }
-        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+private fun SearchSectionHeader(title: String, colors: com.airplayr.app.ui.theme.AirPlayrColors) {
+    Text(title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 12.sp, letterSpacing = 1.1.sp, color = colors.textPrimary,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp))
+}
+
+@Composable
+private fun RecentSearchRow(value: String, colors: com.airplayr.app.ui.theme.AirPlayrColors, onClick: () -> Unit, onRemove: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 24.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Default.History, "Recent search", tint = colors.textSecondary, modifier = Modifier.size(24.dp))
+        Text(value, color = colors.textPrimary, fontFamily = AirPlayrFonts.OpenSans, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = 14.dp))
+        IconButton(onClick = onRemove, modifier = Modifier.size(38.dp)) { Icon(Icons.Default.Close, "Remove recent search", tint = colors.textPrimary) }
+    }
+}
+
+@Composable
+private fun SearchContentRow(entry: SearchEntry, colors: com.airplayr.app.ui.theme.AirPlayrColors, playing: Boolean, selected: Boolean = false, onClick: () -> Unit, onLongPress: () -> Unit, onMore: () -> Unit) {
+    if (entry.item == null) {
+        SearchGenericRow(entry, colors, onClick)
+        return
+    }
+    val item = entry.item
+    Row(Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongPress).background(if (selected) colors.primaryContainer.copy(alpha=.72f) else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(18.dp)).padding(horizontal = 18.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+        Artwork(
+            item.displayArtworkUri(), Modifier.size(64.dp), 16.dp, entry.title, item.mediaType,
+            when (entry.type) {
+                "artist" -> AirPlayrIcons.Artist
+                "album" -> AirPlayrIcons.AlbumDisc
+                "video" -> AirPlayrIcons.Video
+                else -> AirPlayrIcons.Music
+            }, isPlaying = playing,
+        )
+        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
             Text(entry.title, color = colors.textPrimary, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(entry.subtitle, color = colors.textPrimary, fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(entry.subtitle, color = colors.textSecondary, fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
+        AirPlayrMoreButton(onMore)
+    }
+}
+
+@Composable
+private fun SearchSongRow(entry: SearchEntry, colors: com.airplayr.app.ui.theme.AirPlayrColors, playing: Boolean, selected: Boolean = false, onClick: () -> Unit, onLongPress: () -> Unit, onMore: () -> Unit) {
+    val item = entry.item ?: return
+    Row(Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongPress).background(if (selected) colors.primaryContainer.copy(alpha=.72f) else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(18.dp)).padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Artwork(item.displayArtworkUri(), Modifier.size(64.dp), 16.dp, entry.title, MediaType.AUDIO, AirPlayrIcons.Music, isPlaying = false)
+        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+            Text(entry.title, color = colors.textPrimary, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(entry.subtitle + if (item.durationMs > 0) " · ${formatDuration(item.durationMs)}" else "", color = colors.textSecondary, fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        if (playing) Icon(Icons.Default.PlayArrow, "Playing", tint = colors.primary, modifier = Modifier.size(20.dp).padding(end = 2.dp))
+        AirPlayrMoreButton(onMore)
+    }
+}
+
+@Composable
+private fun SearchArtistRow(entry: SearchEntry, colors: com.airplayr.app.ui.theme.AirPlayrColors, selected: Boolean = false, onClick: () -> Unit, onLongPress: () -> Unit, onMore: () -> Unit) {
+    val item = entry.item ?: return
+    Row(Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongPress).background(if (selected) colors.primaryContainer.copy(alpha=.72f) else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(18.dp)).padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Artwork(item.displayArtworkUri(), Modifier.size(64.dp), 32.dp, entry.title, MediaType.AUDIO, AirPlayrIcons.Artist, isPlaying = false)
+        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+            Text(entry.title, color = colors.textPrimary, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(entry.subtitle, color = colors.textSecondary, fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        AirPlayrMoreButton(onMore)
+    }
+}
+
+@Composable
+private fun SearchAlbumRow(entry: SearchEntry, colors: com.airplayr.app.ui.theme.AirPlayrColors, selected: Boolean = false, onClick: () -> Unit, onLongPress: () -> Unit, onMore: () -> Unit) {
+    val item = entry.item ?: return
+    Row(Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongPress).background(if (selected) colors.primaryContainer.copy(alpha=.72f) else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(18.dp)).padding(horizontal = 18.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+        Artwork(item.displayArtworkUri(), Modifier.size(104.dp), 18.dp, entry.title, MediaType.AUDIO, AirPlayrIcons.AlbumDisc, isPlaying = false)
+        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+            Text(entry.title, color = colors.textPrimary, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(entry.subtitle, color = colors.textSecondary, fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        AirPlayrMoreButton(onMore)
+    }
+}
+
+@Composable
+private fun SearchVideoRow(entry: SearchEntry, colors: com.airplayr.app.ui.theme.AirPlayrColors, selected: Boolean = false, onClick: () -> Unit, onLongPress: () -> Unit, onMore: () -> Unit) {
+    val item = entry.item ?: return
+    Row(Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongPress).background(if (selected) colors.primaryContainer.copy(alpha=.72f) else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(18.dp)).padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Artwork(item.thumbnailUri ?: item.artworkUri, Modifier.width(180.dp).height(102.dp), 16.dp, entry.title, MediaType.VIDEO, AirPlayrIcons.Video, isPlaying = false)
+        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+            Text(entry.title, color = colors.textPrimary, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(entry.subtitle + if (item.durationMs > 0) " · ${formatDuration(item.durationMs)}" else "", color = colors.textSecondary, fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        AirPlayrMoreButton(onClick = onMore)
     }
 }
 
@@ -561,111 +640,51 @@ private fun SearchActionSheet(
     onEditMetadata: () -> Unit,
     onEditLyrics: () -> Unit,
 ) {
-    val colors = LocalAirPlayrColors.current
     val isVideo = item.mediaType == MediaType.VIDEO
-    ModalBottomSheet(
-        onDismissRequest = onClose,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = colors.surfaceContainerLow,
-        tonalElevation = 8.dp,
-    ) {
-        Column(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 22.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Artwork(
-                item.displayArtworkUri(),
-                Modifier.size(64.dp),
-                14.dp,
-                item.title,
-                item.mediaType,
-                if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music,
-                isPlaying = playing,
-            )
-            Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                Text(item.title.ifBlank { if (isVideo) "Video" else "Song" }, color = colors.textPrimary, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    if (isVideo) "${item.artist ?: "Video"}${if (item.durationMs > 0) " · ${formatDuration(item.durationMs)}" else ""}"
-                    else listOfNotNull(item.artist ?: "Unknown artist", item.album).joinToString(" · "),
-                    color = colors.textPrimary,
-                    fontFamily = AirPlayrFonts.OpenSans,
-                    fontSize = 13.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+    val common = buildList {
+        add(AirPlayrMediaMenuAction("Details", Icons.Default.Info, onDetails))
+        add(AirPlayrMediaMenuAction("Share", Icons.Default.Share, {
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = item.mimeType ?: if (isVideo) "video/*" else "audio/*"
+                putExtra(Intent.EXTRA_TEXT, item.uri)
+                putExtra(Intent.EXTRA_TITLE, item.title)
             }
-            IconButton(onClick = onFavorite) {
-                Icon(if (favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, if (favorite) "Remove from favorites" else "Add to favorites", tint = colors.primary)
-            }
-        }
-
-        ActionGroup {
-            ActionButton("Play next", Icons.Default.PlaylistPlay, onPlayNext)
-            ActionButton("Add to queue", Icons.Default.QueueMusic, onAddQueue)
-            ActionButton("Add to playlist", Icons.Default.PlaylistAdd, onPlaylist)
-        }
-
-        if (!isVideo) {
-            ActionGroup {
-                ActionButton("Go to album", Icons.Default.Album, onGoAlbum)
-                ActionButton("Go to artist", Icons.Default.Person, onGoArtist)
-                ActionButton("Go to album artist", Icons.Default.People, onGoArtist)
-                ActionButton("Go to folder", Icons.Default.Folder, onGoFolder)
-            }
-            ActionGroup {
-                ActionButton("Tag editor", Icons.Default.Edit, onEditMetadata)
-                ActionButton("Edit lyrics", AirPlayrIcons.Lyrics, onEditLyrics)
-            }
-        }
-
-            ActionGroup {
-                ActionButton("Details", Icons.Default.Info, onDetails)
-                ActionButton("Share", Icons.Default.Share, {
-                    val send = Intent(Intent.ACTION_SEND).apply {
-                        type = item.mimeType ?: "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, item.uri)
-                        putExtra(Intent.EXTRA_TITLE, item.title)
-                    }
-                    runCatching {
-                        container.appContext.startActivity(
-                            Intent.createChooser(send, "Share ${item.title}")
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        )
-                    }
-                    onClose()
-                })
-                ActionButton("Delete from device", Icons.Default.Delete, onDelete, destructive = true)
-            }
-        }
+            runCatching { container.appContext.startActivity(Intent.createChooser(send, "Share ${item.title}").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            onClose()
+        }))
+        add(AirPlayrMediaMenuAction("Delete from device", Icons.Default.Delete, onDelete, destructive = true))
     }
-}
-
-@Composable
-private fun ActionGroup(content: @Composable ColumnScope.() -> Unit) {
-    val colors = LocalAirPlayrColors.current
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerHigh),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-    ) {
-        Column(Modifier.fillMaxWidth().padding(vertical = 5.dp), content = content)
+    val groups = if (isVideo) {
+        listOf(common)
+    } else {
+        listOf(
+            listOf(
+                AirPlayrMediaMenuAction("Play next", Icons.Default.PlaylistPlay, onPlayNext),
+                AirPlayrMediaMenuAction("Add to queue", Icons.Default.QueueMusic, onAddQueue),
+                AirPlayrMediaMenuAction("Add to playlist", Icons.Default.PlaylistAdd, onPlaylist),
+            ),
+            listOf(
+                AirPlayrMediaMenuAction("Go to album", Icons.Default.Album, onGoAlbum, enabled = !item.album.isNullOrBlank()),
+                AirPlayrMediaMenuAction("Go to artist", Icons.Default.Person, onGoArtist, enabled = !item.artist.isNullOrBlank()),
+                AirPlayrMediaMenuAction("Go to album artist", Icons.Default.People, onGoArtist, enabled = !item.albumArtist.isNullOrBlank()),
+                AirPlayrMediaMenuAction("Go to folder", Icons.Default.Folder, onGoFolder, enabled = !item.folderId.isNullOrBlank() || !item.folder.isNullOrBlank() || !item.relativePath.isNullOrBlank()),
+            ),
+            listOf(
+                AirPlayrMediaMenuAction("Tag editor", Icons.Default.Edit, onEditMetadata),
+                AirPlayrMediaMenuAction("Edit lyrics", AirPlayrIcons.Lyrics, onEditLyrics),
+            ),
+            listOf(common),
+        )
     }
+    AirPlayrPremiumMediaActionSheet(
+        item = item,
+        favorite = favorite,
+        playing = playing,
+        onFavorite = onFavorite,
+        groups = groups,
+        onDismiss = onClose,
+    )
 }
-
-@Composable
-private fun ActionButton(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit, destructive: Boolean = false) {
-    val colors = LocalAirPlayrColors.current
-    TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = if (destructive) colors.error else colors.primary)
-            Spacer(Modifier.width(14.dp))
-            Text(label, color = if (destructive) colors.error else colors.textPrimary)
-        }
-    }
-}
-
 
 @Composable
 private fun SearchTagEditorSheet(

@@ -212,3 +212,28 @@ object AirPlayrPalette {
     val light: AirPlayrColors get() = AirPlayrLightBase
     val dark: AirPlayrColors get() = AirPlayrDarkBase
 }
+
+/** User-facing accent choices. Dynamic is Material You on Android 12+ and AirPlayr Blue elsewhere. */
+data class AirPlayrAccentOption(
+    val key: String,
+    val label: String,
+    val color: Color,
+)
+
+val AirPlayrAccentOptions = listOf(
+    AirPlayrAccentOption("blue", "AirPlayr Blue", Color(0xFF1976D2)),
+    AirPlayrAccentOption("purple", "Purple", Color(0xFF6750A4)),
+    AirPlayrAccentOption("teal", "Teal", Color(0xFF00796B)),
+    AirPlayrAccentOption("orange", "Orange", Color(0xFFE86A17)),
+    AirPlayrAccentOption("pink", "Pink", Color(0xFFC2185B)),
+)
+
+fun accentColorSeed(key: String): Color =
+    AirPlayrAccentOptions.firstOrNull { it.key == key }?.color ?: Color(0xFF1976D2)
+
+fun accentLabel(key: String, dynamicSupported: Boolean = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S): String =
+    if (key == "dynamic") {
+        if (dynamicSupported) "Dynamic · Material You" else "Dynamic · AirPlayr Blue fallback"
+    } else {
+        AirPlayrAccentOptions.firstOrNull { it.key == key }?.label ?: "AirPlayr Blue"
+    }

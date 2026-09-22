@@ -7,6 +7,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -37,6 +38,9 @@ import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.components.AirPlayrCard
 import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.components.AirPlayrMediaRow
+import com.airplayr.app.ui.components.AirPlayrPremiumMediaActionSheet
+import com.airplayr.app.ui.components.AirPlayrMediaMenuAction
+import com.airplayr.app.ui.components.AirPlayrSelectionBar
 import com.airplayr.app.ui.components.AIRPLAYR_FLOATING_PLAY_BOTTOM
 import com.airplayr.app.ui.components.AIRPLAYR_FLOATING_PLAY_BOTTOM_WITH_MINI
 import com.airplayr.app.ui.components.AirPlayrScreenHeader
@@ -58,6 +62,10 @@ fun StatsScreen(container: AppContainer, libraryViewModel: LibraryViewModel, pla
     var mode by rememberSaveable { mutableStateOf("music") }
     var stats by remember { mutableStateOf<PlaybackStatsRepository.Summary?>(null) }
     val playbackState by playback.stableState.collectAsStateWithLifecycle()
+    var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var menuItem by remember { mutableStateOf<MediaItem?>(null) }
+    var menuFavorite by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(period, music, video, snapshot.ready) {
         if (!snapshot.ready) return@LaunchedEffect
@@ -70,7 +78,7 @@ fun StatsScreen(container: AppContainer, libraryViewModel: LibraryViewModel, pla
     if (!snapshot.ready || s == null) {
         Column(Modifier.fillMaxSize().background(colors.background)) {
             StatsHeader(onBack, colors, "Listening & watching stats", "Your AirPlayr activity")
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            AirPlayrSectionEmpty("Your activity is building", "Keep listening or watching and AirPlayr will show the details here.")
         }
         return
     }
@@ -117,6 +125,9 @@ fun StatsScreen(container: AppContainer, libraryViewModel: LibraryViewModel, pla
                     lookup = music.associateBy { it.id },
                     colors = colors,
                     onOpen = { item -> onOpenMedia(item) },
+                    selectedIds = selectedIds,
+                    onToggleSelect = { item -> selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id },
+                    onMore = { item -> scope.launch { menuFavorite = container.structured.isFavorite(item.id) }; menuItem = item },
                     playingId = playbackState.takeIf { it.isPlaying }?.currentId,
                     fallback = "Your most-played songs will appear here.",
                 )
@@ -130,6 +141,9 @@ fun StatsScreen(container: AppContainer, libraryViewModel: LibraryViewModel, pla
                     onOpen = { item ->
                         if (item.mediaType == MediaType.VIDEO) onOpenVideo(item.id) else onOpenMedia(item)
                     },
+                    selectedIds = selectedIds,
+                    onToggleSelect = { item -> selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id },
+                    onMore = { item -> scope.launch { menuFavorite = container.structured.isFavorite(item.id) }; menuItem = item },
                     playingId = playbackState.takeIf { it.isPlaying }?.currentId,
                     fallback = "Your most-watched videos will appear here.",
                 )
@@ -160,6 +174,34 @@ fun StatsScreen(container: AppContainer, libraryViewModel: LibraryViewModel, pla
                 Icon(Icons.Default.PlayArrow, "Play", modifier = Modifier.size(31.dp))
             }
         }
+        if (selectedIds.isNotEmpty()) {
+            val chosen = (music + video).filter { it.id in selectedIds }.distinctBy { it.id }
+            AirPlayrSelectionBar(
+                modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(horizontal = 12.dp, vertical = 6.dp),
+                count = selectedIds.size,
+                onClear = { selectedIds = emptySet() },
+                onSelectAll = { selectedIds = (music + video).map { it.id }.toSet() },
+                onPlay = { chosen.firstOrNull()?.let { if (it.mediaType == MediaType.AUDIO) playback.play(it) else onOpenVideo(it.id) }; selectedIds = emptySet() },
+                onPlayNext = { chosen.filter { it.mediaType == MediaType.AUDIO }.forEach(playback::playNext); selectedIds = emptySet() },
+                onLike = { scope.launch { chosen.forEach { container.structured.toggleFavorite(it) }; selectedIds = emptySet() } },
+            )
+        }
+    }
+    menuItem?.let { item ->
+        AirPlayrPremiumMediaActionSheet(
+            item = item,
+            playing = playbackState.isPlaying && playbackState.currentId == item.id,
+            favorite = menuFavorite,
+            groups = listOf(
+                listOf(
+                    AirPlayrMediaMenuAction("Play now", Icons.Default.PlayArrow, { if (item.mediaType == MediaType.AUDIO) playback.play(item) else onOpenVideo(item.id); menuItem = null }),
+                    AirPlayrMediaMenuAction("Play next", Icons.Default.SkipNext, { if (item.mediaType == MediaType.AUDIO) playback.playNext(item) else com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Videos do not use the music queue."); menuItem = null }),
+                    AirPlayrMediaMenuAction("Add to queue", Icons.Default.QueueMusic, { if (item.mediaType == MediaType.AUDIO) playback.addToQueue(item) else com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Videos do not use the music queue."); menuItem = null }),
+                ),
+            ),
+            onFavorite = { scope.launch { menuFavorite = container.structured.toggleFavorite(item) } },
+            onDismiss = { menuItem = null },
+        )
     }
 
 }
@@ -358,7 +400,18 @@ private fun GenreRingItem(item: PlaybackStatsRepository.GenreStat, colors: com.a
 }
 
 @Composable
-private fun TopMediaCard(title: String, items: List<PlaybackStatsRepository.TopItem>, lookup: Map<String, MediaItem>, colors: com.airplayr.app.ui.theme.AirPlayrColors, onOpen: (MediaItem) -> Unit, playingId: String?, fallback: String) {
+private fun TopMediaCard(
+    title: String,
+    items: List<PlaybackStatsRepository.TopItem>,
+    lookup: Map<String, MediaItem>,
+    colors: com.airplayr.app.ui.theme.AirPlayrColors,
+    onOpen: (MediaItem) -> Unit,
+    selectedIds: Set<String>,
+    onToggleSelect: (MediaItem) -> Unit,
+    onMore: (MediaItem) -> Unit,
+    playingId: String?,
+    fallback: String,
+) {
     AirPlayrCard(shape = RoundedCornerShape(28.dp), containerColor = colors.surface, elevation = 5.dp) {
         Column(Modifier.fillMaxWidth().padding(22.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -379,8 +432,16 @@ private fun TopMediaCard(title: String, items: List<PlaybackStatsRepository.TopI
                     )
                     Row(Modifier.fillMaxWidth().padding(top = if (index == 0) 12.dp else 10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("${index + 1}", fontFamily = AirPlayrFonts.OpenSansBold, fontSize = 20.sp, color = colors.textPrimary, modifier = Modifier.width(26.dp))
-                        Box(Modifier.weight(1f).then(if (lookup[top.id] != null) Modifier.clickable { onOpen(media) } else Modifier)) {
-                            AirPlayrMediaRow(media, onOpen = { if (lookup[top.id] != null) onOpen(media) }, playing = playingId == media.id, compact = true)
+                        Box(Modifier.weight(1f)) {
+                            AirPlayrMediaRow(
+                                item = media,
+                                onOpen = { if (lookup[top.id] != null) { if (selectedIds.isNotEmpty()) onToggleSelect(media) else onOpen(media) } },
+                                onMore = if (lookup[top.id] != null) ({ onMore(media) }) else null,
+                                playing = playingId == media.id,
+                                compact = true,
+                                selected = media.id in selectedIds,
+                                onLongPress = if (lookup[top.id] != null) ({ onToggleSelect(media) }) else null,
+                            )
                         }
                         Text(top.periodPlays.toString(), fontFamily = AirPlayrFonts.OpenSansBold, fontSize = 14.sp, color = colors.textPrimary, modifier = Modifier.width(30.dp), textAlign = TextAlign.End)
                     }

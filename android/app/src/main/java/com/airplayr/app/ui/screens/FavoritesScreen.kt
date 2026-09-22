@@ -54,6 +54,7 @@ fun FavoritesScreen(
     val playbackState by playback.stableState.collectAsStateWithLifecycle()
     var headerMenu by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<MediaItem?>(null) }
+    var selectedIds by rememberSaveable { mutableStateOf<Set<String>>(emptySet()) }
     var playlistTarget by remember { mutableStateOf<List<MediaItem>?>(null) }
     var detailsTarget by remember { mutableStateOf<MediaItem?>(null) }
     var editTarget by remember { mutableStateOf<MediaItem?>(null) }
@@ -89,12 +90,7 @@ fun FavoritesScreen(
     }
 
     Box(Modifier.fillMaxSize().background(colors.background)) {
-        if (!snapshot.ready) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = colors.primary)
-            }
-        } else {
-            LazyColumn(
+        LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
                 contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding()),
@@ -112,6 +108,21 @@ fun FavoritesScreen(
                     }
                 }
 
+                if (selectedIds.isNotEmpty()) {
+                    val chosen = items.filter { it.id in selectedIds }
+                    item {
+                        AirPlayrSelectionBar(
+                            count = selectedIds.size,
+                            onClear = { selectedIds = emptySet() },
+                            onSelectAll = { selectedIds = items.map { it.id }.toSet() },
+                            onPlay = if (songs.isNotEmpty()) ({ val chosenSongs = chosen.filter { it.mediaType == MediaType.AUDIO }; if (chosenSongs.isNotEmpty()) { playSong(chosenSongs.first()); selectedIds = emptySet() } }) else null,
+                            onPlayNext = if (songs.isNotEmpty()) ({ chosen.filter { it.mediaType == MediaType.AUDIO }.forEach(playback::playNext); selectedIds = emptySet() }) else null,
+                            onPlaylist = if (songs.isNotEmpty()) ({ val chosenSongs = chosen.filter { it.mediaType == MediaType.AUDIO }; if (chosenSongs.isNotEmpty()) { playlistTarget = chosenSongs } }) else null,
+                            onLike = { scope.launch { chosen.forEach { if (it.id !in favoriteSet) container.structured.toggleFavorite(it) }; selectedIds = emptySet() } },
+                        )
+                    }
+                }
+
                 if (items.isEmpty()) {
                     item {
                         AirPlayrSectionEmpty("No favorites yet", "Songs and videos you like will appear here.")
@@ -124,9 +135,11 @@ fun FavoritesScreen(
                         val playing = playbackState.isPlaying && playbackState.currentId == item.id
                         AirPlayrMediaRow(
                             item = item,
-                            onOpen = { playSong(item) },
+                            onOpen = { if (selectedIds.isNotEmpty()) selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id else playSong(item) },
                             onMore = { selected = item },
                             playing = playing,
+                            selected = item.id in selectedIds,
+                            onLongPress = { selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id },
                         )
                     }
                 }
@@ -173,13 +186,14 @@ fun FavoritesScreen(
                     items(likedVideos, key = { "video:${it.id}" }) { item ->
                         AirPlayrMediaRow(
                             item = item,
-                            onOpen = { onOpenVideo(item.id) },
+                            onOpen = { if (selectedIds.isNotEmpty()) selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id else onOpenVideo(item.id) },
                             onMore = { selected = item },
+                            selected = item.id in selectedIds,
+                            onLongPress = { selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id },
                         )
                     }
                 }
             }
-        }
 
         if (snapshot.ready && songs.isNotEmpty()) {
             FloatingActionButton(

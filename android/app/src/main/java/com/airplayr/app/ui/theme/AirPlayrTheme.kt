@@ -4,7 +4,6 @@ import android.app.WallpaperManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -17,105 +16,195 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 
 private val AirPlayrDarkFallback = darkColorScheme(
-    primary = Color(0xFFD0BCFF),
-    onPrimary = Color(0xFF381E72),
-    primaryContainer = Color(0xFF4F378B),
-    onPrimaryContainer = Color(0xFFEADDFF),
-    secondary = Color(0xFFCCC2DC),
-    onSecondary = Color(0xFF332D41),
-    secondaryContainer = Color(0xFF4A4458),
-    onSecondaryContainer = Color(0xFFE8DEF8),
-    tertiary = Color(0xFFEFB8C8),
-    onTertiary = Color(0xFF492532),
-    tertiaryContainer = Color(0xFF633B48),
-    onTertiaryContainer = Color(0xFFFFD8E4),
+    primary = Color(0xFF9CCBFF),
+    onPrimary = Color(0xFF003258),
+    primaryContainer = Color(0xFF004A7D),
+    onPrimaryContainer = Color(0xFFCCE5FF),
+    secondary = Color(0xFFB6CBE0),
+    onSecondary = Color(0xFF20323F),
+    secondaryContainer = Color(0xFF354A59),
+    onSecondaryContainer = Color(0xFFD3E6F5),
+    tertiary = Color(0xFFFFB6C7),
+    onTertiary = Color(0xFF4D1927),
+    tertiaryContainer = Color(0xFF672F3F),
+    onTertiaryContainer = Color(0xFFFFD9E1),
     error = Color(0xFFFFB4AB),
     onError = Color(0xFF690005),
     errorContainer = Color(0xFF93000A),
     onErrorContainer = Color(0xFFFFDAD6),
-    background = Color(0xFF141218),
-    onBackground = Color(0xFFE6E0E9),
-    surface = Color(0xFF141218),
-    onSurface = Color(0xFFE6E0E9),
-    surfaceVariant = Color(0xFF49454F),
-    onSurfaceVariant = Color(0xFFCAC4D0),
-    outline = Color(0xFF938F99),
-    outlineVariant = Color(0xFF49454F),
-    inverseSurface = Color(0xFFE6E0E9),
-    inverseOnSurface = Color(0xFF322F35),
-    inversePrimary = Color(0xFF6750A4),
+    background = Color(0xFF0B1015),
+    onBackground = Color(0xFFE4EDF5),
+    surface = Color(0xFF0B1015),
+    onSurface = Color(0xFFE4EDF5),
+    surfaceVariant = Color(0xFF414B54),
+    onSurfaceVariant = Color(0xFFC1CCD5),
+    outline = Color(0xFF8A969F),
+    outlineVariant = Color(0xFF414B54),
+    inverseSurface = Color(0xFFE4EDF5),
+    inverseOnSurface = Color(0xFF293139),
+    inversePrimary = Color(0xFF00639D),
     scrim = Color(0xB3000000),
-    surfaceDim = Color(0xFF141218),
-    surfaceBright = Color(0xFF3B383F),
-    surfaceContainerLowest = Color(0xFF0F0D13),
-    surfaceContainerLow = Color(0xFF1D1B20),
-    surfaceContainer = Color(0xFF211F26),
-    surfaceContainerHigh = Color(0xFF2B2930),
-    surfaceContainerHighest = Color(0xFF36343B),
+    surfaceDim = Color(0xFF0B1015),
+    surfaceBright = Color(0xFF30383F),
+    surfaceContainerLowest = Color(0xFF06090D),
+    surfaceContainerLow = Color(0xFF151B20),
+    surfaceContainer = Color(0xFF192126),
+    surfaceContainerHigh = Color(0xFF242C32),
+    surfaceContainerHighest = Color(0xFF30383F),
 )
 
+/**
+ * AirPlayr's pre-Material-You light baseline. The canvas stays an almost-white sky blue so the
+ * app still has a recognizable visual identity on Android 7-11 and when the user disables dynamic
+ * colour on newer Android releases.
+ */
 private val AirPlayrLightFallback = lightColorScheme(
-    primary = Color(0xFF6750A4),
+    primary = Color(0xFF1976D2),
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFEADDFF),
-    onPrimaryContainer = Color(0xFF21005D),
-    secondary = Color(0xFF625B71),
+    primaryContainer = Color(0xFFD9ECFF),
+    onPrimaryContainer = Color(0xFF003C6D),
+    secondary = Color(0xFF46627B),
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFE8DEF8),
-    onSecondaryContainer = Color(0xFF1D192B),
-    tertiary = Color(0xFF7D5260),
+    secondaryContainer = Color(0xFFD8E8F8),
+    onSecondaryContainer = Color(0xFF102638),
+    tertiary = Color(0xFF6B5778),
     onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFFFD8E4),
-    onTertiaryContainer = Color(0xFF31111D),
+    tertiaryContainer = Color(0xFFF0DDFC),
+    onTertiaryContainer = Color(0xFF261433),
     error = Color(0xFFBA1A1A),
     onError = Color.White,
     errorContainer = Color(0xFFFFDAD6),
     onErrorContainer = Color(0xFF410002),
-    background = Color(0xFFF2FBF8),
-    onBackground = Color(0xFF1D1B20),
+    background = Color(0xFFF5FBFF),
+    onBackground = Color(0xFF101418),
     surface = Color(0xFFFFFFFF),
-    onSurface = Color(0xFF1D1B20),
-    surfaceVariant = Color(0xFFE7E0EC),
-    onSurfaceVariant = Color(0xFF49454F),
-    outline = Color(0xFF79747E),
-    outlineVariant = Color(0xFFCAC4D0),
-    inverseSurface = Color(0xFF322F35),
-    inverseOnSurface = Color(0xFFF5EFF7),
-    inversePrimary = Color(0xFFD0BCFF),
+    onSurface = Color(0xFF101418),
+    surfaceVariant = Color(0xFFE2EDF5),
+    onSurfaceVariant = Color(0xFF46535E),
+    outline = Color(0xFF6F7E89),
+    outlineVariant = Color(0xFFC4D0D9),
+    inverseSurface = Color(0xFF293139),
+    inverseOnSurface = Color(0xFFEAF2F8),
+    inversePrimary = Color(0xFF9DCCFF),
     scrim = Color(0x59000000),
-    surfaceDim = Color(0xFFD6E9E3),
-    surfaceBright = Color(0xFFFFFFFF),
-    surfaceContainerLowest = Color(0xFFF7FCFA),
-    surfaceContainerLow = Color(0xFFEDF7F3),
-    surfaceContainer = Color(0xFFDEEFE9),
-    surfaceContainerHigh = Color(0xFFD5E8E1),
-    surfaceContainerHighest = Color(0xFFCCDCD6),
+    surfaceDim = Color(0xFFD7E7F1),
+    surfaceBright = Color.White,
+    surfaceContainerLowest = Color(0xFFFAFDFF),
+    surfaceContainerLow = Color(0xFFF0F7FC),
+    surfaceContainer = Color(0xFFE8F1F7),
+    surfaceContainerHigh = Color(0xFFE0EAF1),
+    surfaceContainerHighest = Color(0xFFD7E3EA),
 )
 
+private fun blend(from: Color, to: Color, amount: Float): Color = Color(
+    red = from.red + (to.red - from.red) * amount,
+    green = from.green + (to.green - from.green) * amount,
+    blue = from.blue + (to.blue - from.blue) * amount,
+    alpha = from.alpha + (to.alpha - from.alpha) * amount,
+)
+
+/**
+ * Builds a coherent Material 3 light/dark scheme from one of AirPlayr's fixed accent colours.
+ * Keeping the generation here means Android 7-11 gets the same semantic role relationships as the
+ * Material-You devices instead of falling back to an unrelated default purple palette.
+ */
+private fun fixedAccentScheme(seed: Color, darkTheme: Boolean): ColorScheme {
+    return if (!darkTheme) {
+        val primaryContainer = blend(seed, Color.White, 0.82f)
+        val secondary = blend(seed, Color.Black, 0.22f)
+        val tertiary = blend(seed, Color(0xFF6A5C72), 0.34f)
+        val onAccent = if (seed.luminance() > 0.179f) Color.Black else Color.White
+        val onTertiary = if (tertiary.luminance() > 0.179f) Color.Black else Color.White
+        lightColorScheme(
+            primary = seed,
+            onPrimary = onAccent,
+            primaryContainer = primaryContainer,
+            onPrimaryContainer = blend(seed, Color.Black, 0.64f),
+            secondary = secondary,
+            onSecondary = if (secondary.luminance() > 0.179f) Color.Black else Color.White,
+            secondaryContainer = blend(seed, Color.White, 0.86f),
+            onSecondaryContainer = blend(seed, Color.Black, 0.70f),
+            tertiary = tertiary,
+            onTertiary = onTertiary,
+            tertiaryContainer = blend(seed, Color.White, 0.90f),
+            onTertiaryContainer = blend(seed, Color.Black, 0.72f),
+            error = Color(0xFFBA1A1A),
+            onError = Color.White,
+            errorContainer = Color(0xFFFFDAD6),
+            onErrorContainer = Color(0xFF410002),
+            background = AirPlayrLightFallback.background,
+            onBackground = AirPlayrLightFallback.onBackground,
+            surface = AirPlayrLightFallback.surface,
+            onSurface = AirPlayrLightFallback.onSurface,
+            surfaceVariant = blend(seed, Color.White, 0.90f),
+            onSurfaceVariant = blend(seed, Color.Black, 0.48f),
+            outline = blend(seed, Color.Black, 0.38f),
+            outlineVariant = blend(seed, Color.White, 0.70f),
+            inverseSurface = Color(0xFF273139),
+            inverseOnSurface = Color(0xFFEAF2F8),
+            inversePrimary = blend(seed, Color.White, 0.35f),
+            scrim = Color(0x59000000),
+            surfaceDim = AirPlayrLightFallback.surfaceDim,
+            surfaceBright = Color.White,
+            surfaceContainerLowest = AirPlayrLightFallback.surfaceContainerLowest,
+            surfaceContainerLow = blend(seed, Color.White, 0.96f),
+            surfaceContainer = blend(seed, Color.White, 0.91f),
+            surfaceContainerHigh = blend(seed, Color.White, 0.86f),
+            surfaceContainerHighest = blend(seed, Color.White, 0.80f),
+        )
+    } else {
+        val primary = blend(seed, Color.White, 0.34f)
+        darkColorScheme(
+            primary = primary,
+            onPrimary = blend(seed, Color.Black, 0.67f),
+            primaryContainer = blend(seed, Color.Black, 0.34f),
+            onPrimaryContainer = blend(primary, Color.White, 0.80f),
+            secondary = blend(seed, Color.White, 0.16f),
+            onSecondary = blend(seed, Color.Black, 0.72f),
+            secondaryContainer = blend(seed, Color.Black, 0.26f),
+            onSecondaryContainer = blend(primary, Color.White, 0.84f),
+            tertiary = blend(seed, Color.White, 0.22f),
+            onTertiary = blend(seed, Color.Black, 0.72f),
+            tertiaryContainer = blend(seed, Color.Black, 0.18f),
+            onTertiaryContainer = blend(primary, Color.White, 0.88f),
+            error = Color(0xFFFFB4AB),
+            onError = Color(0xFF690005),
+            errorContainer = Color(0xFF93000A),
+            onErrorContainer = Color(0xFFFFDAD6),
+            background = AirPlayrDarkFallback.background,
+            onBackground = AirPlayrDarkFallback.onBackground,
+            surface = AirPlayrDarkFallback.surface,
+            onSurface = AirPlayrDarkFallback.onSurface,
+            surfaceVariant = blend(seed, Color.Black, 0.58f),
+            onSurfaceVariant = Color(0xFFC1CCD5),
+            outline = blend(primary, Color.Black, 0.38f),
+            outlineVariant = blend(seed, Color.Black, 0.52f),
+            inverseSurface = Color(0xFFEAF2F8),
+            inverseOnSurface = Color(0xFF273139),
+            inversePrimary = seed,
+            scrim = Color(0xB3000000),
+            surfaceDim = AirPlayrDarkFallback.surfaceDim,
+            surfaceBright = AirPlayrDarkFallback.surfaceBright,
+            surfaceContainerLowest = AirPlayrDarkFallback.surfaceContainerLowest,
+            surfaceContainerLow = AirPlayrDarkFallback.surfaceContainerLow,
+            surfaceContainer = AirPlayrDarkFallback.surfaceContainer,
+            surfaceContainerHigh = AirPlayrDarkFallback.surfaceContainerHigh,
+            surfaceContainerHighest = AirPlayrDarkFallback.surfaceContainerHighest,
+        )
+    }
+}
 
 private fun arrangeLightScheme(scheme: ColorScheme): ColorScheme {
-    fun blend(from: Color, to: Color, amount: Float): Color =
-        Color(
-            red = from.red + (to.red - from.red) * amount,
-            green = from.green + (to.green - from.green) * amount,
-            blue = from.blue + (to.blue - from.blue) * amount,
-            alpha = from.alpha + (to.alpha - from.alpha) * amount,
-        )
-
-    // The reference uses the Material You relationship of:
-    //   pale dynamic canvas -> near-white cards -> visibly tinted containers.
-    // The old implementation pushed the background toward surfaceContainerLow only weakly and
-    // also pulled the base surface toward that same low container, which could collapse both into
-    // an almost-white canvas. Keep the wallpaper-derived roles, but deliberately restore tonal
-    // separation so the light theme behaves like the reference image.
-    val background = blend(scheme.background, scheme.surfaceContainer, 0.66f)
-    val surface = blend(scheme.surface, Color.White, 0.88f)
-    val surfaceBright = blend(scheme.surfaceBright, Color.White, 0.60f)
+    // Preserve the AirPlayr near-white sky-blue canvas while allowing dynamic/fixed accents to
+    // keep their Material-You tonal hierarchy.
+    val background = blend(scheme.background, Color(0xFFF5FBFF), 0.62f)
+    val surface = blend(scheme.surface, Color.White, 0.90f)
+    val surfaceBright = blend(scheme.surfaceBright, Color.White, 0.64f)
     return scheme.copy(
         background = background,
         surface = surface,
@@ -123,30 +212,22 @@ private fun arrangeLightScheme(scheme: ColorScheme): ColorScheme {
     )
 }
 
-
 @Composable
 fun AirPlayrTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
+    darkTheme: Boolean = false,
+    accentColor: String = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) "dynamic" else "blue",
+    dynamicColor: Boolean = true,
     highContrast: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    // Configuration changes (including Android's dynamic color resource updates) naturally
-    // invalidate this composition. WallpaperManager below covers the case where the wallpaper
-    // colors change while the Activity stays alive without recreating the configuration.
     LocalConfiguration.current
 
-    val useDynamicColor = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-
-    // Do not invalidate the entire app on every ON_RESUME. That used to make warm re-entry do a
-    // global theme rebuild. Listen specifically for wallpaper color changes instead, so dynamic
-    // Material You updates are ready before the next visible frame after a wallpaper change.
+    val useDynamicColor = dynamicColor && accentColor == "dynamic" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val dynamicColorRefresh = remember { mutableIntStateOf(0) }
+
     DisposableEffect(context, useDynamicColor) {
-        if (!useDynamicColor) {
-            return@DisposableEffect onDispose { }
-        }
+        if (!useDynamicColor) return@DisposableEffect onDispose { }
         val wallpaperManager = WallpaperManager.getInstance(context)
         val handler = Handler(Looper.getMainLooper())
         var pendingRefresh: Runnable? = null
@@ -158,9 +239,6 @@ fun AirPlayrTheme(
                     dynamicColorRefresh.intValue++
                 }
                 pendingRefresh = refresh
-                // Coalesce duplicate Android wallpaper callbacks without adding a visible delay.
-                // The increment happens on the next main-looper turn, allowing the new Material
-                // You palette to be read before the next rendered frame.
                 handler.post(refresh)
             }
         }
@@ -171,18 +249,22 @@ fun AirPlayrTheme(
             handler.removeCallbacksAndMessages(null)
         }
     }
-    val baseScheme: ColorScheme = remember(darkTheme, useDynamicColor, dynamicColorRefresh.intValue) {
+
+    val fixedSeed = accentColorSeed(accentColor)
+    val baseScheme: ColorScheme = remember(
+        darkTheme,
+        accentColor,
+        useDynamicColor,
+        dynamicColorRefresh.intValue,
+    ) {
         when {
             useDynamicColor && darkTheme -> dynamicDarkColorScheme(context)
-            useDynamicColor && !darkTheme -> dynamicLightColorScheme(context)
-            darkTheme -> AirPlayrDarkFallback
-            else -> AirPlayrLightFallback
+            useDynamicColor -> dynamicLightColorScheme(context)
+            accentColor == "dynamic" && !useDynamicColor -> fixedAccentScheme(fixedSeed, darkTheme)
+            else -> fixedAccentScheme(fixedSeed, darkTheme)
         }
     }
 
-    // Keep Material You's wallpaper-derived hue while giving the light app a visibly tinted
-    // background/surface hierarchy instead of an almost-white canvas. Containers remain the
-    // system-derived Material roles so cards, sheets and controls retain tonal separation.
     val scheme = remember(baseScheme, darkTheme) {
         if (darkTheme) baseScheme else arrangeLightScheme(baseScheme)
     }
@@ -202,9 +284,7 @@ fun AirPlayrTheme(
         dynamic = useDynamicColor,
     )
 
-    androidx.compose.runtime.CompositionLocalProvider(
-        LocalAirPlayrColors provides airColors,
-    ) {
+    androidx.compose.runtime.CompositionLocalProvider(LocalAirPlayrColors provides airColors) {
         MaterialTheme(
             colorScheme = accessibleScheme,
             typography = AirPlayrTypography,

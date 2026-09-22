@@ -1,6 +1,7 @@
 package com.airplayr.app.core.data.preferences
 
 import android.content.Context
+import android.os.Build
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -11,10 +12,12 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
 
 private val Context.airPlayrDataStore by preferencesDataStore(name = "airplayr_preferences")
 
 private val THEME = stringPreferencesKey("theme")
+private val ACCENT_COLOR = stringPreferencesKey("accent_color")
 private val HIGH_CONTRAST = booleanPreferencesKey("high_contrast")
 private val REDUCE_MOTION = booleanPreferencesKey("reduce_motion")
 private val HAPTIC = booleanPreferencesKey("haptic_feedback")
@@ -70,13 +73,47 @@ private val INITIAL_LIBRARY_SCAN_DONE = booleanPreferencesKey("initial_library_s
 private val MEDIASTORE_VERSION = stringPreferencesKey("mediastore_version")
 private val MEDIASTORE_LAST_REFRESH_MS = androidx.datastore.preferences.core.longPreferencesKey("mediastore_last_refresh_ms")
 private val GENRE_METADATA_VERSION = stringPreferencesKey("genre_metadata_version")
+private val RECENT_SEARCHES = stringPreferencesKey("recent_searches")
 private const val STARTUP_PREFS = "airplayr_startup"
 private const val STARTUP_THEME = "theme"
 
+private fun encodeRecentSearches(values: List<String>): String =
+    JSONArray().apply { values.forEach { put(it) } }.toString()
+
+private fun decodeRecentSearches(raw: String?): List<String> {
+    if (raw.isNullOrBlank()) return emptyList()
+    return runCatching {
+        val array = JSONArray(raw)
+        buildList(array.length()) { for (index in 0 until array.length()) add(array.getString(index)) }
+    }.getOrDefault(emptyList())
+}
+
 class PreferencesRepository(private val context: Context) {
+    val recentSearches: Flow<List<String>> = context.airPlayrDataStore.data.map { p ->
+        decodeRecentSearches(p[RECENT_SEARCHES])
+    }
+
+    suspend fun recordRecentSearch(query: String) {
+        val value = query.trim()
+        if (value.isBlank()) return
+        context.airPlayrDataStore.edit { prefs ->
+            val current = decodeRecentSearches(prefs[RECENT_SEARCHES])
+            val updated = listOf(value) + current.filterNot { it.equals(value, ignoreCase = true) }
+            prefs[RECENT_SEARCHES] = encodeRecentSearches(updated.take(8))
+        }
+    }
+
+    suspend fun removeRecentSearch(query: String) {
+        context.airPlayrDataStore.edit { prefs ->
+            val updated = decodeRecentSearches(prefs[RECENT_SEARCHES]).filterNot { it == query }
+            prefs[RECENT_SEARCHES] = encodeRecentSearches(updated)
+        }
+    }
+
     val settings: Flow<AirPlayrSettings> = context.airPlayrDataStore.data.map { p ->
         AirPlayrSettings(
-            theme = p[THEME] ?: "system",
+            theme = p[THEME] ?: "light",
+            accentColor = p[ACCENT_COLOR] ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) "dynamic" else "blue",
             highContrast = p[HIGH_CONTRAST] ?: false,
             reduceMotion = p[REDUCE_MOTION] ?: false,
             hapticFeedback = p[HAPTIC] ?: true,
@@ -139,6 +176,9 @@ class PreferencesRepository(private val context: Context) {
             .commit()
         context.airPlayrDataStore.edit { it[THEME] = theme }
     }
+    suspend fun setAccentColor(v: String) {
+        context.airPlayrDataStore.edit { it[ACCENT_COLOR] = v.coerceAccent() }
+    }
     suspend fun setHighContrast(v: Boolean) = editBool(HIGH_CONTRAST, v)
     suspend fun setReduceMotion(v: Boolean) = editBool(REDUCE_MOTION, v)
     suspend fun setHapticFeedback(v: Boolean) = editBool(HAPTIC, v)
@@ -171,7 +211,7 @@ class PreferencesRepository(private val context: Context) {
     suspend fun setGesturePinchZoom(v: Boolean) = editBool(GESTURE_PINCH, v)
     suspend fun setGestureHorizontalSeek(v: Boolean) = editBool(GESTURE_HORIZONTAL, v)
     suspend fun setSeekStepSeconds(v: Int) = context.airPlayrDataStore.edit { it[SEEK_STEP_SECONDS] = v.coerceIn(setOf(5, 10, 15, 30)) }
-    suspend fun setLibrarySort(v: String) = context.airPlayrDataStore.edit { it[LIBRARY_SORT] = v.coerceIn(setOf("recent", "name", "duration", "modified")) }
+    suspend fun setLibrarySort(v: String) = context.airPlayrDataStore.edit { it[LIBRARY_SORT] = v.coerceIn(setOf("recent", "name", "artist", "album", "genre", "duration", "modified")) }
     suspend fun setLibrarySortOrder(v: String) = context.airPlayrDataStore.edit { it[LIBRARY_SORT_ORDER] = v.coerceIn(setOf("asc", "desc")) }
     suspend fun setLibraryLayout(v: String) = context.airPlayrDataStore.edit { it[LIBRARY_LAYOUT] = v.coerceIn(setOf("grid", "list")) }
     suspend fun setGridColumns(v: Int) = context.airPlayrDataStore.edit { it[GRID_COLUMNS] = v.coerceIn(setOf(0, 2, 3, 4)) }
@@ -252,7 +292,7 @@ class PreferencesRepository(private val context: Context) {
         context.airPlayrDataStore.edit { it.clear() }
         context.getSharedPreferences(STARTUP_PREFS, Context.MODE_PRIVATE)
             .edit()
-            .putString(STARTUP_THEME, "system")
+            .putString(STARTUP_THEME, "light")
             .commit()
     }
 
@@ -261,6 +301,7 @@ class PreferencesRepository(private val context: Context) {
 
 data class AirPlayrSettings(
     val theme: String,
+    val accentColor: String,
     val highContrast: Boolean,
     val reduceMotion: Boolean,
     val hapticFeedback: Boolean,
@@ -312,6 +353,7 @@ data class AirPlayrSettings(
     val sleepPendingTrackId: String?,
 )
 
-private fun String.coerceTheme() = takeIf { it in setOf("system", "light", "dark") } ?: "system"
+private fun String.coerceTheme() = takeIf { it in setOf("system", "light", "dark") } ?: "light"
+private fun String.coerceAccent() = takeIf { it in setOf("dynamic", "blue", "purple", "teal", "orange", "pink") } ?: "blue"
 private fun String.coerceIn(values: Set<String>) = takeIf { it in values } ?: values.first()
 private fun Int.coerceIn(values: Set<Int>) = takeIf { it in values } ?: values.first()

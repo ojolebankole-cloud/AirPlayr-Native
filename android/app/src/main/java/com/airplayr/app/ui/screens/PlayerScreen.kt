@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Share
@@ -139,7 +140,7 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
     val scope = rememberCoroutineScope()
     val preferences = remember(appContext) { PreferencesRepository(appContext) }
     val settings by preferences.settings.collectAsStateWithLifecycle(initialValue = com.airplayr.app.core.data.preferences.AirPlayrSettings(
-        theme = "system", highContrast = false, reduceMotion = false, hapticFeedback = true, touchFeedback = true,
+        theme = "light", accentColor = "blue", highContrast = false, reduceMotion = false, hapticFeedback = true, touchFeedback = true,
         resumeMode = "auto", defaultSpeed = 1.0, crossfadeSeconds = 0.0, gaplessPlayback = true,
         replayGainMode = "off", replayGainPreampDb = 0.0, replayGainPreventClipping = true,
         defaultAspect = "contain", autoHideMs = 4000, keepAwake = true, subtitlesEnabledDefault = true,
@@ -510,6 +511,23 @@ private fun MoreSheet(
 ) {
     val colors = LocalAirPlayrColors.current
     AirPlayrSheetScaffold("Playback options", "NOW PLAYING", onClose) {
+        item?.let { current ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = colors.primaryContainer.copy(alpha = .56f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = AirPlayrElevation.soft),
+            ) {
+                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Artwork(current.artworkUri, Modifier.size(62.dp), 16.dp, current.title, MediaType.AUDIO, AirPlayrIcons.Music, isPlaying = true)
+                    Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                        Text(current.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(current.artist.orEmpty().ifBlank { "Unknown artist" }, fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Icon(AirPlayrIcons.More, null, tint = colors.primary, modifier = Modifier.size(22.dp))
+                }
+            }
+        }
         MoreGroup(listOf(
             "Equalizer" to onEqualizer,
             "Speed & Pitch" to onSpeed,
@@ -561,15 +579,24 @@ private fun MoreActionIcon(label: String): androidx.compose.ui.graphics.vector.I
 
 @Composable
 private fun MoreGroup(items: List<Pair<String, () -> Unit>>, colors: com.airplayr.app.ui.theme.AirPlayrColors) {
-    Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer), elevation = CardDefaults.cardElevation(defaultElevation = AirPlayrElevation.medium)) {
-        Column {
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer),
+        elevation = CardDefaults.cardElevation(defaultElevation = AirPlayrElevation.medium),
+    ) {
+        Column(Modifier.padding(vertical = 4.dp)) {
             items.forEachIndexed { index, (label, action) ->
-                Row(Modifier.fillMaxWidth().height(72.dp).clickable(onClick = action).padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(38.dp), contentAlignment = Alignment.Center) { Icon(MoreActionIcon(label), null, tint = colors.primary, modifier = Modifier.size(22.dp)) }
-                    Text(label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f).padding(horizontal = 10.dp))
-                    Text("›", style = MaterialTheme.typography.titleLarge, color = colors.primary)
+                Row(
+                    Modifier.fillMaxWidth().height(68.dp).clickable(onClick = action).padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Surface(Modifier.size(42.dp), shape = RoundedCornerShape(14.dp), color = colors.primaryContainer) {
+                        Box(contentAlignment = Alignment.Center) { Icon(MoreActionIcon(label), null, tint = colors.primary, modifier = Modifier.size(21.dp)) }
+                    }
+                    Text(label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
+                    Icon(Icons.Default.ArrowForwardIos, null, tint = colors.primary.copy(alpha = .72f), modifier = Modifier.size(15.dp))
                 }
-                if (index != items.lastIndex) Spacer(Modifier.fillMaxWidth().height(1.dp).background(colors.outlineVariant.copy(alpha = .4f)))
+                if (index != items.lastIndex) Spacer(Modifier.fillMaxWidth().padding(horizontal = 18.dp).height(1.dp).background(colors.outlineVariant.copy(alpha = .35f)))
             }
         }
     }

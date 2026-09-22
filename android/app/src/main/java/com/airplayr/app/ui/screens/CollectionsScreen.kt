@@ -71,9 +71,7 @@ fun CollectionsScreen(container: AppContainer, libraryViewModel: LibraryViewMode
     LaunchedEffect(allCollectionsCached) { if (!allCollectionsCached) reload() }
     Column(Modifier.fillMaxSize().background(c.background)) {
         AirPlayrScreenHeader("Smart collections", "Built from your local music library", trailing = { IconButton(onClick = { scope.launch { reload(force = true) } }) { Icon(Icons.Default.Refresh, "Refresh", tint = c.primary) } })
-        if (loading && !allCollectionsCached) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.primary) }
-        } else if (!hasCollectionItems) {
+        if (!hasCollectionItems) {
             AirPlayrSectionEmpty("No collections yet", "Listen to music and AirPlayr will start building these collections.")
         } else LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(definitions, key = { it.title }) { def ->

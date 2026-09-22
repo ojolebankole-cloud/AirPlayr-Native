@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteSweep
@@ -29,15 +30,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airplayr.app.core.data.preferences.AirPlayrSettings
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.components.AirPlayrSheetScaffold
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
+import com.airplayr.app.ui.theme.AirPlayrAccentOptions
+import com.airplayr.app.ui.theme.accentLabel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -53,6 +58,7 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var selector by remember { mutableStateOf<SettingSelector?>(null) }
+    var accentPickerOpen by remember { mutableStateOf(false) }
     var confirm by remember { mutableStateOf<ConfirmAction?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
     var cacheSize by remember { mutableStateOf<String?>(null) }
@@ -69,6 +75,7 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
     fun set(field: String, value: Any) = scope.launch {
         when (field) {
             "theme" -> container.preferences.setTheme(value as String)
+            "accent" -> container.preferences.setAccentColor(value as String)
             "resume" -> container.preferences.setResumeMode(value as String)
             "speed" -> container.preferences.setDefaultSpeed(value as Double)
             "crossfade" -> container.preferences.setCrossfadeSeconds(value as Double)
@@ -132,6 +139,7 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
         item {
         settingSection("Appearance") {
             SettingRow("Theme", themeLabel(current.theme), onClick = { selector = SettingSelector("Theme", current.theme, listOf("system" to "System", "dark" to "Dark", "light" to "Light")) { set("theme", it) } })
+            SettingRow("Accent colour", accentLabel(current.accentColor), onClick = { accentPickerOpen = true })
             SettingSwitch("High contrast", "Strengthens semantic text and controls", current.highContrast) { toggle("highContrast", it) }
             SettingSwitch("Reduce motion", "Reduces non-essential transitions", current.reduceMotion) { toggle("reduceMotion", it) }
             SettingSwitch("Haptic feedback", "Use haptics for meaningful control actions", current.hapticFeedback) { toggle("haptic", it) }
@@ -243,7 +251,7 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
                     ) { set("columns", it.toInt()) }
                 },
             )
-            SettingRow("Sort by", sortLabel(current.librarySort), onClick = { selector = SettingSelector("Sort library", current.librarySort, listOf("recent" to "Recently added", "name" to "Name", "duration" to "Duration", "modified" to "Date modified")) { set("sort", it) } })
+            SettingRow("Sort by", sortLabel(current.librarySort), onClick = { selector = SettingSelector("Sort library", current.librarySort, listOf("recent" to "Recently added", "name" to "Name", "artist" to "Artist", "album" to "Album", "genre" to "Genre", "duration" to "Duration", "modified" to "Date modified")) { set("sort", it) } })
             SettingRow("Sort order", if (current.librarySortOrder == "asc") "Ascending" else "Descending", onClick = { selector = SettingSelector("Sort order", current.librarySortOrder, listOf("desc" to "Descending", "asc" to "Ascending")) { set("sortOrder", it) } })
             SettingSwitch("Auto refresh library", null, current.autoRefreshLibrary) { toggle("autoRefresh", it) }
             SettingRow("Add media folder", "Android Storage Access Framework", icon = Icons.Default.FolderOpen, onClick = { folderLauncher.launch(null) })
@@ -318,6 +326,13 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
     }
 
     selector?.let { sel -> SelectionSheet(title = sel.title, options = sel.options, selected = sel.selected, onSelect = { key -> sel.onSelect(key); selector = null }, onDismiss = { selector = null }) }
+    if (accentPickerOpen) {
+        AccentPickerSheet(
+            selected = current.accentColor,
+            onSelect = { key -> accentPickerOpen = false; set("accent", key) },
+            onDismiss = { accentPickerOpen = false },
+        )
+    }
     confirm?.let { action -> ConfirmSheet(action.title, action.message, onCancel = { confirm = null }, onConfirm = { scope.launch { action.action(); confirm = null } }) }
 }
 
@@ -334,6 +349,56 @@ private data class ConfirmAction(val title: String, val message: String, val act
 @Composable private fun SelectionSheet(title: String, options: List<Pair<String, String>>, selected: String, onSelect: (String) -> Unit, onDismiss: () -> Unit) { AirPlayrSheetScaffold(title, "SETTINGS", onDismiss) { options.forEach { (key, label) -> Row(Modifier.fillMaxWidth().clickable { onSelect(key) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) { RadioButton(key == selected, { onSelect(key) }); Text(label, style = MaterialTheme.typography.bodyLarge) } } } }
 @Composable private fun ConfirmSheet(title: String, message: String, onCancel: () -> Unit, onConfirm: () -> Unit) { AirPlayrSheetScaffold(title, "CONFIRM", onCancel) { Text(message, style = MaterialTheme.typography.bodyLarge); Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onCancel) { Text("Cancel") }; Button(onClick = onConfirm) { Text("Confirm") } } } }
 
+@Composable
+private fun AccentPickerSheet(
+    selected: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val c = LocalAirPlayrColors.current
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = c.surfaceContainerLow,
+    ) {
+        Column(
+            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 22.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("AIRPLAYR COLOUR", style = MaterialTheme.typography.labelLarge, color = c.textSecondary, letterSpacing = 1.2.sp)
+            Text("Choose your accent", style = MaterialTheme.typography.headlineSmall)
+            val dynamic = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+            val options = buildList {
+                add("dynamic" to if (dynamic) "Dynamic · Material You" else "Dynamic · Blue fallback")
+                AirPlayrAccentOptions.forEach { option -> add(option.key to option.label) }
+            }
+            options.forEach { (key, label) ->
+                val selectedItem = selected == key
+                Surface(
+                    onClick = { onSelect(key) },
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (selectedItem) c.primaryContainer else c.surfaceContainer,
+                ) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        val swatch = if (key == "dynamic") c.primary else com.airplayr.app.ui.theme.accentColorSeed(key)
+                        Surface(Modifier.size(34.dp), shape = CircleShape, color = swatch, tonalElevation = 0.dp) {
+                            Box(contentAlignment = Alignment.Center) {
+                                if (selectedItem) Icon(Icons.Default.Check, null, tint = if (key == "dynamic") c.onPrimary else Color.White, modifier = Modifier.size(20.dp))
+                            }
+                        }
+                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                            Text(label, style = MaterialTheme.typography.bodyLarge, fontWeight = if (selectedItem) FontWeight.SemiBold else FontWeight.Normal)
+                            if (key == "dynamic") Text("Uses wallpaper colours on Android 12+", style = MaterialTheme.typography.labelSmall, color = c.textSecondary, modifier = Modifier.padding(top = 2.dp))
+                        }
+                        if (selectedItem) Icon(Icons.Default.Check, null, tint = c.primary, modifier = Modifier.size(21.dp))
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+        }
+    }
+}
+
 private fun themeLabel(v: String) = when (v) { "light" -> "Light"; "dark" -> "Dark"; else -> "System" }
 private fun resumeLabel(v: String) = when (v) { "ask" -> "Ask before resuming"; "start" -> "Always start from beginning"; else -> "Resume automatically" }
 private fun aspectLabel(v: String) = when (v) { "cover" -> "Crop"; "fill" -> "Fill"; else -> "Fit" }
@@ -341,7 +406,15 @@ private fun autoHideLabel(v: Int) = when (v) { 0 -> "Never auto-hide"; 2000 -> "
 private fun replayGainLabel(v: String) = when (v) { "track" -> "Track gain"; "album" -> "Album gain"; "track_preferred_album" -> "Track / album fallback"; else -> "Off" }
 private fun subtitleSizeLabel(v: Double) = when (v) { 0.8 -> "Small"; 1.2 -> "Large"; 1.5 -> "Extra large"; else -> "Medium" }
 private fun subtitleColorLabel(v: String) = mapOf("#FFFFFF" to "White", "#FFEB3B" to "Yellow", "#00E5FF" to "Cyan", "#FF80AB" to "Pink", "#000000" to "Black")[v] ?: v
-private fun sortLabel(v: String) = when (v) { "name" -> "Name"; "duration" -> "Duration"; "modified" -> "Date modified"; else -> "Recently added" }
+private fun sortLabel(v: String) = when (v) {
+    "name" -> "Name"
+    "artist" -> "Artist"
+    "album" -> "Album"
+    "genre" -> "Genre"
+    "duration" -> "Duration"
+    "modified" -> "Date modified"
+    else -> "Recently added"
+}
 private fun trimNumber(v: Double) = if (v % 1.0 == 0.0) v.toInt().toString() else "%.2f".format(v)
 private fun calculateCache(dir: File): Long = dir.listFiles()?.sumOf { if (it.isDirectory) calculateCache(it) else it.length() } ?: 0L
 private fun formatBytes(n: Long) = when { n < 1024 -> "$n B"; n < 1024 * 1024 -> "%.1f KB".format(n / 1024.0); n < 1024L * 1024 * 1024 -> "%.1f MB".format(n / (1024.0 * 1024.0)); else -> "%.1f GB".format(n / (1024.0 * 1024.0 * 1024.0)) }
