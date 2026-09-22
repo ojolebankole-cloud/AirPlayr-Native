@@ -1,4 +1,5 @@
 package com.airplayr.app.ui.screens
+import androidx.compose.foundation.layout.align
 
 import android.app.Activity
 import android.app.PictureInPictureParams
