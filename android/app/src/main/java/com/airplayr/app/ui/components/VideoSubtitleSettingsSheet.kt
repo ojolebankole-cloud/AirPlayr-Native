@@ -69,7 +69,11 @@ fun VideoSubtitleSettingsSheet(container: AppContainer, onDismiss: () -> Unit) {
                         label = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 androidx.compose.foundation.layout.Box(Modifier.size(18.dp).padding(end = 4.dp).then(Modifier), contentAlignment = Alignment.Center) {
-                                    androidx.compose.foundation.background(parseColor(value), CircleShape).size(14.dp)
+                                    androidx.compose.foundation.layout.Box(
+                                        Modifier
+                                            .background(parseColor(value), CircleShape)
+                                            .size(14.dp)
+                                    )
                                 }
                                 Text(label)
                             }
