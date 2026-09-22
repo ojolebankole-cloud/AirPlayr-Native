@@ -49,6 +49,18 @@ class PlaybackStatsRepository(private val databaseProvider: () -> AirPlayrDataba
     private var active: Active? = null
     private val pending = mutableMapOf<String, Long>()
     private var lastFlush = 0L
+    @Volatile private var cachedSummary: SummaryCache? = null
+
+    private data class SummaryCache(
+        val key: String,
+        val createdAt: Long,
+        val value: Summary,
+    )
+
+    private fun summaryKey(period: String, items: List<MediaItem>, limit: Int): String {
+        val fingerprint = items.fold(1) { hash, item -> 31 * hash + item.id.hashCode() }
+        return "$period|$limit|${items.size}|$fingerprint"
+    }
 
     suspend fun start(item: MediaItem, now: Long = System.currentTimeMillis()) = withContext(Dispatchers.IO) {
         val old = active
@@ -89,10 +101,14 @@ class PlaybackStatsRepository(private val databaseProvider: () -> AirPlayrDataba
         pending.clear()
         active?.let { db.userDataDao().upsertPlaybackSession(it.session) }
         lastFlush = now
+        cachedSummary = null
     }
 
     suspend fun summary(period: String, items: List<MediaItem>, limit: Int = 10): Summary = withContext(Dispatchers.IO) {
-        flushLocked(System.currentTimeMillis())
+        val nowBeforeFlush = System.currentTimeMillis()
+        val key = summaryKey(period, items, limit)
+        cachedSummary?.takeIf { it.key == key && nowBeforeFlush - it.createdAt < 15_000L }?.value?.let { return@withContext it }
+        flushLocked(nowBeforeFlush)
         val now = System.currentTimeMillis()
         val from = periodStart(period, now)
         val events = db.userDataDao().playbackEvents(from, Long.MAX_VALUE)
@@ -128,7 +144,7 @@ class PlaybackStatsRepository(private val databaseProvider: () -> AirPlayrDataba
         val completedVideoCount = (completionCounts.keys + completedInHistory.keys).sumOf { id ->
             max(completionCounts[id] ?: 0, completedInHistory[id] ?: 0)
         }
-        Summary(
+        val result = Summary(
             period = period,
             periodLabel = when (period) { "week" -> "This week"; "all" -> "All time"; else -> "This month" },
             musicPlays = musicEvents.size,
@@ -153,6 +169,8 @@ class PlaybackStatsRepository(private val databaseProvider: () -> AirPlayrDataba
             activityMusic = activityGrid(activity.filter { it.mediaType == MediaType.AUDIO.value }, from, now),
             activityVideo = activityGrid(activity.filter { it.mediaType == MediaType.VIDEO.value }, from, now),
         )
+        cachedSummary = SummaryCache(key, System.currentTimeMillis(), result)
+        result
     }
 
     private fun periodStart(period: String, now: Long): Long {

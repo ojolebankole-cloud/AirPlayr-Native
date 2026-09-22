@@ -382,7 +382,7 @@ fun DonateSheet(onDismiss: () -> Unit) {
                 Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(34.dp),
                 colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerLow),
-            ) {
+        elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
                 Box(
                     Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(colors.primaryContainer.copy(alpha = .58f), colors.surfaceContainerLow))),
                 ) {
@@ -398,7 +398,7 @@ fun DonateSheet(onDismiss: () -> Unit) {
                 }
             }
             DonateInfoCard(colors, Icons.Default.Star, "Rate 5 stars, it's free", "A review on the Play Store helps just as much.")
-            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp), colors = CardDefaults.cardColors(containerColor = colors.successContainer)) {
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp), colors = CardDefaults.cardColors(containerColor = colors.successContainer), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
                 Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(62.dp).clip(RoundedCornerShape(20.dp)).background(colors.onSuccess.copy(alpha = .72f)), contentAlignment = Alignment.Center) { Text("☕", fontSize = 30.sp) }
                     Column(Modifier.weight(1f).padding(start = 16.dp)) {
@@ -424,7 +424,7 @@ fun DonateSheet(onDismiss: () -> Unit) {
 
 @Composable
 private fun DonateInfoCard(colors: com.airplayr.app.ui.theme.AirPlayrColors, icon: ImageVector, title: String, subtitle: String) {
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(26.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerLow)) {
+    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(26.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerLow), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
         Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(58.dp).clip(RoundedCornerShape(18.dp)).background(colors.successContainer), contentAlignment = Alignment.Center) { Icon(icon, null, tint = colors.onSuccessContainer, modifier = Modifier.size(28.dp)) }
             Column(Modifier.weight(1f).padding(start = 16.dp)) {
@@ -438,7 +438,7 @@ private fun DonateInfoCard(colors: com.airplayr.app.ui.theme.AirPlayrColors, ico
 
 @Composable
 private fun DonateChoice(colors: com.airplayr.app.ui.theme.AirPlayrColors, icon: String, title: String, amount: String, modifier: Modifier) {
-    Card(modifier, shape = RoundedCornerShape(26.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerLow)) {
+    Card(modifier, shape = RoundedCornerShape(26.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerLow), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
         Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(Modifier.size(52.dp).clip(RoundedCornerShape(18.dp)).background(colors.surfaceContainerHigh), contentAlignment = Alignment.Center) { Text(icon, color = colors.textPrimary, fontSize = 27.sp) }
             Text(title, color = colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp)

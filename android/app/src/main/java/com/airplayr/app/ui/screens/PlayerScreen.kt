@@ -4,6 +4,7 @@ import com.airplayr.app.core.data.media.MediaType
 import androidx.compose.foundation.layout.statusBarsPadding
 
 import com.airplayr.app.core.data.preferences.PreferencesRepository
+import com.airplayr.app.core.lyrics.LyricsRepository
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -92,7 +93,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airplayr.app.core.data.media.MediaItem
 import com.airplayr.app.core.data.media.asExternal
 import com.airplayr.app.core.playback.REPEAT_ALL
@@ -102,6 +102,7 @@ import com.airplayr.app.core.playback.dsp.DspRepository
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.components.AirPlayrSheetScaffold
 import com.airplayr.app.ui.components.Artwork
+import com.airplayr.app.ui.components.PlaybackBackground
 import com.airplayr.app.ui.components.LyricsEditorSheet
 import com.airplayr.app.ui.components.MusicQueueSheet
 import com.airplayr.app.ui.components.LyricsSheet
@@ -110,12 +111,12 @@ import com.airplayr.app.ui.components.SpeedPitchSheet
 import com.airplayr.app.ui.components.TagEditorSheet
 import com.airplayr.app.ui.navigation.LibraryViewModel
 import com.airplayr.app.ui.playback.PlaybackController
-import com.airplayr.app.ui.playback.PlaybackControllerFactory
 import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.AirPlayrElevation
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.min
@@ -123,13 +124,13 @@ import kotlin.math.min
 private enum class PlayerSheet { More, Lyrics, Sleep, Speed, Details, Tags, LyricsEdit, Playlist, QueueSaved }
 
 @Composable
-fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Unit, onNavigate: (String) -> Unit) {
+fun PlayerScreen(appContext: Context, controller: PlaybackController, onBack: () -> Unit, onEqualizer: () -> Unit, onNavigate: (String) -> Unit) {
     val colors = LocalAirPlayrColors.current
     val config = LocalConfiguration.current
-    val controller: PlaybackController = viewModel(factory = PlaybackControllerFactory(appContext))
     val state by controller.state.collectAsStateWithLifecycle()
     val app = appContext.applicationContext as? com.airplayr.app.AirPlayrApplication
     val container: AppContainer? = app?.container
+    val lyricsRepository = remember(appContext, container) { container?.lyricsRepository ?: LyricsRepository(appContext) }
     val dspRepo = remember(appContext) { DspRepository(appContext) }
     val dsp by dspRepo.state.collectAsStateWithLifecycle(initialValue = com.airplayr.app.core.playback.dsp.DspState())
     var sheet by remember { mutableStateOf<PlayerSheet?>(null) }
@@ -138,11 +139,19 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
     var currentItem by remember(state.currentId) { mutableStateOf<MediaItem?>(null) }
     var slider by remember { mutableFloatStateOf(0f) }
     var seeking by remember { mutableStateOf(false) }
-    var volume by remember { mutableFloatStateOf(controller.volume()) }
+    var volume by remember { mutableFloatStateOf(controller.systemMusicVolumeFraction()) }
+    LaunchedEffect(seeking) {
+        if (!seeking) {
+            while (isActive) {
+                volume = controller.systemMusicVolumeFraction()
+                delay(300L)
+            }
+        }
+    }
     val scope = rememberCoroutineScope()
     val preferences = remember(appContext) { PreferencesRepository(appContext) }
     val settings by preferences.settings.collectAsStateWithLifecycle(initialValue = com.airplayr.app.core.data.preferences.AirPlayrSettings(
-        theme = "light", accentColor = "blue", highContrast = false, reduceMotion = false, hapticFeedback = true, touchFeedback = true,
+        theme = "light", accentColor = "blue", nowPlayingTheme = "default", highContrast = false, reduceMotion = false, hapticFeedback = true, touchFeedback = true,
         resumeMode = "auto", defaultSpeed = 1.0, crossfadeSeconds = 0.0, gaplessPlayback = true,
         replayGainMode = "off", replayGainPreampDb = 0.0, replayGainPreventClipping = true,
         defaultAspect = "contain", autoHideMs = 4000, keepAwake = true, subtitlesEnabledDefault = true,
@@ -191,6 +200,12 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
     val repeatLabel = when (state.repeatMode) { REPEAT_ONE -> "Repeat one"; REPEAT_ALL -> "Repeat all"; else -> "Repeat off" }
 
     Box(Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER).fillMaxSize().background(colors.background)) {
+        PlaybackBackground(
+            theme = settings.nowPlayingTheme,
+            artworkUri = state.artworkUri,
+            modifier = Modifier.matchParentSize(),
+            reduceMotion = settings.reduceMotion,
+        )
         Column(
             Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -218,15 +233,25 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
                     modifier = Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_LYRICS).height(54.dp),
                     shape = RoundedCornerShape(27.dp),
                     colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerHighest),
-                    elevation = CardDefaults.cardElevation(defaultElevation = AirPlayrElevation.soft),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                 ) {
                     Row(Modifier.fillMaxHeight().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                         Icon(AirPlayrIcons.Lyrics, null, tint = colors.primary, modifier = Modifier.size(26.dp))
                         Text("Lyrics", style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 8.dp))
                     }
                 }
-                IconButton(onClick = { sheet = PlayerSheet.More }, modifier = Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_MORE).padding(start = 6.dp).size(44.dp)) {
-                    Icon(AirPlayrIcons.More, "More playback options", tint = colors.primary, modifier = Modifier.size(28.dp))
+                IconButton(onClick = { sheet = PlayerSheet.More }, modifier = Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_MORE).padding(start = 6.dp).size(48.dp)) {
+                    Surface(
+                        modifier = Modifier.size(44.dp),
+                        shape = CircleShape,
+                        color = colors.surfaceContainerHighest.copy(alpha = 0.82f),
+                        tonalElevation = 1.dp,
+                        shadowElevation = 0.dp,
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(AirPlayrIcons.More, "More playback options", tint = colors.primary, modifier = Modifier.size(28.dp))
+                        }
+                    }
                 }
             }
 
@@ -272,7 +297,13 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
 
             Row(Modifier.fillMaxWidth(0.82f).padding(top = 55.dp, bottom = 18.dp).offset(y = (-24).dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(AirPlayrIcons.VolumeDown, null, tint = colors.primary, modifier = Modifier.size(25.dp))
-                AirPlayrThinSlider(value = volume, onValueChange = { volume = it; controller.setVolume(it) }, modifier = Modifier.weight(1f).padding(horizontal = 8.dp), colors = colors)
+                AirPlayrThinSlider(
+                    value = volume,
+                    onValueChange = { volume = it; controller.setSystemMusicVolumeFraction(it) },
+                    onValueChangeFinished = { volume = controller.systemMusicVolumeFraction() },
+                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                    colors = colors,
+                )
                 Icon(AirPlayrIcons.VolumeUp, null, tint = colors.primary, modifier = Modifier.size(25.dp))
             }
 
@@ -335,7 +366,16 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
         }
 
         when (sheet) {
-            PlayerSheet.Lyrics -> LyricsSheet(appContext, state, { sheet = null }, { controller.seekTo((it * 1000.0).toLong()) }, { sheet = PlayerSheet.LyricsEdit })
+            PlayerSheet.Lyrics -> LyricsSheet(
+                appContext,
+                lyricsRepository,
+                state,
+                settings.nowPlayingTheme,
+                settings.reduceMotion,
+                { sheet = null },
+                { controller.seekTo((it * 1000.0).toLong()) },
+                { sheet = PlayerSheet.LyricsEdit },
+            )
             PlayerSheet.Sleep -> SleepTimerSheet(
                 currentMinutes = if (settings.sleepDeadlineMs > 0L) kotlin.math.max(5, kotlin.math.ceil(timerRemaining / 60.0).toInt()) else 30,
                 remainingSeconds = timerRemaining,
@@ -380,7 +420,7 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
             PlayerSheet.QueueSaved -> AlertDialog(onDismissRequest = { sheet = null }, title = { Text("Queue saved") }, text = { Text("The current playing queue is already persisted on this device and will be restored with the playback session.") }, confirmButton = { TextButton(onClick = { sheet = null }) { Text("Close") } })
             PlayerSheet.Playlist -> currentItem?.let { item -> PlayerPlaylistSheet(container, item) { sheet = null } }
             PlayerSheet.Tags -> currentItem?.let { TagEditorSheet(appContext, it, com.airplayr.app.core.metadata.MetadataRepository(appContext), { sheet = null }) { sheet = null } }
-            PlayerSheet.LyricsEdit -> currentItem?.let { LyricsEditorSheet(appContext, it, { sheet = null }) }
+            PlayerSheet.LyricsEdit -> currentItem?.let { LyricsEditorSheet(appContext, lyricsRepository, it, { sheet = null }) }
             null -> Unit
         }
         if (queueOpen) {
@@ -518,7 +558,7 @@ private fun MoreSheet(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = colors.primaryContainer.copy(alpha = .56f)),
-                elevation = CardDefaults.cardElevation(defaultElevation = AirPlayrElevation.soft),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             ) {
                 Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Artwork(current.artworkUri, Modifier.size(62.dp), 16.dp, current.title, MediaType.AUDIO, AirPlayrIcons.Music, isPlaying = true)
@@ -584,7 +624,7 @@ private fun MoreGroup(items: List<Pair<String, () -> Unit>>, colors: com.airplay
     Card(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer),
-        elevation = CardDefaults.cardElevation(defaultElevation = AirPlayrElevation.medium),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.padding(vertical = 4.dp)) {
             items.forEachIndexed { index, (label, action) ->
@@ -651,7 +691,7 @@ private fun DetailsSheetContent(item: MediaItem?, onClose: () -> Unit, onTags: (
                     Text(item.artist.orEmpty().ifBlank { "Unknown artist" }, color = colors.textSecondary)
                 }
             }
-            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer), elevation = CardDefaults.cardElevation(defaultElevation = AirPlayrElevation.medium)) {
+            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer), elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     DetailLine("Album", item.album)
                     DetailLine("Genre", item.genre)

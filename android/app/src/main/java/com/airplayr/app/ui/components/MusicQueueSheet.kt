@@ -52,6 +52,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airplayr.app.core.data.media.MediaItem
+import com.airplayr.app.core.data.preferences.PreferencesRepository
+import com.airplayr.app.core.data.preferences.NowPlayingTheme
 import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.ui.playback.PlaybackController
 import com.airplayr.app.ui.theme.AirPlayrIcons
@@ -67,12 +69,15 @@ fun MusicQueueSheet(
     val colors = LocalAirPlayrColors.current
     val state by playback.state.collectAsStateWithLifecycle()
     val queue by playback.queueItems.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val preferences = remember(context) { PreferencesRepository(context) }
+    val settings by preferences.settings.collectAsStateWithLifecycle(initialValue = null)
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = colors.background,
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         tonalElevation = 0.dp,
         dragHandle = {
             Box(
@@ -85,12 +90,23 @@ fun MusicQueueSheet(
             )
         },
     ) {
-        Column(
+        Box(
             Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.96f)
-                .navigationBarsPadding(),
+                .fillMaxHeight(0.96f),
         ) {
+            PlaybackBackground(
+                theme = settings?.nowPlayingTheme ?: NowPlayingTheme.DEFAULT,
+                artworkUri = state.artworkUri,
+                modifier = Modifier.matchParentSize(),
+                reduceMotion = settings?.reduceMotion == true,
+            )
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight()
+                    .navigationBarsPadding(),
+            ) {
             QueueMiniPlayer(
                 state = state,
                 playback = playback,
@@ -102,7 +118,7 @@ fun MusicQueueSheet(
                     .fillMaxWidth()
                     .weight(1f)
                     .clip(RoundedCornerShape(topStart = 34.dp, topEnd = 34.dp))
-                    .background(colors.surfaceContainerLow),
+                    .background(colors.surfaceContainerLow.copy(alpha = 0.24f)),
             ) {
                 Text(
                     "Up next",
@@ -151,6 +167,7 @@ fun MusicQueueSheet(
     }
 }
 
+}
 @Composable
 private fun QueueMiniPlayer(
     state: com.airplayr.app.ui.playback.PlaybackUiState,
@@ -161,7 +178,7 @@ private fun QueueMiniPlayer(
     Row(
         Modifier
             .fillMaxWidth()
-            .background(colors.background)
+            .background(androidx.compose.ui.graphics.Color.Transparent)
             .padding(horizontal = 18.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

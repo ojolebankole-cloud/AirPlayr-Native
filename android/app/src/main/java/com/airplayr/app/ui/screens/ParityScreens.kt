@@ -266,15 +266,22 @@ fun FeatureCollectionScreen(
                     ActionButton("Shuffle", Icons.Default.Shuffle, onClick = { playAll(true) })
                     ActionButton("Add to queue", Icons.Default.QueueMusic, onClick = {
                         val audio = items.filter { it.mediaType == MediaType.AUDIO }
+                        val videos = items.filter { it.mediaType == MediaType.VIDEO }
                         audio.forEach(playback::addToQueue)
+                        com.airplayr.app.core.playback.VideoQueueStore.add(videos)
                         menuOpen = false
-                        com.airplayr.app.ui.feedback.AppFeedback.showSnackbar(if (audio.isEmpty()) "Videos do not use the music queue." else "Added ${audio.size} songs to the playing queue.")
+                        val parts = buildList {
+                            if (audio.isNotEmpty()) add("${audio.size} songs")
+                            if (videos.isNotEmpty()) add("${videos.size} videos")
+                        }
+                        com.airplayr.app.ui.feedback.AppFeedback.showSnackbar(if (parts.isEmpty()) "Nothing added to a queue." else "Added ${parts.joinToString(" and ")}.")
                     })
                     ActionButton("Play next", Icons.Default.SkipNext, onClick = {
                         val audio = items.filter { it.mediaType == MediaType.AUDIO }
+                        val videos = items.filter { it.mediaType == MediaType.VIDEO }
                         audio.forEach(playback::playNext)
+                        com.airplayr.app.core.playback.VideoQueueStore.playNext(videos)
                         menuOpen = false
-                        if (audio.isEmpty()) com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Videos do not use the music queue.")
                     })
                 }
             }
@@ -418,7 +425,7 @@ private fun FolderSummaryChip(
         color = container,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 13.dp, vertical = 7.dp),
+            modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
@@ -460,7 +467,7 @@ private fun FolderCard(
 ) {
     val colors = LocalAirPlayrColors.current
     val (iconContainer, iconContent, accent) = FolderAccent(folder.audio.size, folder.video.size)
-    val shape = RoundedCornerShape(22.dp)
+    val shape = RoundedCornerShape(20.dp)
     val cardModifier = Modifier
         .fillMaxWidth()
         .then(if (selected) Modifier.border(2.dp, colors.primary, shape) else Modifier)
@@ -474,18 +481,18 @@ private fun FolderCard(
     ) {
         Box(Modifier.fillMaxWidth()) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                modifier = Modifier.fillMaxWidth().padding(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
-                    modifier = Modifier.size(78.dp).clip(RoundedCornerShape(20.dp)).background(iconContainer),
+                    modifier = Modifier.size(70.dp).clip(RoundedCornerShape(18.dp)).background(iconContainer),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         Icons.Default.Folder,
                         contentDescription = null,
                         tint = iconContent,
-                        modifier = Modifier.size(40.dp),
+                        modifier = Modifier.size(36.dp),
                     )
                     Surface(
                         modifier = Modifier.align(Alignment.BottomEnd).padding(5.dp),
@@ -671,7 +678,7 @@ fun FoldersScreen(
             },
         )
 
-        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             FolderTabButton("All", allFolders.size, selectedTab == FolderTab.ALL) { selectedTab = FolderTab.ALL; if (selectionMode) selectedPaths = emptySet() }
             FolderTabButton("Music", musicFolders.size, selectedTab == FolderTab.MUSIC) { selectedTab = FolderTab.MUSIC; if (selectionMode) selectedPaths = emptySet() }
             FolderTabButton("Videos", videoFolders.size, selectedTab == FolderTab.VIDEO) { selectedTab = FolderTab.VIDEO; if (selectionMode) selectedPaths = emptySet() }
@@ -698,7 +705,7 @@ fun FoldersScreen(
             LazyColumn(
                 state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = airPlayrBottomContentPadding()),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(visibleFolders, key = { "${selectedTab.name}:${it.path}" }) { folder ->
                     FolderCard(
@@ -797,8 +804,8 @@ private fun RowScope.FolderTabButton(
 ) {
     val colors = LocalAirPlayrColors.current
     Surface(
-        modifier = Modifier.weight(1f).height(72.dp).clickable(onClick = onClick),
-        shape = RoundedCornerShape(36.dp),
+        modifier = Modifier.weight(1f).height(56.dp).clickable(onClick = onClick),
+        shape = RoundedCornerShape(30.dp),
         color = if (selected) colors.primary else androidx.compose.ui.graphics.Color.Transparent,
     ) {
         Row(
@@ -806,9 +813,9 @@ private fun RowScope.FolderTabButton(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(label, fontFamily = AirPlayrFonts.OpenSans, fontSize = 16.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = if (selected) colors.onPrimary else colors.textPrimary)
+            Text(label, fontFamily = AirPlayrFonts.OpenSans, fontSize = 15.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = if (selected) colors.onPrimary else colors.textPrimary)
             Spacer(Modifier.width(7.dp))
-            Text(count.toString(), fontFamily = AirPlayrFonts.OpenSans, fontSize = 14.sp, color = if (selected) colors.onPrimary else colors.textSecondary)
+            Text(count.toString(), fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, color = if (selected) colors.onPrimary else colors.textSecondary)
         }
     }
 }

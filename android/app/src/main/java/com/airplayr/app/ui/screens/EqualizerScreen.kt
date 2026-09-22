@@ -204,7 +204,7 @@ private fun EqualizerGraphCard(
             .airPlayrShadow(RoundedCornerShape(30.dp), 5.dp),
         shape = RoundedCornerShape(30.dp),
         colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerLow),
-    ) {
+        elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
         Box(
             Modifier
                 .fillMaxWidth()
@@ -373,7 +373,7 @@ private fun EffectsCard(
             .airPlayrShadow(RoundedCornerShape(30.dp), 4.dp),
         shape = RoundedCornerShape(30.dp),
         colors = CardDefaults.cardColors(containerColor = colors.surface),
-    ) {
+        elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
         EffectRow(
             title = "Bass boost",
             description = "Lifts the bottom two octaves without touching the rest of the curve.",

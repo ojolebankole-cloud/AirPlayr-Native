@@ -161,9 +161,7 @@ fun AirPlayrMediaArtwork(
                     .padding(5.dp)
                     .size(36.dp)
                     .graphicsLayer {
-                        // Keep the hit target completely transparent; only a tiny shadow gives
-                        // the vertical-dot glyph enough contrast over bright artwork.
-                        shadowElevation = 2.0.dp.toPx()
+                        // Keep the three-dot hit target completely transparent.
                         shape = CircleShape
                         clip = false
                     }
@@ -256,8 +254,9 @@ fun AirPlayrMoreButton(
         onClick = onClick,
         modifier = modifier.size(42.dp),
         shape = CircleShape,
-        color = c.surfaceContainerHighest.copy(alpha = 0.72f),
+        color = Color.Transparent,
         tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(Icons.Default.MoreVert, contentDescription, tint = c.textPrimary, modifier = Modifier.size(22.dp))
@@ -368,7 +367,7 @@ fun AirPlayrPremiumMediaActionSheet(
                 Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(26.dp),
                 colors = CardDefaults.cardColors(containerColor = c.surfaceContainer),
-                elevation = CardDefaults.cardElevation(2.dp),
+                elevation = CardDefaults.cardElevation(0.dp),
             ) {
                 Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Artwork(
@@ -459,7 +458,7 @@ fun AirPlayrSelectionBar(
         modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = c.surfaceContainerHighest),
-        elevation = CardDefaults.cardElevation(1.dp),
+        elevation = CardDefaults.cardElevation(0.dp),
     ) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp),

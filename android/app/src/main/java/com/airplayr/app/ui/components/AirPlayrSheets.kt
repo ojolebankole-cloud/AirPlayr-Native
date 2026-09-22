@@ -88,6 +88,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.airplayr.app.core.data.media.MediaItem
+import com.airplayr.app.core.lyrics.LyricsRepository
 import com.airplayr.app.core.lyrics.LyricsService
 import com.airplayr.app.core.metadata.MetadataMatch
 import com.airplayr.app.core.metadata.MetadataRepository
@@ -105,25 +106,43 @@ import kotlin.math.sin
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AirPlayrSheetScaffold(title: String, eyebrow: String? = null, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+fun AirPlayrSheetScaffold(
+    title: String,
+    eyebrow: String? = null,
+    onDismiss: () -> Unit,
+    sheetBackgroundTheme: String? = null,
+    sheetBackgroundArtworkUri: String? = null,
+    reduceMotion: Boolean = false,
+    content: @Composable () -> Unit,
+) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        tonalElevation = 8.dp,
+        containerColor = if (sheetBackgroundTheme == null) MaterialTheme.colorScheme.surfaceContainerLow else androidx.compose.ui.graphics.Color.Transparent,
+        tonalElevation = if (sheetBackgroundTheme == null) 8.dp else 0.dp,
     ) {
-        Column(
-            Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 22.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    if (!eyebrow.isNullOrBlank()) Text(eyebrow, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                    Text(title, style = MaterialTheme.typography.headlineMedium)
-                }
-                IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Close") }
+        Box(Modifier.fillMaxWidth()) {
+            if (sheetBackgroundTheme != null) {
+                PlaybackBackground(
+                    theme = sheetBackgroundTheme,
+                    artworkUri = sheetBackgroundArtworkUri,
+                    modifier = Modifier.matchParentSize(),
+                    reduceMotion = reduceMotion,
+                )
             }
-            content()
+            Column(
+                Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 22.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        if (!eyebrow.isNullOrBlank()) Text(eyebrow, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                        Text(title, style = MaterialTheme.typography.headlineMedium)
+                    }
+                    IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Close") }
+                }
+                content()
+            }
         }
     }
 }
@@ -145,7 +164,7 @@ fun SleepTimerSheet(
     val progress = (minutes / maxMinutes).coerceIn(0f, 1f)
     val presets = listOf(5, 10, 15, 30, 45, 60, 90)
     AirPlayrSheetScaffold("Sleep timer", "PLAYBACK", onDismiss) {
-        Card(modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(28.dp), clip = false), shape = RoundedCornerShape(28.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
             Column(Modifier.fillMaxWidth().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(Modifier.size(240.dp), contentAlignment = Alignment.Center) {
                     val trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -174,7 +193,7 @@ fun SleepTimerSheet(
                 FilterChip(selected = minutes == value, onClick = { minutes = value }, label = { Text(if (value >= 60) "${value / 60}h${if (value % 60 == 0) "" else " ${value % 60}m"}" else "${value}m") })
             }
         }
-        Card(modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(24.dp), clip = false), shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
             Column(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) { Text("Finish current song", style = MaterialTheme.typography.titleMedium); Text("Don't cut off mid-track", color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -207,21 +226,21 @@ fun SpeedPitchSheet(dsp: com.airplayr.app.core.playback.dsp.DspState, controller
             SummaryTile("SPEED", "%.2f×".format(speed))
             SummaryTile("PITCH", if (pitch >= 0) "+${pitch} st" else "${pitch} st")
         }
-        Card(modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(24.dp), clip = false), shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Tune, null, tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(10.dp)); Text("Speed", style = MaterialTheme.typography.titleMedium) }
                 Slider(value = speed, onValueChange = { speed = it }, valueRange = .25f..4f, steps = 14, onValueChangeFinished = { controller.setSpeed(speed) })
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }), horizontalArrangement = Arrangement.spacedBy(8.dp)) { speedPresets.forEach { s -> FilterChip(selected = kotlin.math.abs(speed - s) < .02f, onClick = { speed = s; controller.setSpeed(s) }, label = { Text("%.2f×".format(s)) }) } }
             }
         }
-        Card(modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(24.dp), clip = false), shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Pitch", style = MaterialTheme.typography.titleMedium)
                 Slider(value = pitch.toFloat(), onValueChange = { pitch = it.toInt() }, valueRange = -12f..12f, steps = 23, enabled = !lock, onValueChangeFinished = { controller.setPitchSemitones(pitch) })
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("−12 st"); Text("0 st"); Text("+12 st") }
             }
         }
-        Card(modifier = Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(24.dp), clip = false), shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
             Column(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Preserve pitch", style = MaterialTheme.typography.titleMedium); Text("Time-stretch playback without changing pitch", color = MaterialTheme.colorScheme.onSurfaceVariant) }; Switch(preserve, { preserve = it; if (it) lock = false; controller.setPreservePitch(it) }) }
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("Lock pitch to speed", style = MaterialTheme.typography.titleMedium); Text("Vinyl-style speed/pitch linkage", color = MaterialTheme.colorScheme.onSurfaceVariant) }; Switch(lock, { lock = it; controller.setLockPitch(it); if (it) { preserve = false; pitch = (12 * kotlin.math.log2(speed.toDouble())).toInt().coerceIn(-12, 12); controller.setPitchSemitones(pitch) } }) }
@@ -232,17 +251,20 @@ fun SpeedPitchSheet(dsp: com.airplayr.app.core.playback.dsp.DspState, controller
 }
 
 @Composable
-private fun SummaryTile(label: String, value: String) { Card(Modifier.width(150.dp).shadow(6.dp, RoundedCornerShape(24.dp), clip = false), shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) { Column(Modifier.padding(18.dp)) { Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary); Text(value, style = MaterialTheme.typography.displaySmall) } } }
+private fun SummaryTile(label: String, value: String) { Card(Modifier.width(150.dp), shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) { Column(Modifier.padding(18.dp)) { Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary); Text(value, style = MaterialTheme.typography.displaySmall) } } }
 
 @Composable
 fun LyricsSheet(
     context: Context,
+    repository: LyricsRepository,
     state: PlaybackUiState,
+    nowPlayingTheme: String,
+    reduceMotion: Boolean,
     onClose: () -> Unit,
     onSeek: (Double) -> Unit,
     onEdit: () -> Unit,
 ) {
-    val service = remember(context) { LyricsService(context) }
+    val service = repository
     var result by remember(state.currentId) { mutableStateOf<LyricsService.Result?>(null) }
     var lyricsState by remember(state.currentId) { mutableStateOf("idle") }
     var refreshing by remember { mutableStateOf(false) }
@@ -282,21 +304,44 @@ fun LyricsSheet(
     val position = state.positionMs / 1000.0
     val activeIndex = cues.indexOfLast { position >= it.start && position < it.end }
     val hasSynced = cues.isNotEmpty()
-    val hasPlain = !result?.plainLyrics.isNullOrBlank()
+    val hasPlain = !result?.plainLyrics.isNullOrBlank() || (!hasSynced && !result?.syncedLyrics.isNullOrBlank())
+    val lyricsListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) }
     val colors = MaterialTheme.colorScheme
 
-    AirPlayrSheetScaffold("Lyrics", "PLAYBACK", onClose) {
+    LaunchedEffect(activeIndex, cues.size) {
+        if (activeIndex >= 0 && activeIndex < cues.size) {
+            runCatching { lyricsListState.animateScrollToItem((activeIndex - 2).coerceAtLeast(0)) }
+        }
+    }
+
+    AirPlayrSheetScaffold(
+        title = "Lyrics",
+        eyebrow = "PLAYBACK",
+        onDismiss = onClose,
+        sheetBackgroundTheme = nowPlayingTheme,
+        sheetBackgroundArtworkUri = state.artworkUri,
+        reduceMotion = reduceMotion,
+    ) {
         Column(Modifier.fillMaxWidth()) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(state.currentTitle ?: "Unknown song", style = MaterialTheme.typography.titleLarge)
                     Text(state.currentArtist ?: "Unknown artist", color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                    result?.let { lyricResult ->
+                        Text(
+                            text = "${lyricResult.provider} · ${when (lyricResult.syncLevel) { 3 -> "Rich sync"; 2 -> "Synced"; else -> "Lyrics" }}",
+                            color = colors.primary,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
                 }
                 IconButton(onClick = onEdit) { Icon(AirPlayrIcons.Lyrics, "Edit lyrics", tint = colors.primary) }
                 IconButton(onClick = {
-                    service.clear(state.currentId.orEmpty())
-                    result = null
-                    lyricsState = "idle"
+                    scope.launch {
+                        withContext(Dispatchers.IO) { service.clear(state.currentId.orEmpty()) }
+                        result = null
+                        lyricsState = "idle"
+                    }
                 }) { Icon(Icons.Default.Delete, "Delete saved lyrics", tint = colors.primary) }
             }
 
@@ -325,7 +370,7 @@ fun LyricsSheet(
 
             if (hasSynced) {
                 LazyColumn(
-                    state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
+                    state = lyricsListState,
                     modifier = Modifier.fillMaxWidth().height(500.dp),
                     verticalArrangement = Arrangement.spacedBy(1.dp),
                     contentPadding = PaddingValues(vertical = 6.dp),
@@ -348,7 +393,7 @@ fun LyricsSheet(
                 }
             } else if (hasPlain) {
                 Column(Modifier.fillMaxWidth().height(500.dp).verticalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) })) {
-                    Text(result!!.plainLyrics.orEmpty(), Modifier.fillMaxWidth().padding(8.dp), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+                    Text((result?.plainLyrics ?: result?.syncedLyrics).orEmpty(), Modifier.fillMaxWidth().padding(8.dp), style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
                 }
             }
 
@@ -364,10 +409,10 @@ fun LyricsSheet(
 @Composable
 private fun LyricsActionCard(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
     Card(
-        Modifier.fillMaxWidth().shadow(8.dp, RoundedCornerShape(22.dp), clip = false).clickable(onClick = onClick),
+        Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-    ) {
+        elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
                 Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(25.dp))
@@ -382,11 +427,11 @@ private fun LyricsActionCard(title: String, subtitle: String, icon: androidx.com
 }
 
 @Composable
-fun LyricsEditorSheet(context: Context, item: MediaItem, onClose: () -> Unit) {
-    val service = remember(context) { LyricsService(context) }
-    val existing = remember(item.id) { service.getCached(item.id) }
-    var text by remember(item.id) { mutableStateOf(existing?.syncedLyrics ?: existing?.plainLyrics.orEmpty()) }
-    var provider by remember(item.id) { mutableStateOf(existing?.provider ?: "Manual") }
+fun LyricsEditorSheet(context: Context, repository: LyricsRepository, item: MediaItem, onClose: () -> Unit) {
+    val service = repository
+    var existing by remember(item.id) { mutableStateOf<LyricsService.Result?>(null) }
+    var text by remember(item.id) { mutableStateOf("") }
+    var provider by remember(item.id) { mutableStateOf("Manual") }
     var status by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -395,13 +440,20 @@ fun LyricsEditorSheet(context: Context, item: MediaItem, onClose: () -> Unit) {
             provider = "File import"; status = "Imported lyrics file"
         }
     }
+    LaunchedEffect(item.id) {
+        val saved = withContext(Dispatchers.IO) { service.getCached(item.id) }
+        existing = saved
+        text = saved?.syncedLyrics ?: saved?.plainLyrics.orEmpty()
+        provider = saved?.provider ?: "Manual"
+    }
+
     fun paste() {
         val cb = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
         val clip = cb?.primaryClip
         if (clip != null && clip.description.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN)) { text = clip.getItemAt(0).coerceToText(context).toString(); provider = "Clipboard"; status = "Pasted from clipboard" }
     }
     AirPlayrSheetScaffold("Lyrics editor", "EDIT LYRICS", onClose) {
-        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(item.title, style = MaterialTheme.typography.titleLarge); Text(item.artist.orEmpty(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -415,7 +467,7 @@ fun LyricsEditorSheet(context: Context, item: MediaItem, onClose: () -> Unit) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = { text = "" }) { Text("Clear") }
                     Spacer(Modifier.width(8.dp))
-                    Button(onClick = { val syncedText = if (Regex("\\[\\d{1,3}:\\d{2}(?:[.:]\\d{1,3})?\\]").containsMatchIn(text)) text else null; val plain = if (syncedText == null) text else null; val result = LyricsService.Result(provider, item.title, item.artist.orEmpty(), item.album.orEmpty(), item.durationMs / 1000.0, plain, syncedText, service.parseLrc(syncedText.orEmpty()), 100); service.save(item.id, result); onClose() }) { Icon(Icons.Default.Save, null); Spacer(Modifier.width(6.dp)); Text("Save lyrics") }
+                    Button(onClick = { scope.launch { val syncedText = if (Regex("\\[\\d{1,3}:\\d{2}(?:[.:]\\d{1,3})?\\]").containsMatchIn(text)) text else null; val plain = if (syncedText == null) text else null; val savedProvider = if (provider.equals("Manual", true) || provider.equals("File import", true) || provider.equals("Clipboard", true)) provider else "AirPlayr"; val result = LyricsService.Result(savedProvider, item.title, item.artist.orEmpty(), item.album.orEmpty(), item.durationMs / 1000.0, plain, syncedText, service.parseLrc(syncedText.orEmpty()), 100); withContext(Dispatchers.IO) { service.save(item.id, result) }; onClose() } }) { Icon(Icons.Default.Save, null); Spacer(Modifier.width(6.dp)); Text("Save lyrics") }
                 }
             }
         }
@@ -435,9 +487,9 @@ fun TagEditorSheet(context: Context, item: MediaItem, metadata: MetadataReposito
             fields.value.forEach { (label, value) -> OutlinedTextField(value, { set(label, it) }, Modifier.fillMaxWidth(), label = { Text(label) }, singleLine = label !in setOf("Composer")) }
             if (matches.isNotEmpty()) {
                 Text("Matches", style = MaterialTheme.typography.titleMedium)
-                matches.forEach { match -> Card(Modifier.fillMaxWidth().clickable { fields.value = fields.value + mapOf("Title" to match.title, "Artist" to match.artist, "Album" to match.album, "Album artist" to match.albumArtist, "Genre" to match.genre, "Year" to match.year, "Track number" to match.trackNumber.toString(), "Track total" to match.trackTotal.toString(), "Disc number" to match.discNumber.toString(), "Disc total" to match.discTotal.toString()) }) { Column(Modifier.padding(14.dp)) { Text(match.title, style = MaterialTheme.typography.titleMedium); Text("${match.artist} • ${match.album}", color = MaterialTheme.colorScheme.onSurfaceVariant); Text("Match score ${match.score}") } } }
+                matches.forEach { match -> Card(Modifier.fillMaxWidth().clickable { fields.value = fields.value + mapOf("Title" to match.title, "Artist" to match.artist, "Album" to match.album, "Album artist" to match.albumArtist, "Genre" to match.genre, "Year" to match.year, "Track number" to match.trackNumber.toString(), "Track total" to match.trackTotal.toString(), "Disc number" to match.discNumber.toString(), "Disc total" to match.discTotal.toString()) }, elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) { Column(Modifier.padding(14.dp)) { Text(match.title, style = MaterialTheme.typography.titleMedium); Text("${match.artist} • ${match.album}", color = MaterialTheme.colorScheme.onSurfaceVariant); Text("Match score ${match.score}") } } }
             }
-            Card(shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) { Column(Modifier.padding(16.dp)) { Text("Android media-store editing", style = MaterialTheme.typography.titleMedium); Text("AirPlayr writes the fields Android exposes for this media type. Unsupported embedded fields are left unchanged.", color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+            Card(shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) { Column(Modifier.padding(16.dp)) { Text("Android media-store editing", style = MaterialTheme.typography.titleMedium); Text("AirPlayr writes the fields Android exposes for this media type. Unsupported embedded fields are left unchanged.", color = MaterialTheme.colorScheme.onSurfaceVariant) } }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = onClose) { Text("Cancel") }; Spacer(Modifier.width(8.dp)); Button(enabled = !busy, onClick = { scope.launch { busy = true; val patch = com.airplayr.app.core.metadata.MetadataMatch("manual", item.id, fields.value["Title"].orEmpty(), fields.value["Artist"].orEmpty(), fields.value["Album"].orEmpty(), fields.value["Album artist"].orEmpty(), fields.value["Genre"].orEmpty(), fields.value["Year"].orEmpty(), fields.value["Track number"].orEmpty().toIntOrNull() ?: 0, fields.value["Track total"].orEmpty().toIntOrNull() ?: 0, fields.value["Disc number"].orEmpty().toIntOrNull() ?: 0, fields.value["Disc total"].orEmpty().toIntOrNull() ?: 0, item.durationMs, null, null, 100); val saved = metadata.applyToMediaStore(item, patch); busy = false; if (saved) onSaved(); onClose() } }) { Icon(Icons.Default.Check, null); Spacer(Modifier.width(8.dp)); Text("Save tags") } }
         }
     }

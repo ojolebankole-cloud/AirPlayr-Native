@@ -74,6 +74,7 @@ import com.airplayr.app.ui.components.AirPlayrBottomDock
 import com.airplayr.app.ui.components.AirPlayrMiniPlayerOnly
 import com.airplayr.app.ui.components.MenuDrawer
 import com.airplayr.app.ui.components.WhatsNewSheet
+import com.airplayr.app.ui.components.VideoQueueSheet
 import com.airplayr.app.ui.LocalAirPlayrBottomOverlayHeight
 import kotlinx.coroutines.launch
 import com.airplayr.app.ui.permissions.StartupPermissionFlow
@@ -99,6 +100,7 @@ fun AirPlayrApp(
         factory = LibraryViewModelFactory(container.mediaLibrary, container.structured),
     )
     var castOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var videoQueueOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var externalVideo by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<ExternalVideoRequest?>(null) }
     var whatsNewOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var permissionFlowCompleted by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
@@ -290,8 +292,8 @@ fun AirPlayrApp(
                 composable("music") {
                     MusicScreen(
                         libraryViewModel = libraryViewModel,
-                        appContext = container.appContext,
                         container = container,
+                        playback = playbackController,
                         onNavigate = { route -> navigate(route) },
                     )
                 }
@@ -309,7 +311,7 @@ fun AirPlayrApp(
                 composable("settings") {
                     SettingsScreen(container = container, onDiagnostics = { navigate("diagnostics") }, onMetadata = { navigate("metadata") }, onNavigate = { route -> navigate(route) })
                 }
-                composable("player") { PlayerScreen(container.appContext, onBack = { navController.popBackStack() }, onEqualizer = { navigate("equalizer") }, onNavigate = { route -> navigate(route) }) }
+                composable("player") { PlayerScreen(container.appContext, playbackController, onBack = { navController.popBackStack() }, onEqualizer = { navigate("equalizer") }, onNavigate = { route -> navigate(route) }) }
                 composable("equalizer") { EqualizerScreen(container, onBack = { navController.popBackStack() }) }
                 composable("search") {
                     SearchScreen(
@@ -379,7 +381,12 @@ fun AirPlayrApp(
                 composable("artist/{id}") { entry -> BrowseFilterScreen("Artists", java.net.URLDecoder.decode(entry.arguments?.getString("id").orEmpty(), "UTF-8"), com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController, onOpenPlayer = { navigate("player") }) }
                 composable("genre/{id}") { entry -> BrowseFilterScreen("Genres", java.net.URLDecoder.decode(entry.arguments?.getString("id").orEmpty(), "UTF-8"), com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController, onOpenPlayer = { navigate("player") }) }
                 composable("open") { LibraryScreen("Open media", com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController, onOpen = { playbackController.play(it); navigate("player") }, container = container) }
-                composable("video/{id}") { entry -> VideoScreen(container, entry.arguments?.getString("id").orEmpty()) }
+                composable("video/{id}") { entry -> VideoScreen(
+                    container = container,
+                    id = entry.arguments?.getString("id").orEmpty(),
+                    onCast = { castOpen = true },
+                    onNavigate = { route -> navigate(route) },
+                ) }
                 composable("external-video") {
                     val request = externalVideo
                     if (request == null) {
@@ -387,7 +394,7 @@ fun AirPlayrApp(
                             androidx.compose.material3.Text("No video selected")
                         }
                     } else {
-                        ExternalVideoScreen(container, request.uri, request.mimeType, request.title)
+                        ExternalVideoScreen(container, request.uri, request.mimeType, request.title, onCast = { castOpen = true }, onNavigate = { route -> navigate(route) })
                     }
                 }
             }
@@ -445,12 +452,14 @@ fun AirPlayrApp(
                     musicCount = snapshot.audio.size,
                     videoCount = snapshot.video.size,
                     folderCount = libraryViewModel.folderCount.collectAsStateWithLifecycle().value,
-                    container = container,
+                    playback = playbackController,
+                    latestHistory = snapshot.history.firstOrNull(),
                     onClose = { menuOpen = false },
                     onNavigate = { route -> navigate(route) },
                     onScanMedia = { scanMediaLauncher.launch(null) },
                     onAbout = { navigate("about") },
                     onSupport = { donateOpen = true },
+                    onVideoQueue = { videoQueueOpen = true },
                 )
             }
 
@@ -477,6 +486,13 @@ fun AirPlayrApp(
                     whatsNewOpen = false
                     rootScope.launch { container.preferences.markWhatsNewSeen(appVersion) }
                 })
+            }
+            if (videoQueueOpen) {
+                VideoQueueSheet(
+                    library = container.mediaLibrary,
+                    onPlay = { item -> videoQueueOpen = false; navigate("video/${item.id}") },
+                    onDismiss = { videoQueueOpen = false },
+                )
             }
             if (castOpen) {
                 ModalBottomSheet(

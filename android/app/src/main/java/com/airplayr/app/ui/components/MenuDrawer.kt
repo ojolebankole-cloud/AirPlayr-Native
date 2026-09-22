@@ -69,13 +69,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.airplayr.app.di.AppContainer
 import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.core.playback.VideoQueueStore
-import com.airplayr.app.ui.feedback.AppFeedback
 import com.airplayr.app.ui.playback.PlaybackController
-import com.airplayr.app.ui.playback.PlaybackControllerFactory
 import com.airplayr.app.ui.theme.AirPlayrRadii
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
@@ -95,13 +91,15 @@ fun MenuDrawer(
     musicCount: Int,
     videoCount: Int,
     folderCount: Int = 0,
-    container: AppContainer,
+    playback: PlaybackController,
+    latestHistory: com.airplayr.app.core.data.db.PlaybackHistoryEntity? = null,
     onClose: () -> Unit,
     onNavigate: (String) -> Unit,
     onScanMedia: () -> Unit,
     onAbout: () -> Unit,
     onSupport: () -> Unit,
     onQueueToggle: (() -> Unit)? = null,
+    onVideoQueue: (() -> Unit)? = null,
 ) {
     if (!visible) return
 
@@ -110,12 +108,10 @@ fun MenuDrawer(
     val density = LocalDensity.current
     val drawerWidth = (configuration.screenWidthDp * 0.87f).coerceAtMost(430f).dp
     val drawerWidthPx = with(density) { drawerWidth.toPx() }
-    val playback: PlaybackController = viewModel(factory = PlaybackControllerFactory(container.appContext))
     val playbackState by playback.stableState.collectAsStateWithLifecycle()
     val musicQueue by playback.queueItems.collectAsStateWithLifecycle()
     val videoQueue by VideoQueueStore.queue.collectAsStateWithLifecycle()
-    val recentHistory by container.structured.history(1).collectAsStateWithLifecycle(initialValue = emptyList())
-    val latest = recentHistory.firstOrNull()
+    val latest = latestHistory
 
     var playingQueueExpanded by rememberSaveable { mutableStateOf(false) }
     var musicQueueSheetOpen by remember { mutableStateOf(false) }
@@ -185,7 +181,7 @@ fun MenuDrawer(
                 bottomStart = 0.dp,
             ),
             colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer),
-            elevation = CardDefaults.cardElevation(defaultElevation = 18.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         ) {
             Column(Modifier.fillMaxSize()) {
                 val isPlaying = playbackState.isPlaying && playbackState.currentId != null
@@ -198,6 +194,7 @@ fun MenuDrawer(
                         Modifier.fillMaxSize(),
                         alpha = 1f,
                         scale = 1.08f,
+                        targetSizePx = 320,
                     )
                     Box(
                         Modifier
@@ -252,7 +249,7 @@ fun MenuDrawer(
                                 musicCount = musicQueue.size,
                                 videoCount = videoQueue.size,
                                 onMusic = { musicQueueSheetOpen = true },
-                                onVideo = { AppFeedback.showSnackbar("Video queue is coming with the video playback engine.") },
+                                onVideo = { onVideoQueue?.invoke(); onClose() },
                             )
                         }
                     }
@@ -335,7 +332,7 @@ private fun QueueDrawerCards(musicCount: Int, videoCount: Int, onMusic: () -> Un
             Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(42.dp).background(colors.secondaryContainer, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) { Icon(Icons.Default.VideoLibrary, null, tint = colors.secondary) }
                 Column(Modifier.weight(1f).padding(start = 12.dp)) { Text("Video queue", fontFamily = AirPlayrFonts.SmoochSans, style = MaterialTheme.typography.titleMedium); Text("$videoCount ${if (videoCount == 1) "video" else "videos"}", color = colors.textSecondary, style = MaterialTheme.typography.bodySmall) }
-                Text("COMING", style = MaterialTheme.typography.labelSmall, color = colors.textSecondary)
+                Icon(Icons.Default.PlayArrow, null, tint = colors.secondary)
             }
         }
     }

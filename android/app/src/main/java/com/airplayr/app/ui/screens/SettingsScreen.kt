@@ -1,6 +1,7 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.airplayr.app.ui.screens
 
+import com.airplayr.app.core.data.preferences.NowPlayingTheme
 import com.airplayr.app.R
 import com.airplayr.app.ui.components.AirPlayrCard
 import android.content.Intent
@@ -78,6 +79,7 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
         when (field) {
             "theme" -> container.preferences.setTheme(value as String)
             "accent" -> container.preferences.setAccentColor(value as String)
+            "nowPlayingTheme" -> container.preferences.setNowPlayingTheme(value as String)
             "resume" -> container.preferences.setResumeMode(value as String)
             "speed" -> container.preferences.setDefaultSpeed(value as Double)
             "crossfade" -> container.preferences.setCrossfadeSeconds(value as Double)
@@ -154,6 +156,17 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
             SettingRow("Resume behavior", resumeLabel(current.resumeMode), onClick = { selector = SettingSelector("Resume behavior", current.resumeMode, listOf("auto" to "Resume automatically", "ask" to "Ask before resuming", "start" to "Always start from beginning")) { set("resume", it) } })
             SettingRow("Default speed", "${trimNumber(current.defaultSpeed)}×", onClick = { selector = SettingSelector("Default speed", current.defaultSpeed.toString(), listOf("0.25" to "0.25×", "0.5" to "0.50×", "0.75" to "0.75×", "1.0" to "1×", "1.25" to "1.25×", "1.5" to "1.5×", "1.75" to "1.75×", "2.0" to "2×", "2.5" to "2.5×", "3.0" to "3×", "3.5" to "3.5×", "4.0" to "4×")) { set("speed", it.toDouble()) } })
             SettingRow("Default aspect ratio", aspectLabel(current.defaultAspect), onClick = { selector = SettingSelector("Aspect ratio", current.defaultAspect, listOf("contain" to "Fit", "cover" to "Crop", "fill" to "Fill")) { set("aspect", it) } })
+            SettingRow(
+                "Now Playing theme",
+                NowPlayingTheme.label(current.nowPlayingTheme),
+                onClick = {
+                    selector = SettingSelector(
+                        "Now Playing theme",
+                        current.nowPlayingTheme,
+                        NowPlayingTheme.values.map { it to NowPlayingTheme.label(it) },
+                    ) { set("nowPlayingTheme", it) }
+                },
+            )
             SettingRow("Auto-hide controls", autoHideLabel(current.autoHideMs), onClick = { selector = SettingSelector("Auto-hide controls", current.autoHideMs.toString(), listOf("2000" to "2 seconds", "4000" to "4 seconds", "6000" to "6 seconds", "10000" to "10 seconds", "0" to "Never auto-hide")) { set("autohide", it.toInt()) } })
             SettingSwitch("Keep screen awake", "Prevent sleep while a video is playing", current.keepAwake) { toggle("awake", it) }
         }
@@ -213,8 +226,8 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
         item {
         settingSection("Gestures") {
             SettingSwitch("Double-tap seek", null, current.gestureDoubleTapSeek) { toggle("doubleTap", it) }
-            SettingSwitch("Volume gesture", "Vertical swipe on the right side", current.gestureVolume) { toggle("gestureVolume", it) }
-            SettingSwitch("Brightness gesture", "Vertical swipe on the left side", current.gestureBrightness) { toggle("gestureBrightness", it) }
+            SettingSwitch("Volume gesture", "Vertical swipe on the left side", current.gestureVolume) { toggle("gestureVolume", it) }
+            SettingSwitch("Brightness gesture", "Vertical swipe on the right side", current.gestureBrightness) { toggle("gestureBrightness", it) }
             SettingSwitch("Long-press 2× speed", null, current.gestureLongPress2x) { toggle("longPress", it) }
             SettingSwitch("Pinch to zoom", null, current.gesturePinchZoom) { toggle("pinch", it) }
             SettingSwitch("Horizontal seek swipe", null, current.gestureHorizontalSeek) { toggle("horizontal", it) }
@@ -287,7 +300,7 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
                 container.database.clearAllTables()
                 container.preferences.resetToDefaults()
                 com.airplayr.app.core.playback.queue.QueueStore(container.appContext).clear()
-                com.airplayr.app.core.lyrics.LyricsService(container.appContext).clearAll()
+                withContext(Dispatchers.IO) { container.lyricsRepository.clearAll() }
                 container.metadata.clearOverrides()
                 container.dsp.reset()
                 status = "App data reset"

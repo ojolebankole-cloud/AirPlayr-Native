@@ -199,8 +199,8 @@ fun StatsScreen(container: AppContainer, libraryViewModel: LibraryViewModel, pla
             groups = listOf(
                 listOf(
                     AirPlayrMediaMenuAction("Play now", Icons.Default.PlayArrow, { if (item.mediaType == MediaType.AUDIO) playback.play(item) else onOpenVideo(item.id); menuItem = null }),
-                    AirPlayrMediaMenuAction("Play next", Icons.Default.SkipNext, { if (item.mediaType == MediaType.AUDIO) playback.playNext(item) else com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Videos do not use the music queue."); menuItem = null }),
-                    AirPlayrMediaMenuAction("Add to queue", Icons.Default.QueueMusic, { if (item.mediaType == MediaType.AUDIO) playback.addToQueue(item) else com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Videos do not use the music queue."); menuItem = null }),
+                    AirPlayrMediaMenuAction("Play next", Icons.Default.SkipNext, { if (item.mediaType == MediaType.AUDIO) playback.playNext(item) else com.airplayr.app.core.playback.VideoQueueStore.playNext(listOf(item)); menuItem = null }),
+                    AirPlayrMediaMenuAction("Add to queue", Icons.Default.QueueMusic, { if (item.mediaType == MediaType.AUDIO) playback.addToQueue(item) else com.airplayr.app.core.playback.VideoQueueStore.add(listOf(item)); menuItem = null }),
                 ),
             ),
             onFavorite = { scope.launch { menuFavorite = container.structured.toggleFavorite(item) } },

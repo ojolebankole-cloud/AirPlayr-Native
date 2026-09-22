@@ -1,9 +1,6 @@
 package com.airplayr.app.ui.components
 
 import android.app.WallpaperManager
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.util.LruCache
 import android.os.Build
 import androidx.core.graphics.ColorUtils
 import androidx.compose.foundation.Image
@@ -21,7 +18,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -30,10 +26,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airplayr.app.ui.theme.AirPlayrFonts
-import com.airplayr.app.ui.theme.AirPlayrFeatureCardTokens
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.util.Calendar
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -66,96 +59,6 @@ private fun palette(kind: String, phase: String, seed: String, dark: Boolean, ba
 
 private fun phase(hour: Int) = when (hour) { in 5..11 -> "morning"; in 12..16 -> "afternoon"; in 17..21 -> "evening"; else -> "night" }
 private fun digitalTime(calendar: Calendar): String { val h = calendar.get(Calendar.HOUR); val m = calendar.get(Calendar.MINUTE).toString().padStart(2,'0'); return "${if (h == 0) 12 else h}:$m" }
-
-private val SOURCE_ACCENTS = mapOf(
-    "headphone_amico" to listOf("#BA68C8"),
-    "recording_pana" to listOf("#FF725E", "#EB996E", "#FFBE9D"),
-    "music_cuate" to listOf("#F7A9A0", "#FFC727", "#FF9BBC"),
-    "dj_boy_cuate" to listOf("#FFC727", "#F291B8"),
-    "media_player_bro" to listOf("#92E3A9"),
-    "playing_music_bro" to listOf("#92E3A9"),
-    "playlist_pana" to listOf("#FF725E", "#EB996E", "#FFBE9D"),
-)
-
-private object FeatureArtworkCache {
-    private val cache = object : LruCache<String, Bitmap>(12 * 1024) {
-        override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount / 1024
-    }
-
-    @Synchronized
-    fun get(key: String): Bitmap? = cache.get(key)
-
-    @Synchronized
-    fun put(key: String, bitmap: Bitmap): Bitmap {
-        cache.put(key, bitmap)
-        return bitmap
-    }
-}
-
-@Composable
-private fun rememberRecoloredArtwork(
-    imageRes: Int,
-    artworkKey: String,
-    palette: CardPalette,
-): androidx.compose.ui.graphics.ImageBitmap? {
-    val context = LocalContext.current
-    val cacheKey = remember(imageRes, artworkKey, palette.accent, palette.accent2, palette.accentLight) {
-        "$imageRes:$artworkKey:${palette.accent.toArgb()}:${palette.accent2.toArgb()}:${palette.accentLight.toArgb()}"
-    }
-    return produceState<androidx.compose.ui.graphics.ImageBitmap?>(initialValue = null, cacheKey) {
-        value = withContext(Dispatchers.Default) {
-            FeatureArtworkCache.get(cacheKey)?.asImageBitmap()
-                ?: runCatching {
-                    val options = BitmapFactory.Options().apply {
-                        inSampleSize = 4
-                        inPreferredConfig = Bitmap.Config.ARGB_8888
-                    }
-                    val source = BitmapFactory.decodeResource(context.resources, imageRes, options)
-                        ?: return@runCatching null
-                    val bitmap = source.copy(Bitmap.Config.ARGB_8888, true)
-                    val sources = SOURCE_ACCENTS[artworkKey].orEmpty().map { android.graphics.Color.parseColor(it) }
-                    val targets = intArrayOf(
-                        palette.accent.toArgb(),
-                        palette.accent2.toArgb(),
-                        palette.accentLight.toArgb(),
-                    )
-                    val pixels = IntArray(bitmap.width * bitmap.height)
-                    bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-                    for (i in pixels.indices) {
-                        val pixel = pixels[i]
-                        val alpha = android.graphics.Color.alpha(pixel)
-                        if (alpha == 0) continue
-                        var best = -1
-                        var bestDistance = Int.MAX_VALUE
-                        val pr = android.graphics.Color.red(pixel)
-                        val pg = android.graphics.Color.green(pixel)
-                        val pb = android.graphics.Color.blue(pixel)
-                        sources.forEachIndexed { index, sourceColor ->
-                            val sr = android.graphics.Color.red(sourceColor)
-                            val sg = android.graphics.Color.green(sourceColor)
-                            val sb = android.graphics.Color.blue(sourceColor)
-                            val d = (pr - sr) * (pr - sr) + (pg - sg) * (pg - sg) + (pb - sb) * (pb - sb)
-                            if (d < bestDistance) {
-                                bestDistance = d
-                                best = index
-                            }
-                        }
-                        if (best >= 0 && bestDistance <= 22 * 22) {
-                            val target = targets[best % targets.size]
-                            pixels[i] = android.graphics.Color.argb(
-                                alpha,
-                                android.graphics.Color.red(target),
-                                android.graphics.Color.green(target),
-                                android.graphics.Color.blue(target),
-                            )
-                        }
-                    }
-                    bitmap.setPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-                    FeatureArtworkCache.put(cacheKey, bitmap).asImageBitmap()
-                }.getOrNull()
-        }
-    }.value
-}
 
 private fun wallpaperSeed(context: android.content.Context): String {
     if (Build.VERSION.SDK_INT < 27) return "session"
@@ -195,13 +98,11 @@ fun AirPlayrFeatureCard(
     val p = remember(kind, currentPhase, seed, dark, colors.primary, colors.secondary, colors.tertiary, colors.surface, colors.surfaceContainerLow, colors.surfaceContainerHigh, colors.surfaceContainerHighest) { palette(kind, currentPhase, seed, dark, colors.primary, colors.secondary, colors.tertiary, colors.surface, colors.surfaceContainerLow, colors.surfaceContainerHigh, colors.surfaceContainerHighest) }
     val width = (configuration.screenWidthDp * .49f).coerceIn(178f, 196f).dp
     val height = (width.value * 1.39f).dp
-    val artworkKey = when (imageRes) { com.airplayr.app.R.drawable.headphone_amico -> "headphone_amico"; com.airplayr.app.R.drawable.recording_pana -> "recording_pana"; com.airplayr.app.R.drawable.music_cuate -> "music_cuate"; com.airplayr.app.R.drawable.dj_boy_cuate -> "dj_boy_cuate"; com.airplayr.app.R.drawable.media_player_bro -> "media_player_bro"; com.airplayr.app.R.drawable.playing_music_bro -> "playing_music_bro"; com.airplayr.app.R.drawable.playlist_pana -> "playlist_pana"; else -> "" }
-    val artwork = rememberRecoloredArtwork(imageRes, artworkKey, p)
     val titleFont = when (kind) { "rock" -> AirPlayrFonts.DancingScript; "playlists" -> AirPlayrFonts.ShadowsIntoLight; "rediscover" -> AirPlayrFonts.Oswald; else -> AirPlayrFonts.SmoochSans }
-    Box(Modifier.width(width).height(height).clip(RoundedCornerShape(27.dp)).airPlayrShadow(RoundedCornerShape(27.dp), AirPlayrFeatureCardTokens.shadowElevationDp.dp).clickable(onClick = onClick)) {
+    Box(Modifier.width(width).height(height).clip(RoundedCornerShape(27.dp)).clickable(onClick = onClick)) {
         // One smooth Material-compatible gradient with no stacked overlays or transition seams.
         Box(Modifier.fillMaxSize().background(Brush.linearGradient(p.gradient, start = androidx.compose.ui.geometry.Offset(0f, 0f), end = androidx.compose.ui.geometry.Offset(1000f, 1000f))))
-        if (artwork != null) Image(artwork, title, Modifier.fillMaxWidth().height(height*.64f).padding(10.dp).align(Alignment.TopCenter)) else Image(painterResource(imageRes), title, Modifier.fillMaxWidth().height(height*.64f).padding(10.dp).align(Alignment.TopCenter))
+        Image(painterResource(imageRes), title, Modifier.fillMaxWidth().height(height*.64f).padding(10.dp).align(Alignment.TopCenter))
         if (kind in setOf("morning","afternoon","night")) Text(digitalTime(now), color=p.ink.copy(alpha=.78f), fontSize=12.sp, lineHeight=16.sp, fontWeight=FontWeight.Medium, modifier=Modifier.align(Alignment.TopEnd).padding(top=16.dp,end=17.dp))
         Column(Modifier.align(Alignment.BottomStart).padding(start=17.dp,end=16.dp,bottom=17.dp)) {
             Text(title,color=p.ink,fontFamily=titleFont,fontSize=21.sp,lineHeight=24.sp,fontWeight=if(kind=="rock"||kind=="playlists") FontWeight.Normal else FontWeight.Normal,maxLines=2,overflow=TextOverflow.Ellipsis)

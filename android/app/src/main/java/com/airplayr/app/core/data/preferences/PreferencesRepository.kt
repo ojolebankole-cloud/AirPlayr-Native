@@ -18,6 +18,7 @@ private val Context.airPlayrDataStore by preferencesDataStore(name = "airplayr_p
 
 private val THEME = stringPreferencesKey("theme")
 private val ACCENT_COLOR = stringPreferencesKey("accent_color")
+private val NOW_PLAYING_THEME = stringPreferencesKey("now_playing_theme")
 private val HIGH_CONTRAST = booleanPreferencesKey("high_contrast")
 private val REDUCE_MOTION = booleanPreferencesKey("reduce_motion")
 private val HAPTIC = booleanPreferencesKey("haptic_feedback")
@@ -114,6 +115,7 @@ class PreferencesRepository(private val context: Context) {
         AirPlayrSettings(
             theme = p[THEME] ?: "light",
             accentColor = p[ACCENT_COLOR] ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) "dynamic" else "blue",
+            nowPlayingTheme = p[NOW_PLAYING_THEME] ?: "default",
             highContrast = p[HIGH_CONTRAST] ?: false,
             reduceMotion = p[REDUCE_MOTION] ?: false,
             hapticFeedback = p[HAPTIC] ?: true,
@@ -178,6 +180,9 @@ class PreferencesRepository(private val context: Context) {
     }
     suspend fun setAccentColor(v: String) {
         context.airPlayrDataStore.edit { it[ACCENT_COLOR] = v.coerceAccent() }
+    }
+    suspend fun setNowPlayingTheme(v: String) {
+        context.airPlayrDataStore.edit { it[NOW_PLAYING_THEME] = v.takeIf { value -> value in NowPlayingTheme.values } ?: NowPlayingTheme.DEFAULT }
     }
     suspend fun setHighContrast(v: Boolean) = editBool(HIGH_CONTRAST, v)
     suspend fun setReduceMotion(v: Boolean) = editBool(REDUCE_MOTION, v)
@@ -302,6 +307,7 @@ class PreferencesRepository(private val context: Context) {
 data class AirPlayrSettings(
     val theme: String,
     val accentColor: String,
+    val nowPlayingTheme: String,
     val highContrast: Boolean,
     val reduceMotion: Boolean,
     val hapticFeedback: Boolean,

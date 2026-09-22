@@ -2,7 +2,6 @@
 package com.airplayr.app.ui.screens
 import androidx.compose.foundation.layout.fillMaxHeight
 
-import android.content.Context
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -93,7 +92,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airplayr.app.core.data.db.MusicPlaylistEntity
 import com.airplayr.app.core.data.media.MediaItem
 import com.airplayr.app.core.data.media.MediaType
@@ -107,7 +105,6 @@ import com.airplayr.app.ui.components.Artwork
 import com.airplayr.app.ui.components.TagEditorSheet
 import com.airplayr.app.ui.navigation.LibraryViewModel
 import com.airplayr.app.ui.playback.PlaybackController
-import com.airplayr.app.ui.playback.PlaybackControllerFactory
 import com.airplayr.app.ui.theme.AirPlayrArtworkTokens
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.AirPlayrIcons
@@ -149,8 +146,8 @@ private fun musicSortsFor(category: String): List<Pair<String, String>> = when (
 @Composable
 fun MusicScreen(
     libraryViewModel: LibraryViewModel,
-    appContext: Context,
     container: AppContainer,
+    playback: PlaybackController,
     onNavigate: (String) -> Unit = {},
 ) {
     val colors = LocalAirPlayrColors.current
@@ -159,7 +156,6 @@ fun MusicScreen(
     val songs = librarySnapshot.audio
     val favorites = librarySnapshot.favorites
     val playlists = librarySnapshot.playlists
-    val playback: PlaybackController = viewModel(factory = PlaybackControllerFactory(appContext))
     val playbackState by playback.stableState.collectAsStateWithLifecycle()
 
     var category by rememberSaveable { mutableStateOf("songs") }
@@ -178,7 +174,8 @@ fun MusicScreen(
     val scope = rememberCoroutineScope()
     val songListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) }
 
-    LaunchedEffect(playlists) {
+    LaunchedEffect(playlists, category) {
+        if (category != "playlists") return@LaunchedEffect
         playlists.forEach { playlist ->
             val ids = container.structured.playlistIds(playlist.id)
             playlistItems[playlist.id] = ids
@@ -206,31 +203,41 @@ fun MusicScreen(
         )
     }
 
+    // Collection groupings are lazy: opening Songs should not group the entire library into
+    // albums/artists/genres/folders before the user asks for those categories.
     val albums = remember(songs, filter, effectiveSortKey, sortAscending) {
-        songs.filter { !it.album.isNullOrBlank() }
-            .groupBy { it.album!!.trim() }
-            .map { AlbumGroup(it.key, it.value) }
-            .filter { filter.isBlank() || it.name.contains(filter, true) || it.artist.contains(filter, true) }
-            .let { sortAlbumGroups(it, effectiveSortKey, sortAscending) }
+        lazy {
+            songs.filter { !it.album.isNullOrBlank() }
+                .groupBy { it.album!!.trim() }
+                .map { AlbumGroup(it.key, it.value) }
+                .filter { filter.isBlank() || it.name.contains(filter, true) || it.artist.contains(filter, true) }
+                .let { sortAlbumGroups(it, effectiveSortKey, sortAscending) }
+        }
     }
     val artists = remember(songs, filter, effectiveSortKey, sortAscending) {
-        songs.filter { !it.artist.isNullOrBlank() }
-            .groupBy { it.artist!!.trim() }
-            .map { CollectionGroup(it.key, it.value) }
-            .filter { filter.isBlank() || it.name.contains(filter, true) }
-            .let { sortCollectionGroups(it, effectiveSortKey, sortAscending) }
+        lazy {
+            songs.filter { !it.artist.isNullOrBlank() }
+                .groupBy { it.artist!!.trim() }
+                .map { CollectionGroup(it.key, it.value) }
+                .filter { filter.isBlank() || it.name.contains(filter, true) }
+                .let { sortCollectionGroups(it, effectiveSortKey, sortAscending) }
+        }
     }
     val genres = remember(songs, filter, effectiveSortKey, sortAscending) {
-        songs.groupBy { it.genre?.trim().takeUnless { genre -> genre.isNullOrBlank() } ?: "Other" }
-            .map { CollectionGroup(it.key, it.value) }
-            .filter { filter.isBlank() || it.name.contains(filter, true) }
-            .let { sortCollectionGroups(it, effectiveSortKey, sortAscending) }
+        lazy {
+            songs.groupBy { it.genre?.trim().takeUnless { genre -> genre.isNullOrBlank() } ?: "Other" }
+                .map { CollectionGroup(it.key, it.value) }
+                .filter { filter.isBlank() || it.name.contains(filter, true) }
+                .let { sortCollectionGroups(it, effectiveSortKey, sortAscending) }
+        }
     }
     val folders = remember(songs, filter, effectiveSortKey, sortAscending) {
-        songs.groupBy { it.folder?.trim().takeUnless { folder -> folder.isNullOrBlank() } ?: "Music" }
-            .map { CollectionGroup(it.key, it.value) }
-            .filter { filter.isBlank() || it.name.contains(filter, true) }
-            .let { sortCollectionGroups(it, effectiveSortKey, sortAscending) }
+        lazy {
+            songs.groupBy { it.folder?.trim().takeUnless { folder -> folder.isNullOrBlank() } ?: "Music" }
+                .map { CollectionGroup(it.key, it.value) }
+                .filter { filter.isBlank() || it.name.contains(filter, true) }
+                .let { sortCollectionGroups(it, effectiveSortKey, sortAscending) }
+        }
     }
     val orderedPlaylists = remember(playlists, effectiveSortKey, sortAscending) {
         val sorted = when (effectiveSortKey) {
@@ -291,10 +298,10 @@ fun MusicScreen(
             category = category,
             count = when (category) {
                 "songs", "likes" -> filteredSongs.size
-                "albums" -> albums.size
-                "artists" -> artists.size
-                "genres" -> genres.size
-                "folders" -> folders.size
+                "albums" -> albums.value.size
+                "artists" -> artists.value.size
+                "genres" -> genres.value.size
+                "folders" -> folders.value.size
                 else -> playlists.size
             },
             sortKey = effectiveSortKey,
@@ -380,22 +387,22 @@ fun MusicScreen(
             }
             "albums" -> CollectionGrid(
                 grid = grid,
-                data = albums,
+                data = albums.value,
                 circular = false,
                 onClick = { raw -> val name = rawName(raw); onNavigate("album/${encode(name)}") },
                 modifier = Modifier.weight(1f),
             )
             "artists" -> CollectionGrid(
                 grid = grid,
-                data = artists,
+                data = artists.value,
                 circular = true,
                 onClick = { raw -> val name = rawName(raw); onNavigate("artist/${encode(name)}") },
                 modifier = Modifier.weight(1f),
             )
-            "genres" -> GenreGrid(genres, onNavigate, modifier = Modifier.weight(1f))
+            "genres" -> GenreGrid(genres.value, onNavigate, modifier = Modifier.weight(1f))
             "folders" -> CollectionGrid(
                 grid = grid,
-                data = folders,
+                data = folders.value,
                 circular = false,
                 onClick = { raw -> val name = rawName(raw); onNavigate("music-folder/${encode(name)}") },
                 modifier = Modifier.weight(1f),
@@ -1077,7 +1084,7 @@ private fun PlaylistCard(
 ) {
     Column(Modifier.combinedClickable(onClick = { onNavigate("music-playlist/${playlist.id}") }, onLongClick = {})) {
         val arts = songs.filter { it.id in ids }.filter { !it.artworkUri.isNullOrBlank() }.take(4)
-        Card(Modifier.fillMaxWidth().height(168.dp), shape = RoundedCornerShape(23.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer)) {
+        Card(Modifier.fillMaxWidth().height(168.dp), shape = RoundedCornerShape(23.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
             if (arts.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(AirPlayrIcons.Music, null, Modifier.size(42.dp), tint = colors.primary) }
             } else {
@@ -1106,7 +1113,7 @@ private fun SelectionBar(
     onEdit: () -> Unit,
 ) {
     val colors = LocalAirPlayrColors.current
-    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerHighest)) {
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerHighest), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberSaveable(saver = androidx.compose.foundation.ScrollState.Saver) { androidx.compose.foundation.ScrollState(0) }).padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onClear) { Icon(Icons.Default.Close, "Clear", tint = colors.primary) }
             Text("$count selected", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 5.dp))

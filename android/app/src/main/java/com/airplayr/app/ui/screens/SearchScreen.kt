@@ -401,15 +401,25 @@ fun SearchScreen(
             onPlayNext = {
                 selected?.let { item ->
                     selected = null
-                    playback.playNext(item)
-                    AppFeedback.showSnackbar("Added to playing queue as next.")
+                    if (item.mediaType == MediaType.VIDEO) {
+                        com.airplayr.app.core.playback.VideoQueueStore.playNext(listOf(item))
+                        AppFeedback.showSnackbar("Added to video queue as next.")
+                    } else {
+                        playback.playNext(item)
+                        AppFeedback.showSnackbar("Added to playing queue as next.")
+                    }
                 }
             },
             onAddQueue = {
                 selected?.let { item ->
                     selected = null
-                    playback.addToQueue(item)
-                    AppFeedback.showSnackbar("Added to the playing queue.")
+                    if (item.mediaType == MediaType.VIDEO) {
+                        com.airplayr.app.core.playback.VideoQueueStore.add(listOf(item))
+                        AppFeedback.showSnackbar("Added to video queue.")
+                    } else {
+                        playback.addToQueue(item)
+                        AppFeedback.showSnackbar("Added to the playing queue.")
+                    }
                 }
             },
             onFavorite = {
@@ -710,7 +720,13 @@ private fun SearchActionSheet(
         add(AirPlayrMediaMenuAction("Delete from device", Icons.Default.Delete, onDelete, destructive = true))
     }
     val groups = if (isVideo) {
-        listOf(common)
+        listOf(
+            listOf(
+                AirPlayrMediaMenuAction("Play next", Icons.Default.PlaylistPlay, onPlayNext),
+                AirPlayrMediaMenuAction("Add to video queue", Icons.Default.QueueMusic, onAddQueue),
+            ),
+            common,
+        )
     } else {
         listOf(
             listOf(
@@ -804,7 +820,7 @@ private fun SearchLyricsSheet(
     val context = LocalContext.current
     val colors = LocalAirPlayrColors.current
     val scope = rememberCoroutineScope()
-    val service = remember(item.id) { LyricsService(context) }
+    val service = container.lyricsRepository
     var lyrics by remember(item.id) { mutableStateOf("") }
     var status by remember(item.id) { mutableStateOf("") }
     var loading by remember(item.id) { mutableStateOf(false) }
@@ -845,15 +861,16 @@ private fun SearchLyricsSheet(
                 onClick = {
                     scope.launch {
                         val old = withContext(Dispatchers.IO) { service.getCached(item.id) }
+                        val syncedText = if (Regex("\\[\\d{1,3}:\\d{2}(?:[.:]\\d{1,3})?\\]").containsMatchIn(lyrics)) lyrics else null
                         val result = LyricsService.Result(
-                            provider = old?.provider ?: "AirPlayr",
+                            provider = "AirPlayr",
                             trackName = item.title,
                             artistName = item.artist.orEmpty(),
                             albumName = item.album.orEmpty(),
                             duration = item.durationMs / 1000.0,
                             plainLyrics = lyrics.ifBlank { null },
-                            syncedLyrics = old?.syncedLyrics,
-                            cues = old?.cues.orEmpty(),
+                            syncedLyrics = if (syncedText != null) syncedText else null,
+                            cues = if (syncedText != null) service.parseLrc(syncedText) else emptyList(),
                             confidence = old?.confidence ?: 0,
                         )
                         withContext(Dispatchers.IO) { service.save(item.id, result) }

@@ -65,7 +65,7 @@ fun MetadataScreen(container: AppContainer, libraryViewModel: LibraryViewModel) 
             } else if (selected == null) {
                 item { Text("Choose a music item to look up and optionally apply catalog metadata.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 items(audio.take(250), key = { it.id }) { item ->
-                    Card(Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(12.dp), 4.dp)) {
+                    Card(Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(12.dp), 4.dp), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
                         Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                             Column(Modifier.weight(1f)) { Text(item.title, style = MaterialTheme.typography.titleMedium); Text(listOfNotNull(item.artist, item.album).joinToString(" • ").ifBlank { item.filename }, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                             Button(onClick = { selected = item }) { Text("Select") }
@@ -83,7 +83,7 @@ fun MetadataScreen(container: AppContainer, libraryViewModel: LibraryViewModel) 
                     if (status.isNotBlank()) Text(status, Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 items(results, key = { "${it.provider}:${it.id}" }) { match ->
-                    Card(Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(12.dp), 4.dp)) {
+                    Card(Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(12.dp), 4.dp), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(match.title, style = MaterialTheme.typography.titleMedium)
                             Text("${match.artist} • ${match.album}", color = MaterialTheme.colorScheme.onSurfaceVariant)

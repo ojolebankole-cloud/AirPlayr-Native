@@ -102,7 +102,10 @@ fun LibraryScreen(
                     AirPlayrMediaMenuAction("Open", if (isVideo) AirPlayrIcons.Video else AirPlayrIcons.Music, { menuItem = null; onOpen(item) }),
                     AirPlayrMediaMenuAction("Details", Icons.Default.Info, { menuItem = null; detailsTarget = item }),
                 ))
-                if (!isVideo) add(listOf(
+                if (isVideo) add(listOf(
+                    AirPlayrMediaMenuAction("Play next", Icons.Default.SkipNext, { menuItem = null; com.airplayr.app.core.playback.VideoQueueStore.playNext(listOf(item)) }),
+                    AirPlayrMediaMenuAction("Add to video queue", Icons.Default.QueueMusic, { menuItem = null; com.airplayr.app.core.playback.VideoQueueStore.add(listOf(item)) }),
+                )) else add(listOf(
                     AirPlayrMediaMenuAction("Play next", Icons.Default.SkipNext, { menuItem = null; playback.playNext(item) }),
                     AirPlayrMediaMenuAction("Add to queue", Icons.Default.QueueMusic, { menuItem = null; playback.addToQueue(item) }),
                 ))

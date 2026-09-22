@@ -88,7 +88,6 @@ fun AirPlayrBottomDock(
                 )
                 .threeDEdge(
                     highlight = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.20f),
-                    shadow = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f),
                 ),
             shape = AirPlayrDockCardShape,
             color = MaterialTheme.colorScheme.surfaceContainer,
@@ -142,7 +141,6 @@ fun AirPlayrMiniPlayerOnly(
                 )
                 .threeDEdge(
                     highlight = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.20f),
-                    shadow = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f),
                 ),
             shape = AirPlayrDockCardShape,
             color = MaterialTheme.colorScheme.surfaceContainer,
@@ -175,7 +173,7 @@ private fun MiniPlayerSection(
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Artwork(liveState.artworkUri, Modifier.size(62.dp), 19.dp, liveState.currentTitle, MediaType.AUDIO, AirPlayrIcons.Music, isPlaying = liveState.isPlaying)
+            Artwork(liveState.artworkUri, Modifier.size(62.dp), 19.dp, liveState.currentTitle, MediaType.AUDIO, AirPlayrIcons.Music, isPlaying = liveState.isPlaying, initialTargetDp = 62.dp)
             Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                 Text(
                     liveState.currentTitle ?: "Song",
@@ -289,7 +287,6 @@ const val AIRPLAYR_FLOATING_PLAY_BOTTOM = 24
  */
 private fun Modifier.threeDEdge(
     highlight: Color,
-    shadow: Color,
 ): Modifier = drawWithCache {
     val stroke = 1.dp.toPx()
     val radius = 28.dp.toPx()
@@ -309,13 +306,5 @@ private fun Modifier.threeDEdge(
             style = androidx.compose.ui.graphics.drawscope.Stroke(stroke),
         )
 
-        // Slightly offset dark edge creates the raised-card depth without another background.
-        drawRoundRect(
-            color = shadow,
-            topLeft = Offset(inset + 0.8.dp.toPx(), inset + 0.8.dp.toPx()),
-            size = rectSize,
-            cornerRadius = corner,
-            style = androidx.compose.ui.graphics.drawscope.Stroke(stroke),
-        )
     }
 }

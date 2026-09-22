@@ -99,6 +99,26 @@ class AppContainer(context: Context) {
         }
     }
 
+    private val migration5To6 = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("""CREATE TABLE IF NOT EXISTS lyrics_cache (
+                id TEXT NOT NULL PRIMARY KEY,
+                provider TEXT NOT NULL,
+                trackName TEXT NOT NULL,
+                artistName TEXT NOT NULL,
+                albumName TEXT NOT NULL,
+                duration REAL NOT NULL,
+                plainLyrics TEXT,
+                syncedLyrics TEXT,
+                confidence INTEGER NOT NULL,
+                syncLevel INTEGER NOT NULL,
+                fetchedAt INTEGER NOT NULL,
+                lastAccessAt INTEGER NOT NULL
+            )""")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_lyrics_cache_lastAccessAt ON lyrics_cache(lastAccessAt)")
+        }
+    }
+
     // Keep application construction cheap. Room, Cast and player-adjacent repositories are
     // created only when their first consumer actually needs them, so an existing user can get
     // a Compose frame without constructing the entire media stack on the Activity thread.
@@ -107,7 +127,11 @@ class AppContainer(context: Context) {
             appContext,
             AirPlayrDatabase::class.java,
             "airplayr.db",
-        ).addMigrations(migration1To2, migration2To3, migration3To4, migration4To5).build()
+        ).addMigrations(migration1To2, migration2To3, migration3To4, migration4To5, migration5To6).build()
+    }
+
+    val lyricsRepository: com.airplayr.app.core.lyrics.LyricsRepository by lazy {
+        com.airplayr.app.core.lyrics.LyricsRepository(appContext, database.lyricsCacheDao())
     }
 
     val preferences = PreferencesRepository(appContext)

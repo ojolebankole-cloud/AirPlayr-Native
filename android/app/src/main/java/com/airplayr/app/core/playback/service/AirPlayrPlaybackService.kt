@@ -11,6 +11,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.cast.CastPlayer
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
+import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaLibraryService.LibraryParams
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
@@ -258,6 +259,9 @@ class AirPlayrPlaybackService : MediaLibraryService() {
                 replayGainMultiplier = replayGainMultiplier.coerceAtLeast(0.001f)
             }
             if (hydrating) return
+            if (events.contains(Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED) || events.contains(Player.EVENT_REPEAT_MODE_CHANGED)) {
+                mediaLibrarySession?.setMediaButtonPreferences(notificationMediaButtons(player))
+            }
             if (events.containsAny(
                     Player.EVENT_POSITION_DISCONTINUITY,
                     Player.EVENT_MEDIA_ITEM_TRANSITION,
@@ -301,6 +305,25 @@ class AirPlayrPlaybackService : MediaLibraryService() {
             }
         }
     }
+
+    private fun notificationMediaButtons(source: Player): List<CommandButton> = listOf(
+        CommandButton.Builder(
+            if (source.shuffleModeEnabled) CommandButton.ICON_SHUFFLE_ON else CommandButton.ICON_SHUFFLE_OFF,
+        )
+            .setDisplayName("Shuffle")
+            .setPlayerCommand(Player.COMMAND_SET_SHUFFLE_MODE)
+            .build(),
+        CommandButton.Builder(
+            when (source.repeatMode) {
+                Player.REPEAT_MODE_ONE -> CommandButton.ICON_REPEAT_ONE
+                Player.REPEAT_MODE_ALL -> CommandButton.ICON_REPEAT_ALL
+                else -> CommandButton.ICON_REPEAT_OFF
+            },
+        )
+            .setDisplayName("Repeat")
+            .setPlayerCommand(Player.COMMAND_SET_REPEAT_MODE)
+            .build(),
+    )
 
     override fun onCreate() {
         super.onCreate()
@@ -366,6 +389,7 @@ class AirPlayrPlaybackService : MediaLibraryService() {
         mediaLibrarySession = MediaLibrarySession.Builder(this, player, mediaLibraryCallback)
             .setSessionActivity(sessionActivity)
             .build()
+        mediaLibrarySession?.setMediaButtonPreferences(notificationMediaButtons(player))
         mediaNotificationProvider = DefaultMediaNotificationProvider.Builder(this)
             .setChannelId(MEDIA_NOTIFICATION_CHANNEL_ID)
             .setChannelName(com.airplayr.app.R.string.music_playback_channel_name)

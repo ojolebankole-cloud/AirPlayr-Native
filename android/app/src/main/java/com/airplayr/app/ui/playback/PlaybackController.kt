@@ -2,6 +2,7 @@ package com.airplayr.app.ui.playback
 
 import android.content.ComponentName
 import android.content.Context
+import android.media.AudioManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -35,6 +36,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 class PlaybackController(private val appContext: Context) : ViewModel() {
     private val _state = MutableStateFlow(PlaybackUiState())
@@ -225,6 +227,20 @@ class PlaybackController(private val appContext: Context) : ViewModel() {
     fun setSpeed(speed: Float) { controller?.setPlaybackSpeed(speed.coerceIn(0.25f, 4f)); viewModelScope.launch { com.airplayr.app.core.playback.dsp.DspRepository(appContext).setSpeed(speed.toDouble()) } }
     fun setVolume(value: Float) { controller?.volume = value.coerceIn(0f, 1f) }
     fun volume(): Float = controller?.volume ?: 1f
+
+    /** The user-facing music slider controls Android's real STREAM_MUSIC volume. */
+    fun systemMusicVolumeFraction(): Float {
+        val audio = appContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return 0f
+        val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        return audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / max.toFloat()
+    }
+
+    fun setSystemMusicVolumeFraction(value: Float) {
+        val audio = appContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+        val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        val target = (value.coerceIn(0f, 1f) * max).roundToInt().coerceIn(0, max)
+        audio.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
+    }
 
     fun startSleepTimer(minutes: Int, finishCurrent: Boolean, fadeOut: Boolean) {
         viewModelScope.launch {

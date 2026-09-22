@@ -74,7 +74,7 @@ fun WhatsNewSheet(version: String, onDismiss: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Card(modifier = Modifier.airPlayrShadow(RoundedCornerShape(12.dp), 5.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                Card(modifier = Modifier.airPlayrShadow(RoundedCornerShape(12.dp), 5.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
                     Icon(Icons.Default.AutoAwesome, null, Modifier.padding(14.dp), tint = MaterialTheme.colorScheme.primary)
                 }
                 Column(Modifier.weight(1f)) {
@@ -84,7 +84,7 @@ fun WhatsNewSheet(version: String, onDismiss: () -> Unit) {
             }
             Text("A smoother way to enjoy your music, videos and everything in your library.", style = MaterialTheme.typography.bodyLarge)
             sections.forEach { section ->
-                Card(modifier = Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(20.dp), 5.dp), shape = RoundedCornerShape(20.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+                Card(modifier = Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(20.dp), 5.dp), shape = RoundedCornerShape(20.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
                     Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Icon(section.icon, null, tint = MaterialTheme.colorScheme.primary)
@@ -99,7 +99,7 @@ fun WhatsNewSheet(version: String, onDismiss: () -> Unit) {
                     }
                 }
             }
-            Card(modifier = Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(20.dp), 5.dp), shape = RoundedCornerShape(20.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+            Card(modifier = Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(20.dp), 5.dp), shape = RoundedCornerShape(20.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Icon(Icons.Default.PlayArrow, null, tint = MaterialTheme.colorScheme.primary)
                     Text("Made to keep your media close and your playback simple.", modifier = Modifier.weight(1f))

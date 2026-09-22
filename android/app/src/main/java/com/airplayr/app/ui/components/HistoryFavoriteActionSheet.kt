@@ -182,7 +182,7 @@ fun HistoryFavoriteLyricsSheet(container: AppContainer, item: MediaItem, onDismi
     val colors = LocalAirPlayrColors.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val service = remember(item.id) { LyricsService(context) }
+    val service = container.lyricsRepository
     var lyrics by remember(item.id) { mutableStateOf("") }
     var loading by remember(item.id) { mutableStateOf(false) }
     LaunchedEffect(item.id) { lyrics = withContext(Dispatchers.IO) { service.getCached(item.id)?.plainLyrics.orEmpty() } }
@@ -193,7 +193,14 @@ fun HistoryFavoriteLyricsSheet(container: AppContainer, item: MediaItem, onDismi
             OutlinedTextField(lyrics, { lyrics = it }, Modifier.fillMaxWidth().height(260.dp), label = { Text("Lyrics") })
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(enabled = !loading, onClick = { scope.launch { loading = true; val result = withContext(Dispatchers.IO) { service.fetch(item.id, item.title, item.artist.orEmpty(), item.album, item.durationMs / 1000.0, true) }; lyrics = result?.plainLyrics.orEmpty(); loading = false } }, modifier = Modifier.weight(1f)) { Text(if (loading) "Searching…" else "Fetch") }
-                Button(onClick = { scope.launch { val old = withContext(Dispatchers.IO) { service.getCached(item.id) }; val result = LyricsService.Result(old?.provider ?: "AirPlayr", item.title, item.artist.orEmpty(), item.album.orEmpty(), item.durationMs / 1000.0, lyrics.ifBlank { null }, old?.syncedLyrics, old?.cues.orEmpty(), old?.confidence ?: 0); withContext(Dispatchers.IO) { service.save(item.id, result) }; AppFeedback.showSnackbar("Lyrics saved."); onDismiss() } }, modifier = Modifier.weight(1f)) { Text("Save") }
+                Button(onClick = { scope.launch {
+                    val old = withContext(Dispatchers.IO) { service.getCached(item.id) }
+                    val syncedText = if (Regex("\\[\\d{1,3}:\\d{2}(?:[.:]\\d{1,3})?\\]").containsMatchIn(lyrics)) lyrics else null
+                    val result = LyricsService.Result("AirPlayr", item.title, item.artist.orEmpty(), item.album.orEmpty(), item.durationMs / 1000.0, lyrics.ifBlank { null }, syncedText, if (syncedText != null) service.parseLrc(syncedText) else emptyList(), old?.confidence ?: 0)
+                    withContext(Dispatchers.IO) { service.save(item.id, result) }
+                    AppFeedback.showSnackbar("Lyrics saved.")
+                    onDismiss()
+                } }, modifier = Modifier.weight(1f)) { Text("Save") }
             }
         }
     }

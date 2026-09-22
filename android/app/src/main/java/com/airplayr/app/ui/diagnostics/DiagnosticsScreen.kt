@@ -45,7 +45,7 @@ fun DiagnosticsScreen(container: AppContainer) {
     Column(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize().statusBarsPadding(), state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("Diagnostics", style = MaterialTheme.typography.headlineMedium) }
-            item { Card(Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(12.dp), 4.dp)) { Text(report.ifBlank { "Collecting diagnostics…" }, Modifier.padding(16.dp)) } }
+            item { Card(Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(12.dp), 4.dp), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) { Text(report.ifBlank { "Collecting diagnostics…" }, Modifier.padding(16.dp)) } }
             item {
                 Button(onClick = { scope.launch { recoveryStatus = runCatching { container.mediaLibrary.fullRescan(); "Library rebuild completed" }.getOrElse { "Recovery failed: ${it.message ?: "unknown error"}" } } }) { Text("Rebuild library") }
             }
@@ -62,7 +62,7 @@ fun DiagnosticsScreen(container: AppContainer) {
             }
             if (recoveryStatus.isNotBlank()) item { Text(recoveryStatus, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             crash?.let { text ->
-                item { Card(Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(12.dp), 4.dp)) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("Last recorded crash", style = MaterialTheme.typography.titleMedium); Text(text) ; Button(onClick = { CrashReporter(context).clear(); crash = null }) { Text("Clear crash record") } } } }
+                item { Card(Modifier.fillMaxWidth().airPlayrShadow(RoundedCornerShape(12.dp), 4.dp), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("Last recorded crash", style = MaterialTheme.typography.titleMedium); Text(text) ; Button(onClick = { CrashReporter(context).clear(); crash = null }) { Text("Clear crash record") } } } }
             }
         }
     }

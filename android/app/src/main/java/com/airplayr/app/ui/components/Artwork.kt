@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -90,11 +91,14 @@ fun Artwork(
     fallbackIconSize: Dp = 22.dp,
     fallbackIconTint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = com.airplayr.app.ui.theme.AirPlayrArtworkTokens.fallbackIconAlpha),
     isPlaying: Boolean = false,
+    initialTargetDp: Dp? = null,
 ) {
     val context = LocalContext.current
+    val density = LocalDensity.current
     var measuredSize by remember(uri, mediaType) { mutableStateOf(IntSize.Zero) }
-    val targetWidth = bucketTarget(measuredSize.width)
-    val targetHeight = bucketTarget(measuredSize.height)
+    val initialTargetPx = remember(initialTargetDp, density) { initialTargetDp?.let { with(density) { it.roundToPx() } } ?: 0 }
+    val targetWidth = bucketTarget(measuredSize.width.takeIf { it > 0 } ?: initialTargetPx)
+    val targetHeight = bucketTarget(measuredSize.height.takeIf { it > 0 } ?: initialTargetPx)
     val bitmap by produceState<ImageBitmap?>(null, uri, mediaType, targetWidth, targetHeight) {
         if (targetWidth <= 0 || targetHeight <= 0) {
             value = null
@@ -186,13 +190,20 @@ private fun calculateSample(width: Int, height: Int, targetWidth: Int, targetHei
 }
 
 @Composable
-fun ArtworkBackdrop(uri: String?, modifier: Modifier = Modifier, alpha: Float = 0.42f, scale: Float = 1.08f) {
+fun ArtworkBackdrop(
+    uri: String?,
+    modifier: Modifier = Modifier,
+    alpha: Float = 0.42f,
+    scale: Float = 1.08f,
+    targetSizePx: Int = 320,
+) {
     val context = LocalContext.current
-    val bitmap = produceState<ImageBitmap?>(null, uri) {
+    val target = targetSizePx.coerceIn(160, 512)
+    val bitmap = produceState<ImageBitmap?>(null, uri, target) {
         value = withContext(Dispatchers.IO) {
             uri?.takeIf { it.isNotBlank() }?.let { raw ->
-                val key = "backdrop:$raw:512"
-                ArtworkMemoryCache.getOrLoad(key) { loadBitmap(context, raw, null, 512, 512) }?.asImageBitmap()
+                val key = "backdrop:$raw:$target"
+                ArtworkMemoryCache.getOrLoad(key) { loadBitmap(context, raw, null, target, target) }?.asImageBitmap()
             }
         }
     }

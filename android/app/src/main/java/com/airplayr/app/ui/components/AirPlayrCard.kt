@@ -6,7 +6,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
@@ -18,8 +17,8 @@ import com.airplayr.app.ui.theme.LocalAirPlayrColors
 object AirPlayrCardDefaults {
     val radius: Dp = AirPlayrRadii.lg
     val largeRadius: Dp = AirPlayrRadii.xxl
-    val elevation: Dp = 5.dp
-    val largeElevation: Dp = 6.dp
+    val elevation: Dp = 0.dp
+    val largeElevation: Dp = 0.dp
 }
 
 @Composable
@@ -36,15 +35,10 @@ fun AirPlayrCard(
         modifier = clickModifier,
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = elevation),
+        // AirPlayr cards are deliberately flat. Keep the parameter for source compatibility,
+        // but do not render a card shadow anywhere.
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) { content() }
 }
 
-fun Modifier.airPlayrShadow(shape: Shape, elevation: Dp): Modifier =
-    if (elevation.value <= 0f) this else shadow(
-        elevation = elevation,
-        shape = shape,
-        ambientColor = Color.Black.copy(alpha = 0.14f),
-        spotColor = Color.Black.copy(alpha = 0.18f),
-        clip = false,
-    )
+fun Modifier.airPlayrShadow(shape: Shape, elevation: Dp): Modifier = this
