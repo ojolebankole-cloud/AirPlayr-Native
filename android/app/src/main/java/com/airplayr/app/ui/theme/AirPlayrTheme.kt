@@ -1,6 +1,6 @@
 package com.airplayr.app.ui.theme
-import androidx.compose.ui.graphics.luminance
 
+import kotlin.math.pow
 import android.app.WallpaperManager
 import android.os.Build
 import android.os.Handler
@@ -114,20 +114,33 @@ private fun blend(from: Color, to: Color, amount: Float): Color = Color(
  * Keeping the generation here means Android 7-11 gets the same semantic role relationships as the
  * Material-You devices instead of falling back to an unrelated default purple palette.
  */
+private fun airPlayrLuminance(color: Color): Float {
+    fun linear(channel: Float): Float =
+        if (channel <= 0.04045f) {
+            channel / 12.92f
+        } else {
+            ((channel + 0.055f) / 1.055f).pow(2.4f)
+        }
+
+    return 0.2126f * linear(color.red) +
+        0.7152f * linear(color.green) +
+        0.0722f * linear(color.blue)
+}
+
 private fun fixedAccentScheme(seed: Color, darkTheme: Boolean): ColorScheme {
     return if (!darkTheme) {
         val primaryContainer = blend(seed, Color.White, 0.82f)
         val secondary = blend(seed, Color.Black, 0.22f)
         val tertiary = blend(seed, Color(0xFF6A5C72), 0.34f)
-        val onAccent = if (seed.luminance() > 0.179f) Color.Black else Color.White
-        val onTertiary = if (tertiary.luminance() > 0.179f) Color.Black else Color.White
+        val onAccent = if (airPlayrLuminance(seed) > 0.179f) Color.Black else Color.White
+        val onTertiary = if (airPlayrLuminance(tertiary) > 0.179f) Color.Black else Color.White
         lightColorScheme(
             primary = seed,
             onPrimary = onAccent,
             primaryContainer = primaryContainer,
             onPrimaryContainer = blend(seed, Color.Black, 0.64f),
             secondary = secondary,
-            onSecondary = if (secondary.luminance() > 0.179f) Color.Black else Color.White,
+            onSecondary = if (airPlayrLuminance(secondary) > 0.179f) Color.Black else Color.White,
             secondaryContainer = blend(seed, Color.White, 0.86f),
             onSecondaryContainer = blend(seed, Color.Black, 0.70f),
             tertiary = tertiary,

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -647,6 +648,7 @@ private fun LazyListScope.musicSongItems(
 @Composable
 private fun AirPlayrFastScrollHandle(state: LazyListState) {
     val colors = LocalAirPlayrColors.current
+    val scrollScope = rememberCoroutineScope()
     val total = state.layoutInfo.totalItemsCount
     val visible = state.layoutInfo.visibleItemsInfo.size.coerceAtLeast(1)
     if (total <= visible + 4) return
@@ -672,7 +674,7 @@ private fun AirPlayrFastScrollHandle(state: LazyListState) {
                             onDrag = { change, dragAmount ->
                                 change.consume()
                                 dragFraction = (dragFraction + dragAmount.y / dragRangePx).coerceIn(0f, 1f)
-                                state.scrollToItem((dragFraction * maxFirst).roundToInt().coerceIn(0, maxFirst))
+                                scrollScope.launch { state.scrollToItem((dragFraction * maxFirst).roundToInt().coerceIn(0, maxFirst)) }
                             },
                         )
                     },
@@ -687,6 +689,7 @@ private fun AirPlayrFastScrollHandle(state: LazyListState) {
 @Composable
 private fun AirPlayrFastScrollGridHandle(state: LazyGridState) {
     val colors = LocalAirPlayrColors.current
+    val scrollScope = rememberCoroutineScope()
     val total = state.layoutInfo.totalItemsCount
     val visible = state.layoutInfo.visibleItemsInfo.size.coerceAtLeast(1)
     if (total <= visible + 4) return
@@ -712,7 +715,7 @@ private fun AirPlayrFastScrollGridHandle(state: LazyGridState) {
                             onDrag = { change, dragAmount ->
                                 change.consume()
                                 dragFraction = (dragFraction + dragAmount.y / dragRangePx).coerceIn(0f, 1f)
-                                state.scrollToItem((dragFraction * maxFirst).roundToInt().coerceIn(0, maxFirst))
+                                scrollScope.launch { state.scrollToItem((dragFraction * maxFirst).roundToInt().coerceIn(0, maxFirst)) }
                             },
                         )
                     },
@@ -1021,7 +1024,7 @@ private fun PlaylistGrid(
             LazyVerticalGrid(
                 state = playlistGridState,
                 columns = GridCells.Fixed(2),
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 12.dp, top = 10.dp, end = 12.dp, bottom = airPlayrBottomContentPadding()),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),

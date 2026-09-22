@@ -181,7 +181,7 @@ fun VideoScreen(container: AppContainer, id: String) {
         onDispose { com.airplayr.app.core.playback.service.AirPlayrPlaybackService.exitVideoMode() }
     }
     LaunchedEffect(id) { vm.load(id) }
-    LaunchedEffect(video?.id) { favorite = video?.id?.let(vm::isFavorite) ?: false }
+    LaunchedEffect(video?.id) { favorite = video?.id?.let { vm.isFavorite(it) } ?: false }
 
     LaunchedEffect(video?.id, resume) {
         val item = video ?: return@LaunchedEffect
@@ -400,7 +400,7 @@ internal fun AndroidVideoSurface(player: Player, fitMode: VideoFitMode, modifier
 }
 
 @Composable
-private fun VideoControlsOverlay(
+private fun BoxScope.VideoControlsOverlay(
     title: String,
     isPlaying: Boolean,
     controlsVisible: Boolean,
