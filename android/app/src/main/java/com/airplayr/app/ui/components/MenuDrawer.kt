@@ -38,15 +38,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.Button
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.outlined.Equalizer
-import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
@@ -76,7 +73,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.core.playback.VideoQueueStore
-import com.airplayr.app.ui.components.AirPlayrMediaArtwork
 import com.airplayr.app.ui.feedback.AppFeedback
 import com.airplayr.app.ui.playback.PlaybackController
 import com.airplayr.app.ui.playback.PlaybackControllerFactory
@@ -151,7 +147,7 @@ fun MenuDrawer(
     val entriesAirPlayr = listOf(
         MenuEntry("Settings", Icons.Outlined.Settings, "settings"),
         MenuEntry("About AirPlayr", Icons.Outlined.Info, "__about"),
-        MenuEntry("Support AirPlayr", Icons.Outlined.FavoriteBorder, "__support"),
+        MenuEntry("Support AirPlayr", Icons.Default.Favorite, "__support"),
     )
 
     Box(Modifier.fillMaxSize()) {
@@ -273,7 +269,7 @@ fun MenuDrawer(
             }
         }
         if (musicQueueSheetOpen) {
-            MusicQueueSheet(musicQueue, playback, onDismiss = { musicQueueSheetOpen = false })
+            MusicQueueSheet(playback, onDismiss = { musicQueueSheetOpen = false })
         }
     }
 }
@@ -318,7 +314,7 @@ private fun DrawerRow(item: MenuEntry, colors: com.airplayr.app.ui.theme.AirPlay
         Box(
             Modifier.size(42.dp).background(if (item.active) colors.primary.copy(alpha = .12f) else colors.surfaceContainerHigh, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)),
             contentAlignment = Alignment.Center,
-        ) { Icon(item.icon, item.label, tint = if (item.active) colors.primary else colors.textPrimary, modifier = Modifier.size(23.dp)) }
+        ) { Icon(item.icon, item.label, tint = when { item.route == "__support" -> Color.Red; item.active -> colors.primary; else -> colors.textPrimary }, modifier = Modifier.size(23.dp)) }
         Text(item.label, style = MaterialTheme.typography.titleMedium.copy(fontFamily = AirPlayrFonts.SmoochSans), color = colors.textPrimary, modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
         item.value?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = colors.textPrimary) }
     }
@@ -340,37 +336,6 @@ private fun QueueDrawerCards(musicCount: Int, videoCount: Int, onMusic: () -> Un
                 Box(Modifier.size(42.dp).background(colors.secondaryContainer, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) { Icon(Icons.Default.VideoLibrary, null, tint = colors.secondary) }
                 Column(Modifier.weight(1f).padding(start = 12.dp)) { Text("Video queue", fontFamily = AirPlayrFonts.SmoochSans, style = MaterialTheme.typography.titleMedium); Text("$videoCount ${if (videoCount == 1) "video" else "videos"}", color = colors.textSecondary, style = MaterialTheme.typography.bodySmall) }
                 Text("COMING", style = MaterialTheme.typography.labelSmall, color = colors.textSecondary)
-            }
-        }
-    }
-}
-
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-@Composable
-private fun MusicQueueSheet(queue: List<com.airplayr.app.core.data.media.MediaItem>, playback: PlaybackController, onDismiss: () -> Unit) {
-    val colors = LocalAirPlayrColors.current
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.surfaceContainerLow) {
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 8.dp)) {
-            Text("MUSIC QUEUE", fontFamily = AirPlayrFonts.OpenSans, fontSize = 11.sp, letterSpacing = 1.3.sp, color = colors.textSecondary)
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Music queue", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 29.sp, color = colors.textPrimary, modifier = Modifier.weight(1f))
-                TextButton(onClick = playback::clearQueue, enabled = queue.isNotEmpty()) { Text("Clear") }
-            }
-            if (queue.isEmpty()) {
-                Text("No songs in the queue", color = colors.textSecondary, modifier = Modifier.padding(vertical = 32.dp))
-            } else {
-                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 520.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    items(queue.size, key = { index -> queue[index].id }) { index ->
-                        val item = queue[index]
-                        Row(Modifier.fillMaxWidth().clickable { playback.playQueueIndex(index) }.padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                            AirPlayrMediaArtwork(item.artworkUri, Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)), 12.dp, item.title, MediaType.AUDIO, AirPlayrIcons.Music, playing = false, onPlay = null, onMore = null)
-                            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                                Text(item.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 16.sp, maxLines = 1)
-                                Text(item.artist ?: "Unknown artist", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary, maxLines = 1)
-                            }
-                        }
-                    }
-                }
             }
         }
     }

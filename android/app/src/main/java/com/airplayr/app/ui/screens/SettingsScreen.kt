@@ -1,5 +1,6 @@
 package com.airplayr.app.ui.screens
 
+import com.airplayr.app.R
 import com.airplayr.app.ui.components.AirPlayrCard
 import android.content.Intent
 import android.net.Uri
@@ -8,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.airplayr.app.ui.airPlayrBottomContentPadding
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -26,7 +28,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -290,9 +294,24 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
 
         item {
         settingSection("About AirPlayr") {
-            Text("AirPlayr", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(16.dp))
-            Text("Music-first local media player for Android. Media, history and settings stay on this device.", color = colors.textSecondary, modifier = Modifier.padding(horizontal = 16.dp))
-            Text("Version ${com.airplayr.app.BuildConfig.VERSION_NAME} · Android ${Build.VERSION.RELEASE}", color = colors.textSecondary, modifier = Modifier.padding(16.dp))
+            Row(
+                Modifier.fillMaxWidth().clickable { onNavigate("about") }.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Image(
+                    painterResource(R.drawable.airplayr_about_logo),
+                    contentDescription = "AirPlayr logo",
+                    modifier = Modifier.size(76.dp),
+                    contentScale = ContentScale.Fit,
+                )
+                Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                    Text("AirPlayr", style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
+                    Text("Kole Design Dev", style = MaterialTheme.typography.bodyMedium, color = colors.textPrimary, modifier = Modifier.padding(top = 2.dp))
+                    Text("Music-first local media player for Android.", style = MaterialTheme.typography.bodySmall, color = colors.textSecondary, maxLines = 2, modifier = Modifier.padding(top = 3.dp))
+                    Text("Version ${com.airplayr.app.BuildConfig.VERSION_NAME} · Android ${Build.VERSION.RELEASE}", style = MaterialTheme.typography.labelSmall, color = colors.textSecondary, modifier = Modifier.padding(top = 4.dp))
+                }
+                Text("›", color = colors.primary, style = MaterialTheme.typography.titleLarge)
+            }
             SettingRow("Reset all settings", "History and playlists are kept", destructive = true, onClick = { confirmAction("Reset settings?", "Restore all AirPlayr settings to their defaults.") { container.preferences.resetToDefaults(); status = "Settings restored" } })
         }
         }

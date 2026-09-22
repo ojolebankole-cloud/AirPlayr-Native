@@ -2,6 +2,7 @@ package com.airplayr.app.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,17 +24,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Copyright
+import androidx.compose.material.icons.filled.Feedback
+import androidx.compose.material.icons.filled.NewReleases
+import androidx.compose.material.icons.filled.PrivacyTip
+import androidx.compose.material.icons.filled.RateReview
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MailOutline
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.ThumbUp
-import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,11 +53,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airplayr.app.R
 import com.airplayr.app.ui.LocalAirPlayrBottomOverlayHeight
 import com.airplayr.app.ui.components.WhatsNewSheet
 import com.airplayr.app.ui.feedback.AppFeedback
@@ -68,10 +69,12 @@ import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.theme.AirPlayrRadii
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 
-private data class ContactAction(
+private data class SocialAction(
     val label: String,
-    val target: String?,
-    val placeholder: Boolean = false,
+    val handle: String,
+    val iconRes: Int? = null,
+    val icon: ImageVector? = null,
+    val target: String? = null,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -112,7 +115,7 @@ fun AboutScreen(
             IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Default.ArrowBack, "Back", tint = colors.textPrimary, modifier = Modifier.size(28.dp))
             }
-            Text("About", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold), color = colors.textPrimary)
+            Text("About AirPlayr", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold), color = colors.textPrimary)
         }
 
         Column(
@@ -120,30 +123,23 @@ fun AboutScreen(
             verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
             Spacer(Modifier.height(2.dp))
-            AppIdentityCard(
-                colors = colors,
-                appVersion = appVersion,
-                onInstagram = { openTarget("https://instagram.com/koled_45") },
-                onX = { openTarget("https://x.com/koled_45") },
-            )
-
-            DeveloperCard(
-                colors = colors,
-                onThread = { openTarget("https://www.threads.net/@koled_45") },
-                onReddit = { openTarget("https://www.reddit.com/user/koled_45/") },
-                onTelegram = { openTarget("https://t.me/koled_45") },
-                onEmail = { openTarget("mailto:koledesigninfo@gmail.com") },
-            )
-
-            ContactCard(
+            AppIdentityCard(colors = colors, appVersion = appVersion)
+            DeveloperCard(colors = colors)
+            SocialCard(
                 colors = colors,
                 actions = listOf(
-                    ContactAction("WhatsApp", "https://wa.me/2349163149653"),
-                    ContactAction("TikTok", "https://www.tiktok.com/@koled_45"),
-                    ContactAction("LinkedIn", null, placeholder = true),
-                    ContactAction("Facebook", null, placeholder = true),
+                    SocialAction("Instagram", "@koled_45", R.drawable.airplayr_instagram, target = "https://instagram.com/koled_45"),
+                    SocialAction("X", "@koled_45", R.drawable.airplayr_x_twitter, target = "https://x.com/koled_45"),
+                    SocialAction("Threads", "@koled_45", R.drawable.airplayr_threads, target = "https://www.threads.net/@koled_45"),
+                    SocialAction("Reddit", "u/koled_45", R.drawable.airplayr_reddit, target = "https://www.reddit.com/user/koled_45/"),
+                    SocialAction("Telegram", "@koled_45", R.drawable.airplayr_telegram, target = "https://t.me/koled_45"),
+                    SocialAction("Email", "koledesigninfo@gmail.com", icon = Icons.Default.MailOutline, target = "mailto:koledesigninfo@gmail.com"),
+                    SocialAction("WhatsApp", "AirPlayr support", R.drawable.airplayr_whatsapp, target = "https://wa.me/2349163149653"),
+                    SocialAction("TikTok", "@koled_45", R.drawable.airplayr_tiktok, target = "https://www.tiktok.com/@koled_45"),
+                    SocialAction("LinkedIn", "Kole Design Dev", R.drawable.airplayr_linkedin),
+                    SocialAction("Facebook", "Kole Design Dev", R.drawable.airplayr_facebook),
                 ),
-                onAction = { action -> action.target?.let(::openTarget) ?: AppFeedback.showSnackbar("${action.label} is coming soon.") },
+                onAction = { action -> action.target?.let(::openTarget) },
             )
 
             SupportCard(
@@ -165,7 +161,9 @@ fun AboutScreen(
             ) {
                 Text("Created with creativity", color = colors.textSecondary, fontSize = 15.sp)
                 Spacer(Modifier.width(6.dp))
-                Icon(AirPlayrIcons.Play, "Created with creativity", tint = colors.primary, modifier = Modifier.size(18.dp))
+                Box(Modifier.size(30.dp).clip(CircleShape).background(colors.primaryContainer), contentAlignment = Alignment.Center) {
+                    Icon(AirPlayrIcons.Play, "Created with creativity", tint = colors.primary, modifier = Modifier.size(18.dp))
+                }
             }
             Spacer(Modifier.height(10.dp))
         }
@@ -183,7 +181,7 @@ fun AboutScreen(
     if (privacyOpen) {
         InfoSheet(
             title = "Privacy policy",
-            icon = Icons.Default.Lock,
+            icon = Icons.Default.PrivacyTip,
             text = "AirPlayr is designed around local media. Access to music, video and folders is granted by Android and used to build your on-device library. A full public privacy policy will be published here as the app's privacy documentation is finalized.",
             onDismiss = { privacyOpen = false },
         )
@@ -191,7 +189,7 @@ fun AboutScreen(
     if (copyrightOpen) {
         InfoSheet(
             title = "Copyright",
-            icon = Icons.Default.Info,
+            icon = Icons.Default.Copyright,
             text = "© 2026 Kole Design Dev. AirPlayr and its original interface work are part of this project. Media files remain the property of their respective owners.",
             onDismiss = { copyrightOpen = false },
         )
@@ -202,95 +200,103 @@ fun AboutScreen(
 private fun AppIdentityCard(
     colors: com.airplayr.app.ui.theme.AirPlayrColors,
     appVersion: String,
-    onInstagram: () -> Unit,
-    onX: () -> Unit,
-) {
-    AboutCard(colors) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 26.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
-                Modifier.size(132.dp).clip(RoundedCornerShape(38.dp)).background(colors.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(AirPlayrIcons.Music, "AirPlayr logo", tint = colors.primary, modifier = Modifier.size(74.dp))
-            }
-            Spacer(Modifier.height(20.dp))
-            Text("AirPlayr", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = colors.textPrimary)
-            Box(Modifier.clip(RoundedCornerShape(50.dp)).background(colors.surfaceContainer).padding(horizontal = 13.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
-                Text("v$appVersion", color = colors.primary, fontSize = 12.sp)
-            }
-            Text("Local music and video, made personal.", color = colors.textSecondary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 5.dp))
-            Spacer(Modifier.height(20.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                ContactButton("Instagram  ·  @koled_45", "◎", colors, Modifier.weight(1f), onInstagram)
-                ContactButton("X (Twitter)  ·  @koled_45", "𝕏", colors, Modifier.weight(1f), onX)
-            }
-        }
-    }
-}
-
-@Composable
-private fun DeveloperCard(
-    colors: com.airplayr.app.ui.theme.AirPlayrColors,
-    onThread: () -> Unit,
-    onReddit: () -> Unit,
-    onTelegram: () -> Unit,
-    onEmail: () -> Unit,
 ) {
     AboutCard(colors) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(
-                Modifier.size(104.dp).clip(CircleShape).background(colors.primaryContainer),
+                Modifier.size(158.dp).clip(RoundedCornerShape(42.dp)).background(
+                    Brush.linearGradient(listOf(colors.primaryContainer, colors.secondaryContainer, colors.tertiaryContainer))
+                ),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Default.Person, "Developer", tint = colors.primary, modifier = Modifier.size(58.dp))
+                Image(
+                    painterResource(R.drawable.airplayr_about_logo),
+                    contentDescription = "AirPlayr logo",
+                    modifier = Modifier.fillMaxWidth(0.78f),
+                    contentScale = ContentScale.Fit,
+                )
             }
-            Spacer(Modifier.height(14.dp))
-            Text("DEVELOPED AND DESIGNED BY", fontFamily = AirPlayrFonts.DancingScript, fontSize = 16.sp, color = colors.primary)
-            Spacer(Modifier.height(5.dp))
-            Text("Kole Design Dev", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Medium), color = colors.textPrimary)
-            Spacer(Modifier.height(15.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SocialCircle("@", colors, onThread)
-                SocialCircle("●", colors, onReddit)
-                SocialCircle("✈", colors, onTelegram)
-                SocialCircle("M", colors, onEmail)
+            Spacer(Modifier.height(16.dp))
+            Text("AirPlayr", style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold), color = colors.textPrimary)
+            Text("Music-first local media player for Android.", color = colors.textSecondary, textAlign = TextAlign.Center, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+            Text("Media, history and settings stay on this device.", color = colors.textSecondary, textAlign = TextAlign.Center, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+            Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                InfoPill("v$appVersion", colors)
+                InfoPill("Android ${android.os.Build.VERSION.RELEASE}", colors)
             }
         }
     }
 }
 
 @Composable
-private fun ContactCard(
+private fun DeveloperCard(colors: com.airplayr.app.ui.theme.AirPlayrColors) {
+    AboutCard(colors) {
+        Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Image(
+                painterResource(R.drawable.about_developer_photo),
+                contentDescription = "Developer profile photo",
+                modifier = Modifier.size(112.dp).clip(CircleShape),
+                contentScale = ContentScale.Crop,
+            )
+            Text("DEVELOPED AND DESIGNED BY", fontFamily = AirPlayrFonts.DancingScript, fontSize = 15.sp, color = colors.primary, modifier = Modifier.padding(top = 12.dp))
+            Text("Kole Design Dev", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold), color = colors.textPrimary, modifier = Modifier.padding(top = 4.dp))
+            Text("Building a focused, personal music experience with native Android tools.", color = colors.textSecondary, fontSize = 13.sp, lineHeight = 18.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
+        }
+    }
+}
+
+@Composable
+private fun SocialCard(
     colors: com.airplayr.app.ui.theme.AirPlayrColors,
-    actions: List<ContactAction>,
-    onAction: (ContactAction) -> Unit,
+    actions: List<SocialAction>,
+    onAction: (SocialAction) -> Unit,
 ) {
     AboutCard(colors) {
-        Column(Modifier.fillMaxWidth().padding(20.dp)) {
-            Text("CONTACT", fontFamily = AirPlayrFonts.DancingScript, fontSize = 17.sp, color = colors.primary)
-            Spacer(Modifier.height(12.dp))
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text("CONNECT", fontFamily = AirPlayrFonts.DancingScript, fontSize = 17.sp, color = colors.primary, modifier = Modifier.padding(horizontal = 4.dp, vertical = 5.dp))
             actions.chunked(2).forEach { row ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     row.forEach { action ->
-                        ContactButton(
-                            label = action.label + if (action.placeholder) " · soon" else "",
-                            symbol = when (action.label) {
-                                "WhatsApp" -> "◔"
-                                "TikTok" -> "♪"
-                                "LinkedIn" -> "in"
-                                else -> "f"
-                            },
-                            colors = colors,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onAction(action) },
-                            enabled = !action.placeholder,
-                        )
+                        SocialButton(action, colors, Modifier.weight(1f)) { onAction(action) }
                     }
                     if (row.size == 1) Spacer(Modifier.weight(1f))
                 }
-                Spacer(Modifier.height(10.dp))
             }
         }
+    }
+}
+
+@Composable
+private fun SocialButton(
+    action: SocialAction,
+    colors: com.airplayr.app.ui.theme.AirPlayrColors,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier
+            .height(64.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(colors.surfaceContainer)
+            .then(if (action.target != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(38.dp).clip(CircleShape).background(colors.primaryContainer), contentAlignment = Alignment.Center) {
+            if (action.iconRes != null) Icon(painterResource(action.iconRes), action.label, tint = colors.primary, modifier = Modifier.size(21.dp))
+            else action.icon?.let { Icon(it, action.label, tint = colors.primary, modifier = Modifier.size(21.dp)) }
+        }
+        Column(Modifier.weight(1f).padding(start = 9.dp)) {
+            Text(action.label, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = colors.textPrimary, maxLines = 1)
+            Text(action.handle, fontSize = 10.sp, color = colors.textSecondary, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun InfoPill(text: String, colors: com.airplayr.app.ui.theme.AirPlayrColors) {
+    Box(Modifier.clip(RoundedCornerShape(50)).background(colors.surfaceContainer).padding(horizontal = 11.dp, vertical = 6.dp)) {
+        Text(text, fontSize = 11.sp, color = colors.primary)
     }
 }
 
@@ -309,12 +315,12 @@ private fun SupportCard(
     AboutCard(colors) {
         Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
             Text("SUPPORT", fontFamily = AirPlayrFonts.DancingScript, fontSize = 17.sp, color = colors.primary, modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp))
-            SupportRow("What's new", Icons.Default.AutoAwesome, colors, onWhatsNew)
-            SupportRow("Donate & support", if (loved) Icons.Default.Favorite else Icons.Default.FavoriteBorder, colors, onDonate, iconTint = if (loved) Color.Red else colors.textPrimary)
-            SupportRow("Send feedback", Icons.Default.MailOutline, colors, onFeedback)
-            SupportRow("Send your love with a comment", Icons.Default.ThumbUp, colors, onLoveComment)
-            SupportRow("Privacy policy", Icons.Default.Lock, colors, onPrivacy)
-            SupportRow("Copyright", Icons.Default.Info, colors, onCopyright)
+            SupportRow("What's new", Icons.Default.NewReleases, colors, onWhatsNew)
+            SupportRow("Support AirPlayr", Icons.Default.Favorite, colors, onDonate, iconTint = if (loved) Color.Red else colors.primary)
+            SupportRow("Send feedback", Icons.Default.Feedback, colors, onFeedback)
+            SupportRow("Send me love with a comment", Icons.Default.RateReview, colors, onLoveComment)
+            SupportRow("Privacy policy", Icons.Default.PrivacyTip, colors, onPrivacy)
+            SupportRow("Copyright", Icons.Default.Copyright, colors, onCopyright)
             SupportRow("App version", Icons.Default.Info, colors, {}, value = appVersion, clickable = false)
         }
     }
@@ -336,8 +342,8 @@ private fun SupportRow(
             .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, label, tint = iconTint, modifier = Modifier.size(27.dp))
-        Text(label, color = colors.textPrimary, fontSize = 16.sp, modifier = Modifier.weight(1f).padding(horizontal = 18.dp))
+        Icon(icon, label, tint = iconTint, modifier = Modifier.size(25.dp))
+        Text(label, color = colors.textPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f).padding(horizontal = 16.dp))
         if (value != null) {
             Text(value, color = colors.textSecondary, fontSize = 13.sp)
         } else if (clickable) {
@@ -357,35 +363,9 @@ private fun AboutCard(colors: com.airplayr.app.ui.theme.AirPlayrColors, content:
     ) { content() }
 }
 
-@Composable
-private fun ContactButton(label: String, symbol: String, colors: com.airplayr.app.ui.theme.AirPlayrColors, modifier: Modifier, onClick: () -> Unit, enabled: Boolean = true) {
-    Row(
-        modifier
-            .height(58.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(if (enabled) colors.surfaceContainer else colors.surfaceContainerHigh.copy(alpha = .55f))
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Text(symbol, color = if (enabled) colors.textPrimary else colors.textSecondary, fontWeight = FontWeight.Bold, fontSize = 21.sp)
-        Spacer(Modifier.width(10.dp))
-        Text(label, color = if (enabled) colors.textPrimary else colors.textSecondary, fontSize = 13.sp, maxLines = 1)
-    }
-}
-
-@Composable
-private fun SocialCircle(label: String, colors: com.airplayr.app.ui.theme.AirPlayrColors, onClick: () -> Unit) {
-    Box(
-        Modifier.size(58.dp).clip(CircleShape).background(colors.surfaceContainer).clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { Text(label, color = colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = if (label == "in") 18.sp else 20.sp) }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DonateSheet(onDismiss: () -> Unit) {
+fun DonateSheet(onDismiss: () -> Unit) {
     val colors = LocalAirPlayrColors.current
     ModalBottomSheet(
         onDismissRequest = onDismiss,

@@ -30,8 +30,8 @@ class DspRepository(private val context: Context) {
             lockPitch = p[LOCK] ?: false,
             eqEnabled = p[EQ_ENABLED] ?: true,
             eqPreset = p[EQ_PRESET] ?: "flat",
-            bassMb = (p[EQ_BASS] ?: 0).coerceIn(-1500, 1500),
-            loudnessMb = (p[EQ_LOUDNESS] ?: 0).coerceIn(0, 1500),
+            bassMb = (p[EQ_BASS] ?: 0).coerceIn(0, 1000),
+            loudnessMb = (p[EQ_LOUDNESS] ?: 0).coerceIn(0, 1000),
             virtualizerStrength = (p[EQ_VIRTUALIZER] ?: 0).coerceIn(0, 1000),
             bands = decodeBands(p[EQ_BANDS]),
         )
@@ -42,8 +42,10 @@ class DspRepository(private val context: Context) {
     suspend fun setPreservePitch(value: Boolean) = context.airPlayrDspStore.edit { it[PRESERVE] = value }
     suspend fun setLockPitch(value: Boolean) = context.airPlayrDspStore.edit { it[LOCK] = value }
     suspend fun setBand(index: Int, levelMb: Int) { context.airPlayrDspStore.edit { p ->
-        val current = decodeBands(p[EQ_BANDS]).toMutableMap(); current[index.coerceAtLeast(0)] = levelMb
+        val current = decodeBands(p[EQ_BANDS]).toMutableMap()
+        current[index.coerceAtLeast(0)] = levelMb.coerceIn(-1200, 1200)
         p[EQ_BANDS] = current.entries.sortedBy { it.key }.joinToString(";") { "${it.key}:${it.value}" }
+        p[EQ_PRESET] = "custom"
     } }
 
     suspend fun clearBands() = context.airPlayrDspStore.edit { it.remove(EQ_BANDS) }
@@ -54,9 +56,21 @@ class DspRepository(private val context: Context) {
         context.airPlayrDspStore.edit {
             it[EQ_ENABLED] = enabled
             it[EQ_PRESET] = preset
-            it[EQ_BASS] = bassMb.coerceIn(-1500, 1500)
-            it[EQ_LOUDNESS] = loudnessMb.coerceIn(0, 1500)
+            it[EQ_BASS] = bassMb.coerceIn(0, 1000)
+            it[EQ_LOUDNESS] = loudnessMb.coerceIn(0, 1000)
             it[EQ_VIRTUALIZER] = virtualizerStrength.coerceIn(0, 1000)
+        }
+
+    suspend fun setPreset(enabled: Boolean, preset: String, bands: Map<Int, Int>) =
+        context.airPlayrDspStore.edit { p ->
+            p[EQ_ENABLED] = enabled
+            p[EQ_PRESET] = preset
+            p[EQ_BASS] = 0
+            p[EQ_LOUDNESS] = 0
+            p[EQ_VIRTUALIZER] = 0
+            p[EQ_BANDS] = bands.entries
+                .sortedBy { it.key }
+                .joinToString(";") { "${it.key}:${it.value.coerceIn(-1200, 1200)}" }
         }
 }
 

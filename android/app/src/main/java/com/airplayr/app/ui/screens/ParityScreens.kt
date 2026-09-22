@@ -308,28 +308,6 @@ private fun FeatureMediaRow(item: MediaItem, colors: com.airplayr.app.ui.theme.A
 }
 
 
-@Composable
-fun QueueScreen(appContext: android.content.Context) {
-    val playback: PlaybackController = androidx.lifecycle.viewmodel.compose.viewModel(factory = com.airplayr.app.ui.playback.PlaybackControllerFactory(appContext))
-    val state by playback.stableState.collectAsStateWithLifecycle()
-    Column(Modifier.fillMaxSize()) {
-        ListTopBar("Queue", "${state.queueSize} queued items")
-        AirPlayrCard(Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(26.dp), containerColor = LocalAirPlayrColors.current.surfaceSolid, elevation = 5.dp) {
-            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(state.currentTitle ?: "Nothing playing", style = MaterialTheme.typography.titleLarge)
-                Text(state.currentArtist.orEmpty(), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(if (state.queueSize == 0) "Queue is empty" else "Playing ${state.currentQueueIndex + 1} of ${state.queueSize}")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = playback::skipPrevious, enabled = state.queueSize > 0) { Text("Previous") }
-                    Button(onClick = playback::togglePlayPause, enabled = state.currentId != null) { Text(if (state.isPlaying) "Pause" else "Play") }
-                    Button(onClick = playback::skipNext, enabled = state.queueSize > 0) { Text("Next") }
-                }
-                OutlinedButton(onClick = playback::clearQueue, enabled = state.queueSize > 0) { Text("Clear queue") }
-            }
-        }
-    }
-}
-
 private enum class FolderTab { ALL, MUSIC, VIDEO }
 
 private data class FolderEntry(

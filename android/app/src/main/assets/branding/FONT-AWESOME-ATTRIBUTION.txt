@@ -1,0 +1,4 @@
+The social brand icons bundled in this app are from Font Awesome Free 6.7.2.
+Icons are licensed under CC BY 4.0.
+https://fontawesome.com/license/free
+https://creativecommons.org/licenses/by/4.0/

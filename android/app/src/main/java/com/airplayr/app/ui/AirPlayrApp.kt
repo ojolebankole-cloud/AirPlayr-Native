@@ -57,7 +57,7 @@ import com.airplayr.app.ui.playback.PlaybackController
 import com.airplayr.app.ui.playback.PlaybackControllerFactory
 import com.airplayr.app.ui.screens.SettingsScreen
 import com.airplayr.app.ui.screens.AboutScreen
-import com.airplayr.app.ui.screens.QueueScreen
+import com.airplayr.app.ui.screens.DonateSheet
 import com.airplayr.app.ui.screens.StatsScreen
 import com.airplayr.app.ui.screens.FoldersScreen
 import com.airplayr.app.ui.screens.MyPlaylistsScreen
@@ -103,6 +103,7 @@ fun AirPlayrApp(
     var permissionFlowCompleted by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var startupContentReady by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var menuOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var donateOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val syncState by container.syncState.collectAsStateWithLifecycle()
     val safScanState by container.safScanState.collectAsStateWithLifecycle()
     val rootScope = androidx.compose.runtime.rememberCoroutineScope()
@@ -301,7 +302,7 @@ fun AirPlayrApp(
                 composable("settings") {
                     SettingsScreen(container = container, onDiagnostics = { navigate("diagnostics") }, onMetadata = { navigate("metadata") }, onNavigate = { route -> navigate(route) })
                 }
-                composable("player") { PlayerScreen(container.appContext, onBack = { navController.popBackStack() }, onEqualizer = { navigate("equalizer") }, onQueue = { navigate("queue") }, onNavigate = { route -> navigate(route) }) }
+                composable("player") { PlayerScreen(container.appContext, onBack = { navController.popBackStack() }, onEqualizer = { navigate("equalizer") }, onNavigate = { route -> navigate(route) }) }
                 composable("equalizer") { EqualizerScreen(container, onBack = { navController.popBackStack() }) }
                 composable("search") {
                     SearchScreen(
@@ -325,7 +326,6 @@ fun AirPlayrApp(
                 composable("collections") { CollectionsScreen(container, libraryViewModel, { route -> navigate(route) }, playbackController) }
                 composable("metadata") { MetadataScreen(container, libraryViewModel) }
                 composable("diagnostics") { DiagnosticsScreen(container) }
-                composable("queue") { QueueScreen(container.appContext) }
                 composable("listening-watching-stats") { StatsScreen(
                     container = container,
                     libraryViewModel = libraryViewModel,
@@ -443,7 +443,7 @@ fun AirPlayrApp(
                     onNavigate = { route -> navigate(route) },
                     onScanMedia = { scanMediaLauncher.launch(null) },
                     onAbout = { navigate("about") },
-                    onSupport = { navigate("about") },
+                    onSupport = { donateOpen = true },
                 )
             }
 
@@ -460,6 +460,10 @@ fun AirPlayrApp(
                     permissionFlowCompleted = true
                 },
             )
+
+            if (donateOpen) {
+                DonateSheet(onDismiss = { donateOpen = false })
+            }
 
             if (whatsNewOpen) {
                 WhatsNewSheet(version = appVersion, onDismiss = {

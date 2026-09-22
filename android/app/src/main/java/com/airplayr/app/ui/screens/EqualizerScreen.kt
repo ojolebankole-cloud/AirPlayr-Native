@@ -61,13 +61,19 @@ import com.airplayr.app.ui.airPlayrBottomContentPadding
 import com.airplayr.app.ui.components.airPlayrShadow
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 private val freqs = listOf("32", "64", "125", "250", "500", "1k", "2k", "4k", "8k", "16k")
-private val presets = listOf("flat", "acoustic", "bass_booster", "bass_reducer", "vocal", "treble", "rock")
-private const val BAND_COLUMN_WIDTH = 114
-private const val GRAPH_PLOT_HEIGHT = 575
+private val presets = listOf(
+    "custom", "flat", "acoustic", "bass_booster", "bass_reducer", "classical", "deep",
+    "electronic", "hip_hop", "modern_hip_hop", "90s", "rnb", "jazz", "latin", "stereo",
+    "loudness", "pop", "piano", "lounge", "rock", "gospel", "choir", "small_speakers",
+    "treble_booster", "treble_reducer",
+)
+private const val BAND_COLUMN_WIDTH = 78
+private const val GRAPH_PLOT_HEIGHT = 330
 
 @Composable
 fun EqualizerScreen(container: AppContainer, onBack: () -> Unit = {}) {
@@ -121,17 +127,17 @@ fun EqualizerScreen(container: AppContainer, onBack: () -> Unit = {}) {
                 bass = bass,
                 surround = surround,
                 volume = volume,
-                onBassChange = {
-                    bass = it
-                    scope.launch { container.dsp.setEqualizer(state.eqEnabled, "manual", (it / 100f * 1500f).roundToInt(), state.loudnessMb, state.virtualizerStrength) }
+                onBassChange = { bass = it },
+                onBassChangeFinished = {
+                    scope.launch { container.dsp.setEqualizer(state.eqEnabled, "manual", (bass / 100f * 1500f).roundToInt(), state.loudnessMb, state.virtualizerStrength) }
                 },
-                onSurroundChange = {
-                    surround = it
-                    scope.launch { container.dsp.setEqualizer(state.eqEnabled, "manual", state.bassMb, state.loudnessMb, (it / 100f * 1000f).roundToInt()) }
+                onSurroundChange = { surround = it },
+                onSurroundChangeFinished = {
+                    scope.launch { container.dsp.setEqualizer(state.eqEnabled, "manual", state.bassMb, state.loudnessMb, (surround / 100f * 1000f).roundToInt()) }
                 },
-                onVolumeChange = {
-                    volume = it
-                    scope.launch { container.dsp.setEqualizer(state.eqEnabled, "manual", state.bassMb, (it / 100f * 1500f).roundToInt(), state.virtualizerStrength) }
+                onVolumeChange = { volume = it },
+                onVolumeChangeFinished = {
+                    scope.launch { container.dsp.setEqualizer(state.eqEnabled, "manual", state.bassMb, (volume / 100f * 1500f).roundToInt(), state.virtualizerStrength) }
                 },
             )
         }
@@ -173,8 +179,8 @@ private fun EqualizerHeader(enabled: Boolean, onBack: () -> Unit, onEnabledChang
                 "Equalizer",
                 fontFamily = AirPlayrFonts.OpenSans,
                 fontWeight = FontWeight.Bold,
-                fontSize = 48.sp,
-                lineHeight = 54.sp,
+                fontSize = 42.sp,
+                lineHeight = 48.sp,
                 color = colors.textPrimary,
                 modifier = Modifier.padding(top = 24.dp),
             )
@@ -202,10 +208,10 @@ private fun EqualizerGraphCard(
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(710.dp)
+                .height(430.dp)
                 .horizontalScroll(scroll),
         ) {
-            Box(Modifier.width(contentWidth).height(710.dp)) {
+            Box(Modifier.width(contentWidth).height(430.dp)) {
                 GraphGrid(bands, colors)
                 Row(
                     Modifier
@@ -262,10 +268,10 @@ private fun BandColumn(
     onChange: (Float) -> Unit,
 ) {
     val plotHeight = GRAPH_PLOT_HEIGHT.dp
-    val thumbHeight = 54.dp
+    val thumbHeight = 42.dp
     val density = LocalDensity.current
     val normalized = ((12f - value) / 24f).coerceIn(0f, 1f)
-    val y = normalized * (GRAPH_PLOT_HEIGHT - 54).toFloat()
+    val y = normalized * (GRAPH_PLOT_HEIGHT - 42).toFloat()
 
     Column(
         Modifier.width(BAND_COLUMN_WIDTH.dp),
@@ -294,7 +300,7 @@ private fun BandColumn(
                 Modifier
                     .align(Alignment.TopCenter)
                     .offset(y = y.dp)
-                    .size(width = 48.dp, height = thumbHeight)
+                    .size(width = 40.dp, height = thumbHeight)
                     .clip(RoundedCornerShape(16.dp))
                     .background(colors.primary)
                     .border(2.dp, colors.surface.copy(alpha = 0.78f), RoundedCornerShape(16.dp))
@@ -304,10 +310,10 @@ private fun BandColumn(
                             onDragStart = { dragValue = value },
                             onDrag = { change, dragAmount ->
                                 change.consume()
-                                val currentY = (12f - dragValue) / 24f * (GRAPH_PLOT_HEIGHT - 54)
+                                val currentY = (12f - dragValue) / 24f * (GRAPH_PLOT_HEIGHT - 42)
                                 val dragDp = with(density) { dragAmount.y.toDp().value }
-                                val nextY = (currentY + dragDp).coerceIn(0f, (GRAPH_PLOT_HEIGHT - 54).toFloat())
-                                dragValue = 12f - (nextY / (GRAPH_PLOT_HEIGHT - 54).toFloat()) * 24f
+                                val nextY = (currentY + dragDp).coerceIn(0f, (GRAPH_PLOT_HEIGHT - 42).toFloat())
+                                dragValue = 12f - (nextY / (GRAPH_PLOT_HEIGHT - 42).toFloat()) * 24f
                                 onChange(dragValue)
                             },
                         )
@@ -315,11 +321,11 @@ private fun BandColumn(
             )
         }
         Column(
-            Modifier.height(92.dp),
+            Modifier.height(64.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(freqs[index], fontSize = 12.sp, color = colors.textSecondary)
-            Text(value.roundToInt().toString(), fontSize = 12.sp, color = colors.textSecondary, modifier = Modifier.padding(top = 5.dp))
+            Text(freqs[index], fontSize = 11.sp, color = colors.textSecondary)
+            Text(value.roundToInt().toString(), fontSize = 11.sp, color = colors.textSecondary, modifier = Modifier.padding(top = 5.dp))
         }
     }
 }
@@ -335,16 +341,12 @@ private fun PresetRow(selected: String, onPreset: (String) -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         presets.forEach { preset ->
-            val label = when (preset) {
-                "bass_booster" -> "Bass Booster"
-                "bass_reducer" -> "Bass Reducer"
-                else -> preset.replaceFirstChar(Char::uppercase)
-            }
+            val label = presetLabel(preset)
             FilterChip(
                 selected = selected == preset || (preset == "bass_booster" && selected == "bass"),
                 onClick = { onPreset(preset) },
                 label = { Text(label, maxLines = 1, overflow = TextOverflow.Clip) },
-                modifier = Modifier.height(58.dp),
+                modifier = Modifier.height(46.dp),
                 shape = RoundedCornerShape(29.dp),
             )
         }
@@ -357,8 +359,11 @@ private fun EffectsCard(
     surround: Float,
     volume: Float,
     onBassChange: (Float) -> Unit,
+    onBassChangeFinished: () -> Unit,
     onSurroundChange: (Float) -> Unit,
+    onSurroundChangeFinished: () -> Unit,
     onVolumeChange: (Float) -> Unit,
+    onVolumeChangeFinished: () -> Unit,
 ) {
     val colors = LocalAirPlayrColors.current
     Card(
@@ -374,6 +379,7 @@ private fun EffectsCard(
             description = "Lifts the bottom two octaves without touching the rest of the curve.",
             value = bass,
             onChange = onBassChange,
+            onChangeFinished = onBassChangeFinished,
         )
         Divider(color = colors.outlineVariant.copy(alpha = 0.45f))
         EffectRow(
@@ -381,6 +387,7 @@ private fun EffectsCard(
             description = "Widens the stereo image to simulate spatial depth.",
             value = surround,
             onChange = onSurroundChange,
+            onChangeFinished = onSurroundChangeFinished,
         )
         Divider(color = colors.outlineVariant.copy(alpha = 0.45f))
         EffectRow(
@@ -388,6 +395,7 @@ private fun EffectsCard(
             description = "Amplifies playback past unity. A look-ahead limiter prevents hard clipping; very high values may still distort.",
             value = volume,
             onChange = onVolumeChange,
+            onChangeFinished = onVolumeChangeFinished,
         )
     }
 }
@@ -398,6 +406,7 @@ private fun EffectRow(
     description: String,
     value: Float,
     onChange: (Float) -> Unit,
+    onChangeFinished: () -> Unit,
 ) {
     val colors = LocalAirPlayrColors.current
     Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 26.dp)) {
@@ -405,94 +414,117 @@ private fun EffectRow(
             Text(
                 title,
                 modifier = Modifier.weight(1f),
-                fontFamily = AirPlayrFonts.OpenSans,
-                fontWeight = FontWeight.Bold,
-                fontSize = 23.sp,
-                lineHeight = 29.sp,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp,
+                lineHeight = 23.sp,
                 color = colors.textPrimary,
             )
             Text(
                 if (value <= 0.5f) "off" else "${value.roundToInt()}%",
-                fontFamily = AirPlayrFonts.OpenSans,
-                fontWeight = FontWeight.Bold,
-                fontSize = 19.sp,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 14.sp,
                 color = colors.primary,
             )
         }
         Text(
             description,
             modifier = Modifier.padding(top = 8.dp),
-            fontFamily = AirPlayrFonts.OpenSans,
-            fontSize = 16.sp,
-            lineHeight = 23.sp,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
             color = colors.textSecondary,
         )
-        PercentageSlider(value = value, onChange = onChange, modifier = Modifier.padding(top = 20.dp))
+        PercentageSlider(value = value, onChange = onChange, onChangeFinished = onChangeFinished, modifier = Modifier.padding(top = 12.dp))
     }
 }
 
 @Composable
-private fun PercentageSlider(value: Float, onChange: (Float) -> Unit, modifier: Modifier = Modifier) {
+private fun PercentageSlider(
+    value: Float,
+    onChange: (Float) -> Unit,
+    onChangeFinished: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val colors = LocalAirPlayrColors.current
-    BoxWithConstraints(
-        modifier
-            .fillMaxWidth()
-            .height(42.dp)
-            .pointerInput(Unit) {
-                detectTapGestures { offset ->
-                    onChange((offset.x / size.width * 100f).coerceIn(0f, 100f))
-                }
-            }
-            .pointerInput(Unit) {
-                detectDragGestures { change, _ ->
-                    change.consume()
-                    onChange((change.position.x / size.width * 100f).coerceIn(0f, 100f))
-                }
-            },
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(8.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(colors.outlineVariant.copy(alpha = 0.55f)),
-        )
-        Box(
-            Modifier
-                .fillMaxWidth(value.coerceIn(0f, 1f))
-                .height(8.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(colors.primary),
-        )
-        Box(
-            Modifier
-                .offset(x = ((value / 100f) * (maxWidth.value - 6f)).dp)
-                .width(6.dp)
-                .height(42.dp)
-                .clip(RoundedCornerShape(3.dp))
-                .background(colors.primary),
-        )
-        Box(
-            Modifier
-                .align(Alignment.CenterEnd)
-                .size(7.dp)
-                .clip(androidx.compose.foundation.shape.CircleShape)
-                .background(colors.textPrimary.copy(alpha = 0.75f)),
-        )
-    }
+    androidx.compose.material3.Slider(
+        value = value.coerceIn(0f, 100f),
+        onValueChange = { onChange(it) },
+        onValueChangeFinished = onChangeFinished,
+        valueRange = 0f..100f,
+        modifier = modifier.fillMaxWidth().height(32.dp),
+        colors = androidx.compose.material3.SliderDefaults.colors(
+            thumbColor = colors.primary,
+            activeTrackColor = colors.primary,
+            inactiveTrackColor = colors.outlineVariant.copy(alpha = 0.55f),
+        ),
+    )
+}
+
+private fun presetLabel(preset: String): String = when (preset) {
+    "flat" -> "Flat"
+    "custom" -> "Custom"
+    "acoustic" -> "Acoustic"
+    "bass_booster" -> "Bass booster"
+    "bass_reducer" -> "Bass reducer"
+    "classical" -> "Classical"
+    "deep" -> "Deep"
+    "electronic" -> "Electronic"
+    "hip_hop" -> "Hip hop"
+    "modern_hip_hop" -> "Modern hip hop"
+    "90s" -> "90s"
+    "rnb" -> "RnB"
+    "jazz" -> "Jazz"
+    "latin" -> "Latin"
+    "stereo" -> "Stereo"
+    "loudness" -> "Loudness"
+    "pop" -> "Pop"
+    "piano" -> "Piano"
+    "lounge" -> "Lounge"
+    "rock" -> "Rock"
+    "gospel" -> "Gospel"
+    "choir" -> "Choir"
+    "small_speakers" -> "Small speakers"
+    "treble_booster" -> "Treble booster"
+    "treble_reducer" -> "Treble reducer"
+    else -> preset
 }
 
 private suspend fun applyPreset(container: AppContainer, preset: String) {
     val curves = mapOf(
         "flat" to listOf(0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
-        "acoustic" to listOf(2, 1, 1, 2, 3, 2, 1, 2, 2, 1),
-        "bass_booster" to listOf(8, 7, 6, 4, 2, 1, 0, 0, 0, 0),
-        "bass_reducer" to listOf(-8, -7, -6, -4, -2, -1, 0, 0, 0, 0),
-        "vocal" to listOf(-2, -1, 1, 3, 4, 4, 3, 2, 0, -1),
-        "treble" to listOf(0, 0, 0, 1, 2, 3, 5, 7, 8, 9),
+        "custom" to listOf(0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        "acoustic" to listOf(3, 2, 1, 2, 3, 2, 1, 2, 2, 1),
+        "bass_booster" to listOf(9, 8, 7, 5, 3, 1, 0, 0, 0, 0),
+        "bass_reducer" to listOf(-9, -8, -7, -5, -3, -1, 0, 0, 0, 0),
+        "classical" to listOf(0, 0, 0, 1, 2, 2, 2, 3, 4, 4),
+        "deep" to listOf(7, 5, 3, 1, 0, -1, -1, 0, 1, 2),
+        "electronic" to listOf(5, 4, 1, 0, -2, 1, 3, 5, 4, 3),
+        "hip_hop" to listOf(6, 5, 2, 1, -1, 0, 2, 2, 1, 4),
+        "modern_hip_hop" to listOf(7, 6, 3, 0, -1, 1, 3, 4, 2, 5),
+        "90s" to listOf(5, 4, 2, 0, -1, 0, 2, 3, 3, 2),
+        "rnb" to listOf(5, 4, 2, 0, -1, 1, 3, 4, 3, 2),
+        "jazz" to listOf(3, 2, 1, 2, 2, 1, 2, 2, 2, 2),
+        "latin" to listOf(5, 4, 2, 1, 0, 1, 3, 3, 2, 2),
+        "stereo" to listOf(2, 1, 1, 0, 0, 0, 1, 2, 3, 3),
+        "loudness" to listOf(5, 4, 3, 1, 0, 0, 1, 3, 4, 5),
+        "pop" to listOf(-1, 1, 3, 4, 2, 0, 2, 3, 2, 1),
+        "piano" to listOf(2, 1, 1, 2, 3, 3, 2, 2, 1, 0),
+        "lounge" to listOf(2, 2, 1, 1, 0, 1, 2, 2, 1, 0),
         "rock" to listOf(6, 4, 2, -1, -2, 1, 3, 4, 5, 5),
+        "gospel" to listOf(3, 3, 2, 1, 1, 2, 3, 3, 2, 2),
+        "choir" to listOf(-1, 0, 2, 4, 4, 3, 2, 1, 0, -1),
+        "small_speakers" to listOf(-3, 2, 4, 3, 1, 0, 2, 3, 4, 5),
+        "treble_booster" to listOf(0, 0, 0, 1, 2, 3, 5, 7, 8, 9),
+        "treble_reducer" to listOf(0, 0, 0, -1, -2, -3, -5, -7, -8, -9),
     )
-    container.dsp.setEqualizer(true, preset, 0, 0, 0)
-    curves[preset].orEmpty().forEachIndexed { index, value -> container.dsp.setBand(index, value * 100) }
+    val currentState = container.dsp.state.first()
+    val bands = if (preset == "custom") {
+        (0..9).associateWith { currentState.bands[it] ?: 0 }
+    } else {
+        val curve = curves[preset] ?: curves.getValue("custom")
+        curve.mapIndexed { index, value -> index to value * 100 }.toMap()
+    }
+    container.dsp.setPreset(true, preset, bands)
 }

@@ -166,6 +166,13 @@ class PlaybackController(private val appContext: Context) : ViewModel() {
     fun playNext(media: MediaItem) { if (media.mediaType == MediaType.AUDIO) controller?.addMediaItem((controller?.currentMediaItemIndex ?: -1) + 1, MediaItemMapper.toExo(media)) }
     fun playLast(media: MediaItem) { if (media.mediaType == MediaType.AUDIO) controller?.addMediaItem(MediaItemMapper.toExo(media)) }
     fun removeFromQueue(index: Int) { controller?.removeMediaItem(index) }
+    fun moveQueueItem(fromIndex: Int, toIndex: Int) {
+        controller?.let { c ->
+            if (fromIndex !in 0 until c.mediaItemCount) return@let
+            val target = toIndex.coerceIn(0, c.mediaItemCount - 1)
+            if (fromIndex != target) c.moveMediaItem(fromIndex, target)
+        }
+    }
     fun playQueueIndex(index: Int) {
         controller?.let { c ->
             if (index in 0 until c.mediaItemCount) { c.seekToDefaultPosition(index); c.play() }

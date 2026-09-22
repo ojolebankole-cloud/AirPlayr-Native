@@ -4,6 +4,7 @@ import android.media.audiofx.BassBoost
 import android.media.audiofx.Equalizer
 import android.media.audiofx.LoudnessEnhancer
 import android.media.audiofx.Virtualizer
+import kotlin.math.roundToInt
 
 /**
  * Owns the Android audio effects for exactly one live audio session.
@@ -62,11 +63,11 @@ class AudioEffectsEngine {
     }
 
     fun setBass(millibels: Int) {
-        bassBoost?.let { runCatching { it.setStrength((millibels.coerceIn(-1500, 1500) + 1500).coerceIn(0, 1000).toShort()) } }
+        bassBoost?.let { runCatching { it.setStrength(millibels.coerceIn(0, 1000).toShort()) } }
     }
 
     fun setLoudness(millibels: Int) {
-        loudness?.let { runCatching { it.setTargetGain(millibels.coerceIn(0, 1500)) } }
+        loudness?.let { runCatching { it.setTargetGain(millibels.coerceIn(0, 1000)) } }
     }
 
     fun setVirtualizer(strength: Int) {
@@ -86,7 +87,22 @@ class AudioEffectsEngine {
     fun setBands(bands: Map<Int, Int>): Boolean {
         val eq = equalizer ?: return false
         return runCatching {
-            bands.forEach { (index, level) -> setBand(index, level) }
+            if (bands.isEmpty()) return@runCatching true
+            val logical = (0..9).map { index -> bands[index] ?: 0 }
+            val count = eq.numberOfBands
+            if (count <= 0) return@runCatching false
+            val range = eq.bandLevelRange
+            for (bandIndex in 0 until count) {
+                val position = if (count == 1) 0f else bandIndex.toFloat() * 9f / (count - 1)
+                val low = position.toInt().coerceIn(0, 9)
+                val high = (low + 1).coerceAtMost(9)
+                val fraction = position - low
+                val level = logical[low] + (logical[high] - logical[low]) * fraction
+                eq.setBandLevel(
+                    bandIndex.toShort(),
+                    level.roundToInt().coerceIn(range[0].toInt(), range[1].toInt()).toShort(),
+                )
+            }
             true
         }.getOrDefault(false)
     }

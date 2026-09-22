@@ -100,6 +100,7 @@ import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.components.AirPlayrSheetScaffold
 import com.airplayr.app.ui.components.Artwork
 import com.airplayr.app.ui.components.LyricsEditorSheet
+import com.airplayr.app.ui.components.MusicQueueSheet
 import com.airplayr.app.ui.components.LyricsSheet
 import com.airplayr.app.ui.components.SleepTimerSheet
 import com.airplayr.app.ui.components.SpeedPitchSheet
@@ -119,7 +120,7 @@ import kotlin.math.min
 private enum class PlayerSheet { More, Lyrics, Sleep, Speed, Details, Tags, LyricsEdit, Playlist, QueueSaved }
 
 @Composable
-fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Unit, onQueue: () -> Unit, onNavigate: (String) -> Unit) {
+fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Unit, onNavigate: (String) -> Unit) {
     val colors = LocalAirPlayrColors.current
     val config = LocalConfiguration.current
     val controller: PlaybackController = viewModel(factory = PlaybackControllerFactory(appContext))
@@ -129,6 +130,7 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
     val dspRepo = remember(appContext) { DspRepository(appContext) }
     val dsp by dspRepo.state.collectAsStateWithLifecycle(initialValue = com.airplayr.app.core.playback.dsp.DspState())
     var sheet by remember { mutableStateOf<PlayerSheet?>(null) }
+    var queueOpen by remember { mutableStateOf(false) }
     var favorite by remember(state.currentId) { mutableStateOf(false) }
     var currentItem by remember(state.currentId) { mutableStateOf<MediaItem?>(null) }
     var slider by remember { mutableFloatStateOf(0f) }
@@ -293,7 +295,7 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
                     PlayerAction(AirPlayrIcons.Shuffle, "Shuffle", state.shuffle, colors) { controller.toggleShuffle() }
                     PlayerAction(if (favorite) AirPlayrIcons.Favorite else AirPlayrIcons.FavoriteBorder, if (favorite) "Remove favorite" else "Add favorite", false, colors, onClick = ::setFav)
                     PlayerAction(AirPlayrIcons.Sleep, "Sleep timer", false, colors) { sheet = PlayerSheet.Sleep }
-                    PlayerAction(AirPlayrIcons.Queue, "Queue", false, colors, onClick = onQueue)
+                    PlayerAction(AirPlayrIcons.Queue, "Queue", false, colors, onClick = { queueOpen = true })
                     PlayerAction(if (state.repeatMode == REPEAT_ONE) AirPlayrIcons.RepeatOne else AirPlayrIcons.Repeat, repeatLabel, state.repeatMode != REPEAT_OFF, colors) { controller.cycleRepeat() }
                 }
             }
@@ -377,6 +379,9 @@ fun PlayerScreen(appContext: Context, onBack: () -> Unit, onEqualizer: () -> Uni
             PlayerSheet.Tags -> currentItem?.let { TagEditorSheet(appContext, it, com.airplayr.app.core.metadata.MetadataRepository(appContext), { sheet = null }) { sheet = null } }
             PlayerSheet.LyricsEdit -> currentItem?.let { LyricsEditorSheet(appContext, it, { sheet = null }) }
             null -> Unit
+        }
+        if (queueOpen) {
+            MusicQueueSheet(controller, onDismiss = { queueOpen = false })
         }
     }
 }
