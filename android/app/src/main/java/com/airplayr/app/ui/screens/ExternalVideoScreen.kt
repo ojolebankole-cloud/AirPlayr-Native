@@ -225,7 +225,7 @@ fun ExternalVideoScreen(
                         val a = context as? Activity
                         a?.let { it.requestedOrientation = if (it.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
                         touch()
-                    }
+                    })
                 }
                 Row(Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 18.dp, bottom = 76.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     GlassIconButton(Icons.Default.Forward10, "Forward 10 seconds", Modifier.size(50.dp), onClick = { seek(10_000L) })
