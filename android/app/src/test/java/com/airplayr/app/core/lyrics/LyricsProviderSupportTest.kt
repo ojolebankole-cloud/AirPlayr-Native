@@ -17,9 +17,9 @@ class LyricsProviderSupportTest {
     @Test
     fun ttmlParser_convertsTimedParagraphs() {
         val ttml = """
-            <tt xmlns=\"http://www.w3.org/ns/ttml\"><body><div>
-              <p begin=\"00:00:01.50\">Hello <span>world</span></p>
-              <p begin=\"3s\">Again</p>
+            <tt xmlns="http://www.w3.org/ns/ttml"><body><div>
+              <p begin="00:00:01.50">Hello <span>world</span></p>
+              <p begin="3s">Again</p>
             </div></body></tt>
         """.trimIndent()
         val lrc = LyricsProviderSupport.ttmlToLrc(ttml).orEmpty()
