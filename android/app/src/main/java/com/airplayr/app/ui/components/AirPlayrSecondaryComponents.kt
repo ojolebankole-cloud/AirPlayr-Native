@@ -10,6 +10,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -105,8 +107,14 @@ fun AirPlayrWordmark(modifier: Modifier = Modifier) {
     )
     val playrBrush = Brush.linearGradient(
         colors = listOf(c.primary, c.secondary, c.tertiary, c.primary),
-        startX = -180f + (phase * 180f),
-        endX = 220f + (phase * 180f),
+        start = androidx.compose.ui.geometry.Offset(
+            -180f + (phase * 180f),
+            0f,
+        ),
+        end = androidx.compose.ui.geometry.Offset(
+            220f + (phase * 180f),
+            0f,
+        ),
     )
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Text(

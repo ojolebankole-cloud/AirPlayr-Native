@@ -172,8 +172,18 @@ fun SearchScreen(
             SearchEntry(it.id, "video", it.title.ifBlank { it.filename }, it.artist ?: "Video", it)
         }
         (songs + albums + artists + pls + genres + videos).map { entry ->
-            entry.copy(searchable = normalize(listOf(entry.title, entry.subtitle, entry.item?.artist, entry.item?.album, entry.item?.genre, entry.item?.filename)
-                .filterNotNull().joinToString(" "))
+            entry.copy(
+                searchable = normalize(
+                    listOf(
+                        entry.title,
+                        entry.subtitle,
+                        entry.item?.artist,
+                        entry.item?.album,
+                        entry.item?.genre,
+                        entry.item?.filename,
+                    ).filterNotNull().joinToString(" ")
+                )
+            )
         }
     }
 
