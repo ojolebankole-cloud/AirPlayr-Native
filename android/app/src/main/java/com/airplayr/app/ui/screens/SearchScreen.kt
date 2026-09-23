@@ -69,7 +69,11 @@ private data class SearchEntry(
     val subtitle: String,
     val item: MediaItem? = null,
     val routeKey: String? = null,
+    val searchable: String = "",
 )
+
+private val searchCombiningMarksRegex = Regex("\\p{InCombiningDiacriticalMarks}+")
+private val searchWhitespaceRegex = Regex("\\s+")
 
 private val FILTERS = listOf(
     "all" to "All",
@@ -83,14 +87,15 @@ private val FILTERS = listOf(
 
 private fun normalize(value: String?): String =
     java.text.Normalizer.normalize(value.orEmpty().lowercase(Locale.ROOT), java.text.Normalizer.Form.NFD)
-        .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+        .replace(searchCombiningMarksRegex, "")
 
 private fun matches(entry: SearchEntry, query: String): Boolean {
-    val tokens = normalize(query).split(Regex("\\s+")).filter { it.isNotBlank() }
+    val tokens = normalize(query).split(searchWhitespaceRegex).filter { it.isNotBlank() }
     if (tokens.isEmpty()) return true
-    val values = listOf(entry.title, entry.subtitle, entry.item?.artist, entry.item?.album, entry.item?.genre, entry.item?.filename)
-        .filterNotNull().map(::normalize)
-    return tokens.all { token -> values.any { it.contains(token) } }
+    val searchable = entry.searchable.ifBlank {
+        normalize(listOf(entry.title, entry.subtitle, entry.item?.artist, entry.item?.album, entry.item?.genre, entry.item?.filename).filterNotNull().joinToString(" "))
+    }
+    return tokens.all(searchable::contains)
 }
 
 @Composable
@@ -127,7 +132,7 @@ fun SearchScreen(
     val playbackState by playback.stableState.collectAsStateWithLifecycle()
 
     LaunchedEffect(query) {
-        delay(180)
+        delay(120)
         debounced = query.trim()
     }
     LaunchedEffect(Unit) {
@@ -166,7 +171,10 @@ fun SearchScreen(
         val videos = video.map {
             SearchEntry(it.id, "video", it.title.ifBlank { it.filename }, it.artist ?: "Video", it)
         }
-        songs + albums + artists + pls + genres + videos
+        (songs + albums + artists + pls + genres + videos).map { entry ->
+            entry.copy(searchable = normalize(listOf(entry.title, entry.subtitle, entry.item?.artist, entry.item?.album, entry.item?.genre, entry.item?.filename)
+                .filterNotNull().joinToString(" "))
+        }
     }
 
     val recentArtists = remember(snapshot.history, audio) {
@@ -281,7 +289,7 @@ fun SearchScreen(
                             if (query.isEmpty()) Text(
                                 "Search your plays",
                                 color = colors.textSecondary,
-                                fontSize = 15.sp,
+                                fontSize = 17.sp,
                                 fontFamily = AirPlayrFonts.SmoochSans,
                             )
                             inner()
@@ -488,7 +496,7 @@ fun SearchScreen(
         AirPlayrSheetScaffold("Details", "MEDIA", onDismiss = { detailsSheet = null }) {
             Artwork(
                 item.displayArtworkUri(),
-                Modifier.size(92.dp),
+                if (item.mediaType == MediaType.VIDEO) Modifier.width(124.dp).height(70.dp) else Modifier.size(92.dp),
                 18.dp,
                 item.title,
                 item.mediaType,
@@ -618,7 +626,9 @@ private fun SearchContentRow(entry: SearchEntry, colors: com.airplayr.app.ui.the
     val item = entry.item
     Row(Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongPress).background(if (selected) colors.primaryContainer.copy(alpha=.72f) else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(18.dp)).padding(horizontal = 18.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
         Artwork(
-            item.displayArtworkUri(), Modifier.size(64.dp), 16.dp, entry.title, item.mediaType,
+            item.displayArtworkUri(),
+            if (item.mediaType == MediaType.VIDEO) Modifier.width(126.dp).height(71.dp) else Modifier.size(64.dp),
+            16.dp, entry.title, item.mediaType,
             when (entry.type) {
                 "artist" -> AirPlayrIcons.Artist
                 "album" -> AirPlayrIcons.AlbumDisc
@@ -678,7 +688,7 @@ private fun SearchAlbumRow(entry: SearchEntry, colors: com.airplayr.app.ui.theme
 private fun SearchVideoRow(entry: SearchEntry, colors: com.airplayr.app.ui.theme.AirPlayrColors, selected: Boolean = false, onClick: () -> Unit, onLongPress: () -> Unit, onMore: () -> Unit) {
     val item = entry.item ?: return
     Row(Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongPress).background(if (selected) colors.primaryContainer.copy(alpha=.72f) else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(18.dp)).padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Artwork(item.thumbnailUri ?: item.artworkUri, Modifier.width(180.dp).height(102.dp), 16.dp, entry.title, MediaType.VIDEO, AirPlayrIcons.Video, isPlaying = false)
+        Artwork(item.thumbnailUri ?: item.artworkUri, Modifier.width(158.dp).height(89.dp), 16.dp, entry.title, MediaType.VIDEO, AirPlayrIcons.Video, isPlaying = false)
         Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
             Text(entry.title, color = colors.textPrimary, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(entry.subtitle + if (item.durationMs > 0) " · ${formatDuration(item.durationMs)}" else "", color = colors.textSecondary, fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)

@@ -65,6 +65,7 @@ import com.airplayr.app.ui.screens.MyPlaylistsScreen
 import com.airplayr.app.ui.screens.PlaylistDetailScreen
 import com.airplayr.app.ui.screens.RecentScreen
 import com.airplayr.app.ui.screens.FeatureCollectionScreen
+import com.airplayr.app.ui.screens.MostPlayedScreen
 import com.airplayr.app.ui.screens.BrowseIndexScreen
 import com.airplayr.app.ui.screens.BrowseFilterScreen
 import com.airplayr.app.ui.metadata.MetadataScreen
@@ -355,7 +356,7 @@ fun AirPlayrApp(
                 composable("music-playlist/{id}") { entry -> PlaylistDetailScreen(container, libraryViewModel, entry.arguments?.getString("id").orEmpty(), playbackController, onOpenPlayer = { navigate("player") }) }
                 composable("playlist/{id}") { entry -> PlaylistDetailScreen(container, libraryViewModel, entry.arguments?.getString("id").orEmpty(), playbackController, onOpenPlayer = { navigate("player") }) }
                 composable("recent/{type}") { entry -> RecentScreen(entry.arguments?.getString("type").orEmpty(), libraryViewModel, playbackController, { navigate("video/$it") }, container, { navigate("player") }) }
-                composable("most-played") { FeatureCollectionScreen("Most played", "Your most-played local music", { container.collections.mostPlayed() }, libraryViewModel, playbackController, onBack = { navController.popBackStack() }, onOpenPlayer = { navigate("player") }) }
+                composable("most-played") { MostPlayedScreen(container, libraryViewModel, playbackController, { id -> navigate("video/$id") }, { navigate("player") }, { route -> navigate(route) }, { navController.popBackStack() }) }
                 composable("for-you") { FeatureCollectionScreen("For you now", "Press play & tuned in", { container.collections.forYou() }, libraryViewModel, playbackController, container, { navController.popBackStack() }, onOpenPlayer = { navigate("player") }) }
                 composable("rediscover") { FeatureCollectionScreen("Rediscover", "From your previous plays", { container.collections.rediscoverVideos() }, libraryViewModel, playbackController, container, { navController.popBackStack() }, { navigate("video/$it") }, onOpenPlayer = { navigate("player") }) }
                 composable("rediscover/rewind") { FeatureCollectionScreen("Rediscover", "From your previous plays", { container.collections.rediscoverVideos() }, libraryViewModel, playbackController, container, { navController.popBackStack() }, { navigate("video/$it") }, onOpenPlayer = { navigate("player") }) }

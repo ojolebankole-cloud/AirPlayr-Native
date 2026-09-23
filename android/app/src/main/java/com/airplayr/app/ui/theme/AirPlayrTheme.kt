@@ -296,6 +296,7 @@ fun AirPlayrTheme(
         scheme = accessibleScheme,
         darkTheme = darkTheme,
         dynamic = useDynamicColor,
+        brandAccent = fixedSeed,
     )
 
     androidx.compose.runtime.CompositionLocalProvider(LocalAirPlayrColors provides airColors) {

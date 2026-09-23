@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -146,7 +147,7 @@ private fun QueueVideoCard(item: MediaItem, label: String, highlighted: Boolean,
         colors = CardDefaults.cardColors(containerColor = if (highlighted) colors.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh),
         elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Artwork(item.displayArtworkUri(), Modifier.size(62.dp).clip(RoundedCornerShape(16.dp)), 16.dp, item.title, item.mediaType, com.airplayr.app.ui.theme.AirPlayrIcons.Video)
+            Artwork(item.displayArtworkUri(), Modifier.width(112.dp).height(63.dp).clip(RoundedCornerShape(16.dp)), 16.dp, item.title, item.mediaType, com.airplayr.app.ui.theme.AirPlayrIcons.Video)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(label, style = MaterialTheme.typography.labelSmall, color = if (highlighted) colors.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(item.title.ifBlank { item.filename }, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -161,7 +162,7 @@ private fun QueueVideoCard(item: MediaItem, label: String, highlighted: Boolean,
 private fun VideoQueueRow(item: MediaItem, onPlay: () -> Unit, onRemove: () -> Unit, onMoveUp: () -> Unit, onMoveDown: () -> Unit) {
     Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Artwork(item.displayArtworkUri(), Modifier.size(52.dp).clip(RoundedCornerShape(13.dp)), 13.dp, item.title, item.mediaType, com.airplayr.app.ui.theme.AirPlayrIcons.Video)
+            Artwork(item.displayArtworkUri(), Modifier.width(96.dp).height(54.dp).clip(RoundedCornerShape(13.dp)), 13.dp, item.title, item.mediaType, com.airplayr.app.ui.theme.AirPlayrIcons.Video)
             Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                 Text(item.title.ifBlank { item.filename }, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(item.artist.orEmpty().ifBlank { "Video" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)

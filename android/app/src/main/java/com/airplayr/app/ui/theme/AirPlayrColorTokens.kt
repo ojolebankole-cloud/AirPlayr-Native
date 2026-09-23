@@ -70,6 +70,8 @@ data class AirPlayrColors(
     val pill: Color,
     val pillActive: Color,
     val textOnAccent: Color,
+    /** Stable app accent used by the AIR half of the wordmark, even when PLAYR is dynamic. */
+    val brandAccent: Color = Color.Unspecified,
 )
 
 private fun Color.withOpacity(alpha: Float) = copy(alpha = alpha)
@@ -78,6 +80,7 @@ fun airPlayrColorsFor(
     scheme: androidx.compose.material3.ColorScheme,
     darkTheme: Boolean,
     dynamic: Boolean,
+    brandAccent: Color = scheme.primary,
 ): AirPlayrColors {
     val base = if (darkTheme) AirPlayrDarkBase else AirPlayrLightBase
     val primary = scheme.primary
@@ -141,6 +144,7 @@ fun airPlayrColorsFor(
         pill = scheme.surfaceContainerHigh,
         pillActive = primary,
         textOnAccent = scheme.onPrimary,
+        brandAccent = brandAccent,
     )
 }
 

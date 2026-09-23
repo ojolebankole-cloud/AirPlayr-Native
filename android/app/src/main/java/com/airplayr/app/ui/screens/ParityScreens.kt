@@ -94,6 +94,7 @@ import com.airplayr.app.ui.components.ActionGroup
 import com.airplayr.app.ui.components.ActionButton
 import com.airplayr.app.ui.feedback.AppFeedback
 import com.airplayr.app.ui.components.HistoryFavoritePlaylistSheet
+import com.airplayr.app.ui.components.AirPlayrFeatureCollectionActionSheet
 import com.airplayr.app.ui.components.AirPlayrPremiumMediaActionSheet
 import com.airplayr.app.ui.components.AirPlayrMediaMenuAction
 import com.airplayr.app.ui.components.AirPlayrSelectionBar
@@ -261,30 +262,34 @@ fun FeatureCollectionScreen(
                 elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 10.dp),
         ) { Icon(Icons.Default.PlayArrow, "Play mix", modifier = Modifier.size(31.dp)) }
         if (menuOpen) {
-            ModalBottomSheet(onDismissRequest = { menuOpen = false }, containerColor = colors.surfaceContainerLow) {
-                ActionGroup {
-                    ActionButton("Shuffle", Icons.Default.Shuffle, onClick = { playAll(true) })
-                    ActionButton("Add to queue", Icons.Default.QueueMusic, onClick = {
-                        val audio = items.filter { it.mediaType == MediaType.AUDIO }
-                        val videos = items.filter { it.mediaType == MediaType.VIDEO }
-                        audio.forEach(playback::addToQueue)
-                        com.airplayr.app.core.playback.VideoQueueStore.add(videos)
-                        menuOpen = false
-                        val parts = buildList {
-                            if (audio.isNotEmpty()) add("${audio.size} songs")
-                            if (videos.isNotEmpty()) add("${videos.size} videos")
-                        }
-                        com.airplayr.app.ui.feedback.AppFeedback.showSnackbar(if (parts.isEmpty()) "Nothing added to a queue." else "Added ${parts.joinToString(" and ")}.")
-                    })
-                    ActionButton("Play next", Icons.Default.SkipNext, onClick = {
-                        val audio = items.filter { it.mediaType == MediaType.AUDIO }
-                        val videos = items.filter { it.mediaType == MediaType.VIDEO }
-                        audio.forEach(playback::playNext)
-                        com.airplayr.app.core.playback.VideoQueueStore.playNext(videos)
-                        menuOpen = false
-                    })
-                }
-            }
+            AirPlayrFeatureCollectionActionSheet(
+                title = title,
+                onDismiss = { menuOpen = false },
+                onShuffle = { playAll(true) },
+                onPlayNext = {
+                    val audio = items.filter { it.mediaType == MediaType.AUDIO }
+                    val videos = items.filter { it.mediaType == MediaType.VIDEO }
+                    audio.forEach(playback::playNext)
+                    com.airplayr.app.core.playback.VideoQueueStore.playNext(videos)
+                    menuOpen = false
+                },
+                onAddToQueue = {
+                    val audio = items.filter { it.mediaType == MediaType.AUDIO }
+                    val videos = items.filter { it.mediaType == MediaType.VIDEO }
+                    audio.forEach(playback::addToQueue)
+                    com.airplayr.app.core.playback.VideoQueueStore.add(videos)
+                    menuOpen = false
+                    val parts = buildList {
+                        if (audio.isNotEmpty()) add("${audio.size} songs")
+                        if (videos.isNotEmpty()) add("${videos.size} videos")
+                    }
+                    com.airplayr.app.ui.feedback.AppFeedback.showSnackbar(if (parts.isEmpty()) "Nothing added to a queue." else "Added ${parts.joinToString(" and ")}.")
+                },
+                onAddToPlaylist = {
+                    val audio = items.filter { it.mediaType == MediaType.AUDIO }
+                    if (container != null && audio.isNotEmpty()) { playlistTarget = audio; menuOpen = false }
+                },
+            )
         }
         selected?.let { item ->
             val groups = if (item.mediaType == MediaType.AUDIO) {

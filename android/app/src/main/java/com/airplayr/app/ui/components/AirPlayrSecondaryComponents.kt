@@ -1,6 +1,10 @@
 package com.airplayr.app.ui.components
 
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -26,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
@@ -84,13 +89,25 @@ fun AirPlayrScreenHeader(
     }
 }
 
-/** AirPlayr wordmark with Material You colors and a single accent variation for "Air". */
+/** AirPlayr wordmark: AIR stays on the app accent; PLAYR carries the animated Material You mix. */
 @Composable
 fun AirPlayrWordmark(modifier: Modifier = Modifier) {
     val c = LocalAirPlayrColors.current
-    val playrColor = androidx.compose.runtime.remember(c.primary, c.secondary, c.tertiary) {
-        listOf(c.primary, c.secondary, c.tertiary).random()
-    }
+    val transition = rememberInfiniteTransition(label = "airplayr-wordmark-gradient")
+    val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(5200, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "airplayr-wordmark-phase",
+    )
+    val playrBrush = Brush.linearGradient(
+        colors = listOf(c.primary, c.secondary, c.tertiary, c.primary),
+        startX = -180f + (phase * 180f),
+        endX = 220f + (phase * 180f),
+    )
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Text(
             "AIR",
@@ -99,8 +116,9 @@ fun AirPlayrWordmark(modifier: Modifier = Modifier) {
             lineHeight = 28.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.8.sp,
-            color = c.primary,
+            color = c.brandAccent,
         )
+        Spacer(Modifier.width(7.dp))
         Text(
             "PLAYR",
             fontFamily = AirPlayrFonts.SmoochSans,
@@ -108,13 +126,14 @@ fun AirPlayrWordmark(modifier: Modifier = Modifier) {
             lineHeight = 28.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.8.sp,
-            color = playrColor,
+            style = MaterialTheme.typography.titleLarge.copy(brush = playrBrush, fontFamily = AirPlayrFonts.SmoochSans, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp),
         )
+        Spacer(Modifier.width(5.dp))
         Icon(
             AirPlayrIcons.Play,
             contentDescription = null,
-            tint = playrColor,
-            modifier = Modifier.size(18.dp).padding(start = 2.dp),
+            tint = c.primary,
+            modifier = Modifier.size(18.dp),
         )
     }
 }
@@ -264,6 +283,71 @@ fun AirPlayrMoreButton(
     }
 }
 
+/** Shared Home/History/Favorites-style horizontal video rail with 16:9 thumbnails and play overlay. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun AirPlayrVideoRail(
+    items: List<MediaItem>,
+    onOpen: (MediaItem) -> Unit,
+    onMore: ((MediaItem) -> Unit)? = null,
+    selectedIds: Set<String> = emptySet(),
+    onLongPress: ((MediaItem) -> Unit)? = null,
+) {
+    val c = LocalAirPlayrColors.current
+    val railState = androidx.compose.runtime.saveable.rememberSaveable(saver = androidx.compose.foundation.ScrollState.Saver) { androidx.compose.foundation.ScrollState(0) }
+    Row(
+        Modifier.horizontalScroll(railState).padding(horizontal = 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        items.forEach { item ->
+            val selected = item.id in selectedIds
+            Column(
+                Modifier
+                    .width(196.dp)
+                    .combinedClickable(
+                        onClick = { onOpen(item) },
+                        onLongClick = onLongPress?.let { { it(item) } },
+                    ),
+            ) {
+                Box(Modifier.fillMaxWidth().height(110.dp).clip(RoundedCornerShape(18.dp))) {
+                    Artwork(
+                        item.thumbnailUri ?: item.artworkUri ?: item.uri,
+                        Modifier.fillMaxSize(),
+                        18.dp,
+                        item.title,
+                        MediaType.VIDEO,
+                        AirPlayrIcons.Video,
+                    )
+                    if (selected) {
+                        Box(Modifier.fillMaxSize().background(c.primary.copy(alpha = .24f)))
+                    }
+                    Box(
+                        Modifier.align(Alignment.BottomStart).padding(8.dp).size(36.dp).clip(CircleShape).background(c.primary),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(AirPlayrIcons.Play, "Play video", tint = c.onPrimary, modifier = Modifier.size(18.dp))
+                    }
+                    onMore?.let {
+                        AirPlayrMoreButton(
+                            onClick = { it(item) },
+                            modifier = Modifier.align(Alignment.TopEnd).padding(2.dp),
+                        )
+                    }
+                }
+                Text(
+                    item.title.ifBlank { item.filename },
+                    fontFamily = AirPlayrFonts.SmoochSans,
+                    fontSize = 15.sp,
+                    color = c.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 7.dp),
+                )
+            }
+        }
+    }
+}
+
 /**
  * Clean media artwork + metadata row. Play and overflow controls intentionally live outside the
  * artwork so music and video rows share one premium interaction language across the app.
@@ -291,11 +375,17 @@ fun AirPlayrMediaRow(
         .background(if (selected) c.primaryContainer.copy(alpha = .72f) else Color.Transparent, shape)
         .padding(horizontal = 18.dp, vertical = if (compact) 6.dp else 8.dp)
     Row(rowModifier, verticalAlignment = Alignment.CenterVertically) {
-        Box(
+        val artworkModifier = if (item.mediaType == MediaType.VIDEO) {
+            Modifier
+                .width(if (compact) AirPlayrArtworkTokens.videoCompactWidth else AirPlayrArtworkTokens.videoRowWidth)
+                .height(if (compact) AirPlayrArtworkTokens.videoCompactHeight else AirPlayrArtworkTokens.videoRowHeight)
+                .clip(RoundedCornerShape(if (compact) 14.dp else 17.dp))
+        } else {
             Modifier
                 .size(if (compact) AirPlayrArtworkTokens.compactRow else AirPlayrArtworkTokens.row)
                 .clip(RoundedCornerShape(if (compact) 14.dp else 17.dp))
-        ) {
+        }
+        Box(artworkModifier) {
             Artwork(
                 uri = item.displayArtworkUri(),
                 modifier = Modifier.fillMaxSize(),
@@ -372,7 +462,7 @@ fun AirPlayrPremiumMediaActionSheet(
                 Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Artwork(
                         item.displayArtworkUri(),
-                        Modifier.size(68.dp),
+                        if (isVideo) Modifier.width(112.dp).height(63.dp) else Modifier.size(68.dp),
                         18.dp,
                         item.title,
                         item.mediaType,

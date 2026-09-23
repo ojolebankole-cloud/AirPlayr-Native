@@ -208,13 +208,16 @@ fun HistoryScreen(
                 fun videoSection(title: String, list: List<MediaItem>) {
                     if (list.isEmpty()) return
                     item { Text(title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 28.sp, color = colors.textPrimary, modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp)) }
-                    items(list, key = { "video:${title}:${it.id}" }) { item ->
-                        AirPlayrMediaRow(
-                            item = item,
-                            onOpen = { if (selectedIds.isNotEmpty()) selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id else onOpenVideo(item.id) },
-                            onMore = { selected = item },
-                            selected = item.id in selectedIds,
-                            onLongPress = { selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id },
+                    item {
+                        AirPlayrVideoRail(
+                            items = list,
+                            selectedIds = selectedIds,
+                            onOpen = { item ->
+                                if (selectedIds.isNotEmpty()) selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id
+                                else onOpenVideo(item.id)
+                            },
+                            onMore = { item -> selected = item },
+                            onLongPress = { item -> selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id },
                         )
                     }
                 }
@@ -224,14 +227,25 @@ fun HistoryScreen(
     }
 
     if (headerMenu) {
-        ModalBottomSheet(onDismissRequest = { headerMenu = false }, containerColor = colors.surfaceContainerLow) {
-            Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 22.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text("History", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 24.sp, color = colors.textPrimary)
-                TextButton(onClick = { playback.playQueue(songs.shuffled()); headerMenu = false; if (songs.isNotEmpty()) onOpenPlayer() }, enabled = songs.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Text("Shuffle", color = colors.textPrimary) }
-                TextButton(onClick = { songs.forEach(playback::addToQueue); headerMenu = false; AppFeedback.showSnackbar("History added to the playing queue.") }, enabled = songs.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Text("Add to queue", color = colors.textPrimary) }
-                TextButton(onClick = { songs.forEach(playback::playNext); headerMenu = false; AppFeedback.showSnackbar("History added as next.") }, enabled = songs.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Text("Play next", color = colors.textPrimary) }
-            }
-        }
+        AirPlayrFeatureCollectionActionSheet(
+            title = "History",
+            onDismiss = { headerMenu = false },
+            onShuffle = {
+                headerMenu = false
+                if (songs.isNotEmpty()) { playback.playQueue(songs.shuffled()); onOpenPlayer() }
+            },
+            onPlayNext = {
+                headerMenu = false
+                songs.forEach(playback::playNext)
+                if (songs.isNotEmpty()) AppFeedback.showSnackbar("History added as next.")
+            },
+            onAddToQueue = {
+                headerMenu = false
+                songs.forEach(playback::addToQueue)
+                if (songs.isNotEmpty()) AppFeedback.showSnackbar("History added to the playing queue.")
+            },
+            onAddToPlaylist = { headerMenu = false; playlistTarget = songs },
+        )
     }
 
     selected?.let { item ->

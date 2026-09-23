@@ -183,13 +183,16 @@ fun FavoritesScreen(
 
                 if (likedVideos.isNotEmpty()) {
                     item { Text("Liked videos", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 28.sp, color = colors.textPrimary, modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp)) }
-                    items(likedVideos, key = { "video:${it.id}" }) { item ->
-                        AirPlayrMediaRow(
-                            item = item,
-                            onOpen = { if (selectedIds.isNotEmpty()) selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id else onOpenVideo(item.id) },
-                            onMore = { selected = item },
-                            selected = item.id in selectedIds,
-                            onLongPress = { selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id },
+                    item {
+                        AirPlayrVideoRail(
+                            items = likedVideos,
+                            selectedIds = selectedIds,
+                            onOpen = { item ->
+                                if (selectedIds.isNotEmpty()) selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id
+                                else onOpenVideo(item.id)
+                            },
+                            onMore = { item -> selected = item },
+                            onLongPress = { item -> selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id },
                         )
                     }
                 }
@@ -208,15 +211,25 @@ fun FavoritesScreen(
     }
 
     if (headerMenu) {
-        ModalBottomSheet(onDismissRequest = { headerMenu = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.surfaceContainerLow) {
-            Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 22.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text("Favorites", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 24.sp, color = colors.textPrimary)
-                TextButton(onClick = { if (songs.isNotEmpty()) playback.playQueue(songs.shuffled()); headerMenu = false; if (songs.isNotEmpty()) onOpenPlayer() }, enabled = songs.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth()) { Icon(Icons.Default.Shuffle, null, tint = colors.primary); Spacer(Modifier.width(14.dp)); Text("Shuffle", color = colors.textPrimary) } }
-                TextButton(onClick = { songs.forEach(playback::addToQueue); headerMenu = false; AppFeedback.showSnackbar("Favorites added to the playing queue.") }, enabled = songs.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth()) { Icon(Icons.Default.QueueMusic, null, tint = colors.primary); Spacer(Modifier.width(14.dp)); Text("Add to queue", color = colors.textPrimary) } }
-                TextButton(onClick = { songs.forEach(playback::playNext); headerMenu = false; AppFeedback.showSnackbar("Favorites added as next.") }, enabled = songs.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth()) { Icon(Icons.Default.SkipNext, null, tint = colors.primary); Spacer(Modifier.width(14.dp)); Text("Play next", color = colors.textPrimary) } }
-                TextButton(onClick = { headerMenu = false; playlistTarget = songs }, enabled = songs.isNotEmpty(), modifier = Modifier.fillMaxWidth()) { Row(Modifier.fillMaxWidth()) { Icon(Icons.Default.PlaylistAdd, null, tint = colors.primary); Spacer(Modifier.width(14.dp)); Text("Add to playlist", color = colors.textPrimary) } }
-            }
-        }
+        AirPlayrFeatureCollectionActionSheet(
+            title = "Favorites",
+            onDismiss = { headerMenu = false },
+            onShuffle = {
+                headerMenu = false
+                if (songs.isNotEmpty()) { playback.playQueue(songs.shuffled()); onOpenPlayer() }
+            },
+            onPlayNext = {
+                headerMenu = false
+                songs.forEach(playback::playNext)
+                if (songs.isNotEmpty()) AppFeedback.showSnackbar("Favorites added as next.")
+            },
+            onAddToQueue = {
+                headerMenu = false
+                songs.forEach(playback::addToQueue)
+                if (songs.isNotEmpty()) AppFeedback.showSnackbar("Favorites added to the playing queue.")
+            },
+            onAddToPlaylist = { headerMenu = false; playlistTarget = songs },
+        )
     }
 
     selected?.let { item ->

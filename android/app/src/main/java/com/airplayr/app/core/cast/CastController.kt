@@ -9,6 +9,7 @@ import com.google.android.gms.cast.framework.CastContext
 import com.google.android.gms.cast.framework.CastSession
 import com.google.android.gms.cast.framework.SessionManagerListener
 import com.google.android.gms.cast.framework.CastState
+import com.google.android.gms.cast.framework.CastStateListener
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,6 +18,7 @@ class CastController(context: Context) : DefaultLifecycleObserver {
     private val castContext = CastContext.getSharedInstance(context.applicationContext)
     private val _status = MutableStateFlow(currentStatus())
     val status: StateFlow<CastUiStatus> = _status.asStateFlow()
+    private val castStateListener = CastStateListener { emit() }
     private val listener = object : SessionManagerListener<CastSession> {
         override fun onSessionStarted(session: CastSession, sessionId: String) = emit()
         override fun onSessionResumed(session: CastSession, wasSuspended: Boolean) = emit()
@@ -36,6 +38,7 @@ class CastController(context: Context) : DefaultLifecycleObserver {
         if (started) return
         started = true
         castContext.sessionManager.addSessionManagerListener(listener, CastSession::class.java)
+        castContext.addCastStateListener(castStateListener)
         emit()
     }
 
@@ -43,6 +46,7 @@ class CastController(context: Context) : DefaultLifecycleObserver {
         if (!started) return
         started = false
         castContext.sessionManager.removeSessionManagerListener(listener, CastSession::class.java)
+        castContext.removeCastStateListener(castStateListener)
     }
 
     fun endSession() { castContext.sessionManager.endCurrentSession(true); emit() }

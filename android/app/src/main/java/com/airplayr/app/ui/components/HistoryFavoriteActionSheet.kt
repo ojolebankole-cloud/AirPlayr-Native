@@ -123,7 +123,7 @@ fun HistoryFavoriteDetailsSheet(item: MediaItem, playing: Boolean = false, onDis
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Artwork(
                 item.artworkUri ?: item.thumbnailUri,
-                Modifier.size(110.dp),
+                if (item.mediaType == MediaType.VIDEO) Modifier.width(140.dp).height(79.dp) else Modifier.size(110.dp),
                 20.dp,
                 item.title,
                 item.mediaType,

@@ -146,7 +146,7 @@ class PlaybackStatsRepository(private val databaseProvider: () -> AirPlayrDataba
         }
         val result = Summary(
             period = period,
-            periodLabel = when (period) { "week" -> "This week"; "all" -> "All time"; else -> "This month" },
+            periodLabel = when (period) { "day" -> "Today"; "week" -> "This week"; "all" -> "All time"; else -> "This month" },
             musicPlays = musicEvents.size,
             videoPlays = videoEvents.size,
             listeningSeconds = activity.filter { it.mediaType == MediaType.AUDIO.value }.sumOf { it.seconds },
@@ -176,6 +176,7 @@ class PlaybackStatsRepository(private val databaseProvider: () -> AirPlayrDataba
     private fun periodStart(period: String, now: Long): Long {
         val c = Calendar.getInstance().apply { timeInMillis = now; set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }
         when (period) {
+            "day" -> Unit
             "week" -> { val delta = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7; c.add(Calendar.DAY_OF_YEAR, -delta) }
             "month" -> c.set(Calendar.DAY_OF_MONTH, 1)
             else -> return 0L

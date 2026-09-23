@@ -392,7 +392,7 @@ private fun HomeHeader(
                         Text(
                             "Search your plays",
                             fontFamily = AirPlayrFonts.SmoochSans,
-                            fontSize = 14.sp,
+                            fontSize = 17.sp,
                             color = colors.textPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,

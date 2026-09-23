@@ -47,6 +47,10 @@ object AirPlayrArtworkTokens {
     val artistFallbackIcon: Dp = 68.dp
     val row: Dp = 64.dp
     val compactRow: Dp = 58.dp
+    val videoRowWidth: Dp = 158.dp
+    val videoRowHeight: Dp = 89.dp
+    val videoCompactWidth: Dp = 126.dp
+    val videoCompactHeight: Dp = 71.dp
     val feature: Dp = 82.dp
     const val fallbackIconAlpha: Float = 0.52f
 }
