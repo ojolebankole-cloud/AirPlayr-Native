@@ -9,7 +9,6 @@ import com.airplayr.app.ui.airPlayrBottomContentPadding
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -156,9 +155,9 @@ fun SearchScreen(
         listOf(palette[start], palette[(start + 1) % palette.size], palette[(start + 2) % palette.size])
     }
     val playTransition = rememberInfiniteTransition(label = "search-play-icon")
-    val playOffset by playTransition.animateDp(
-        initialValue = 0.dp,
-        targetValue = (-3).dp,
+    val playOffset by playTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = -3f,
         animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Reverse),
         label = "search-play-float",
     )
@@ -380,7 +379,7 @@ fun SearchScreen(
                                         )
                                     }
                                     Surface(
-                                        modifier = Modifier.offset(y = playOffset).size(30.dp),
+                                        modifier = Modifier.offset(y = playOffset.dp).size(30.dp),
                                         shape = RoundedCornerShape(10.dp),
                                         color = animatedPlayColor.copy(alpha = .18f),
                                         tonalElevation = 0.dp,

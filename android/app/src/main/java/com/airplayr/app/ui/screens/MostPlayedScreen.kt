@@ -39,6 +39,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -75,6 +76,7 @@ import com.airplayr.app.ui.components.AirPlayrMediaRow
 import com.airplayr.app.ui.components.AirPlayrSectionEmpty
 import com.airplayr.app.ui.components.Artwork
 import com.airplayr.app.ui.components.displayArtworkUri
+import com.airplayr.app.ui.feedback.AppFeedback
 import com.airplayr.app.ui.theme.AirPlayrArtworkTokens
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.AirPlayrIcons
