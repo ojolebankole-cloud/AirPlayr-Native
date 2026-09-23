@@ -84,6 +84,7 @@ import com.airplayr.app.ui.navigation.LibraryViewModel
 import com.airplayr.app.ui.playback.PlaybackController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -99,19 +100,24 @@ fun MostPlayedScreen(
     val colors = LocalAirPlayrColors.current
     val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
     val playbackState by playback.stableState.collectAsStateWithLifecycle()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val music = snapshot.audio
     val videos = snapshot.video
     val allMedia = remember(music, videos) { music + videos }
     var summary by remember { mutableStateOf<PlaybackStatsRepository.Summary?>(null) }
-    var daySummary by remember { mutableStateOf<PlaybackStatsRepository.Summary?>(null) }
     var menuOpen by rememberSaveable { mutableStateOf(false) }
     var playlistTarget by remember { mutableStateOf<List<MediaItem>?>(null) }
+    var selected by remember { mutableStateOf<MediaItem?>(null) }
+    var selectedFavorite by remember { mutableStateOf(false) }
+    var detailsTarget by remember { mutableStateOf<MediaItem?>(null) }
+    var editTarget by remember { mutableStateOf<MediaItem?>(null) }
+    var lyricsTarget by remember { mutableStateOf<MediaItem?>(null) }
+    var deleteTarget by remember { mutableStateOf<MediaItem?>(null) }
     var slide by rememberSaveable { mutableIntStateOf(0) }
 
     LaunchedEffect(allMedia) {
         withContext(Dispatchers.IO) {
             summary = container.stats.summary("all", allMedia, 12)
-            daySummary = container.stats.summary("day", allMedia, 1)
         }
     }
     LaunchedEffect(Unit) {
@@ -122,9 +128,8 @@ fun MostPlayedScreen(
     }
 
     val all = summary
-    val day = daySummary
-    val topTrack = day?.topSongs?.firstOrNull()
-    val topVideo = day?.topVideos?.firstOrNull()
+    val topTrack = all?.topSongs?.firstOrNull()
+    val topVideo = all?.topVideos?.firstOrNull()
     val topTrackItem = remember(topTrack?.id, music) { topTrack?.let { t -> music.firstOrNull { it.id == t.id } } }
     val topVideoItem = remember(topVideo?.id, videos) { topVideo?.let { v -> videos.firstOrNull { it.id == v.id } } }
     val topSongItems = remember(all?.topSongs, music) { all?.topSongs.orEmpty().mapNotNull { top -> music.firstOrNull { it.id == top.id } } }
@@ -177,6 +182,10 @@ fun MostPlayedScreen(
                     AirPlayrMediaRow(
                         item = item,
                         onOpen = { playSongs(listOf(item)) },
+                        onMore = {
+                            selected = item
+                            scope.launch { selectedFavorite = container.structured.isFavorite(item.id) }
+                        },
                         playing = playbackState.isPlaying && playbackState.currentId == item.id,
                     )
                 }
@@ -212,6 +221,7 @@ fun MostPlayedScreen(
                     AirPlayrMediaRow(
                         item = item,
                         onOpen = { onOpenVideo(item.id) },
+                        onMore = { selected = item; scope.launch { selectedFavorite = container.structured.isFavorite(item.id) } },
                     )
                 }
             }
@@ -248,7 +258,55 @@ fun MostPlayedScreen(
             },
         )
     }
+    selected?.let { item ->
+        com.airplayr.app.ui.components.HistoryFavoriteActionSheet(
+            item = item,
+            favorite = selectedFavorite,
+            playing = playbackState.isPlaying && playbackState.currentId == item.id,
+            container = container,
+            onClose = { selected = null },
+            onFavorite = { scope.launch { container.structured.toggleFavorite(item); selected = null } },
+            onPlayNext = { if (item.mediaType == MediaType.AUDIO) playback.playNext(item) else com.airplayr.app.core.playback.VideoQueueStore.playNext(listOf(item)); selected = null },
+            onAddQueue = { if (item.mediaType == MediaType.AUDIO) playback.addToQueue(item) else com.airplayr.app.core.playback.VideoQueueStore.add(listOf(item)); selected = null },
+            onPlaylist = { playlistTarget = listOf(item); selected = null },
+            onDetails = { detailsTarget = item; selected = null },
+            onDelete = { deleteTarget = item; selected = null },
+            onBlacklist = null,
+            onGoAlbum = { item.album?.let { onNavigate("album/${android.net.Uri.encode(it)}") }; selected = null },
+            onGoArtist = { item.artist?.let { onNavigate("artist/${android.net.Uri.encode(it)}") }; selected = null },
+            onGoFolder = { item.relativePath?.let { onNavigate("music-folder/${android.net.Uri.encode(it)}") }; selected = null },
+            onEdit = { editTarget = item; selected = null },
+            onLyrics = { lyricsTarget = item; selected = null },
+        )
+    }
     playlistTarget?.let { com.airplayr.app.ui.components.HistoryFavoritePlaylistSheet(container, it) { playlistTarget = null } }
+    detailsTarget?.let { item -> com.airplayr.app.ui.components.HistoryFavoriteDetailsSheet(item, playing = playbackState.isPlaying && playbackState.currentId == item.id) { detailsTarget = null } }
+    editTarget?.let { item -> com.airplayr.app.ui.components.HistoryFavoriteTagEditorSheet(container, item) { editTarget = null } }
+    lyricsTarget?.let { item -> com.airplayr.app.ui.components.HistoryFavoriteLyricsSheet(container, item) { lyricsTarget = null } }
+    deleteTarget?.let { item ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("Delete from device?") },
+            text = { Text("Delete ${item.title} from this device. Android may ask you to confirm the deletion.") },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { deleteTarget = null }) { Text("Cancel") } },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    deleteTarget = null
+                    scope.launch(Dispatchers.IO) {
+                        val base = if (item.mediaType == MediaType.AUDIO) android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI else android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                        val ok = runCatching {
+                            container.appContext.contentResolver.delete(
+                                android.net.Uri.withAppendedPath(base, item.mediaStoreId?.toString() ?: return@runCatching false),
+                                null, null,
+                            ) > 0
+                        }.getOrDefault(false)
+                        if (ok) runCatching { container.mediaLibrary.deltaRefresh(item.mediaType) }
+                        AppFeedback.showSnackbar(if (ok) "${item.title} deleted from device." else "Unable to delete ${item.title}.")
+                    }
+                }) { Text("Delete", color = colors.error) }
+            },
+        )
+    }
 }
 
 @Composable
@@ -300,7 +358,12 @@ private fun MostPlayedHero(
                     if (topTrack != null) Artwork(topTrack.displayArtworkUri(), Modifier.fillMaxSize(), 32.dp, topTrack.title, MediaType.AUDIO, AirPlayrIcons.Music, isPlaying = false)
                     else HeroPlaceholder()
                     HeroScrim()
-                    HeroCopy(eyebrow = "TOP TRACK", title = topTrack?.title ?: "No top track today", subtitle = topTrack?.artist ?: "Play some music today.")
+                    HeroCopy(eyebrow = "TOP TRACK", title = topTrack?.title ?: "No top track", subtitle = topTrack?.artist ?: "Play some music.")
+                    if (topTrack != null) {
+                        Surface(Modifier.align(Alignment.BottomEnd).padding(22.dp).size(52.dp).clickable(onClick = onTrack), shape = CircleShape, color = colors.primary) {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Default.PlayArrow, "Play top track", tint = colors.onPrimary, modifier = Modifier.size(24.dp)) }
+                        }
+                    }
                 }
                 2 -> {
                     if (topVideo != null) Artwork(topVideo.thumbnailUri ?: topVideo.artworkUri ?: topVideo.uri, Modifier.fillMaxSize(), 32.dp, topVideo.title, MediaType.VIDEO, AirPlayrIcons.Video, isPlaying = false)

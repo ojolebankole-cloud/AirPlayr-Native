@@ -1,12 +1,6 @@
 package com.airplayr.app.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.border
-import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -81,14 +75,7 @@ fun AirPlayrBottomDock(
     ) {
         Surface(
             modifier = Modifier
-                .fillMaxWidth()
-                .border(
-                    BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.24f)),
-                    AirPlayrDockCardShape,
-                )
-                .threeDEdge(
-                    highlight = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.20f),
-                ),
+                .fillMaxWidth(),
             shape = AirPlayrDockCardShape,
             color = MaterialTheme.colorScheme.surfaceContainer,
             tonalElevation = 1.dp,
@@ -131,17 +118,7 @@ fun AirPlayrMiniPlayerOnly(
                 .fillMaxWidth()
                 .wrapContentHeight()
                 .navigationBarsPadding()
-                .padding(horizontal = 10.dp, vertical = 8.dp)
-                .border(
-                    BorderStroke(
-                        1.dp,
-                        MaterialTheme.colorScheme.outline.copy(alpha = 0.24f),
-                    ),
-                    AirPlayrDockCardShape,
-                )
-                .threeDEdge(
-                    highlight = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.20f),
-                ),
+                .padding(horizontal = 10.dp, vertical = 8.dp),
             shape = AirPlayrDockCardShape,
             color = MaterialTheme.colorScheme.surfaceContainer,
             tonalElevation = 1.dp,
@@ -278,33 +255,3 @@ const val AIRPLAYR_MINI_PLAYER_ONLY_BASE_HEIGHT = 128
 const val AIRPLAYR_FLOATING_PLAY_BOTTOM_WITH_MINI = 24
 /** Floating play FAB bottom inset when no MiniPlayer is visible. */
 const val AIRPLAYR_FLOATING_PLAY_BOTTOM = 24
-
-
-/**
- * Gives the single dock card a restrained raised/3D edge: a light upper/left edge and a
- * darker lower/right edge. This is an edge treatment only; it does not paint anything outside
- * the card itself.
- */
-private fun Modifier.threeDEdge(
-    highlight: Color,
-): Modifier = drawWithCache {
-    val stroke = 1.dp.toPx()
-    val radius = 28.dp.toPx()
-    val inset = stroke / 2f
-    val rectSize = Size(size.width - stroke, size.height - stroke)
-    val corner = CornerRadius(radius, radius)
-
-    onDrawWithContent {
-        drawContent()
-
-        // Fine highlight around the upper/left edge.
-        drawRoundRect(
-            color = highlight,
-            topLeft = Offset(inset, inset),
-            size = rectSize,
-            cornerRadius = corner,
-            style = androidx.compose.ui.graphics.drawscope.Stroke(stroke),
-        )
-
-    }
-}

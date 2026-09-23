@@ -78,6 +78,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.exoplayer.ExoPlayer
 import com.airplayr.app.core.data.media.MediaItem
 import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.di.AppContainer
@@ -94,6 +95,7 @@ import com.airplayr.app.ui.components.ActionGroup
 import com.airplayr.app.ui.components.ActionButton
 import com.airplayr.app.ui.feedback.AppFeedback
 import com.airplayr.app.ui.components.HistoryFavoritePlaylistSheet
+import com.airplayr.app.ui.components.HistoryFavoriteActionSheet
 import com.airplayr.app.ui.components.AirPlayrFeatureCollectionActionSheet
 import com.airplayr.app.ui.components.AirPlayrPremiumMediaActionSheet
 import com.airplayr.app.ui.components.AirPlayrMediaMenuAction
@@ -101,6 +103,7 @@ import com.airplayr.app.ui.components.AirPlayrSelectionBar
 import com.airplayr.app.ui.components.TagEditorSheet
 import com.airplayr.app.core.playback.VideoQueueStore
 import com.airplayr.app.ui.theme.AirPlayrColors
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
@@ -170,7 +173,17 @@ fun FeatureCollectionScreen(
                     IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, "Options", tint = colors.primary) }
                 }
             }
-            if (hero != null) item {
+            if (hero != null && title == "Rediscover") item {
+                RediscoverHero(
+                    items = items.filter { it.mediaType == MediaType.VIDEO },
+                    colors = colors,
+                    onPlay = { item -> onVideoOpen(item.id) },
+                    onShuffle = {
+                        val videos = items.filter { it.mediaType == MediaType.VIDEO }
+                        if (videos.isNotEmpty()) onVideoOpen(videos.shuffled().first().id)
+                    },
+                )
+            } else if (hero != null) item {
                 FeatureHero(
                     item = hero, title = when (title) {
                         "Rock your world" -> hero.title
@@ -292,8 +305,29 @@ fun FeatureCollectionScreen(
             )
         }
         selected?.let { item ->
-            val groups = if (item.mediaType == MediaType.AUDIO) {
-                listOf(
+            val app = container
+            if (item.mediaType == MediaType.VIDEO && app != null) {
+                HistoryFavoriteActionSheet(
+                    item = item,
+                    favorite = favorite,
+                    playing = VideoQueueStore.currentId.collectAsStateWithLifecycle().value == item.id,
+                    container = app,
+                    onClose = { selected = null },
+                    onFavorite = { scope.launch { favorite = app.structured.toggleFavorite(item); selected = null } },
+                    onPlayNext = { VideoQueueStore.playNext(listOf(item)); selected = null },
+                    onAddQueue = { VideoQueueStore.add(listOf(item)); selected = null },
+                    onPlaylist = { selected = null },
+                    onDetails = { selected = null },
+                    onDelete = { selected = null },
+                    onBlacklist = null,
+                    onGoAlbum = { selected = null },
+                    onGoArtist = { selected = null },
+                    onGoFolder = { selected = null },
+                    onEdit = { selected = null },
+                    onLyrics = { selected = null },
+                )
+            } else {
+                val groups = listOf(
                     listOf(
                         AirPlayrMediaMenuAction("Play now", Icons.Default.PlayArrow, { selected = null; playback.play(item) }),
                         AirPlayrMediaMenuAction("Play next", Icons.Default.SkipNext, { selected = null; playback.playNext(item) }),
@@ -301,23 +335,117 @@ fun FeatureCollectionScreen(
                         AirPlayrMediaMenuAction("Add to playlist", Icons.Default.PlaylistAdd, { selected = null; playlistTarget = listOf(item) }, enabled = container != null),
                     )
                 )
-            } else {
-                listOf(listOf(AirPlayrMediaMenuAction("Open video", Icons.Default.PlayArrow, { selected = null; onVideoOpen(item.id) })))
+                AirPlayrPremiumMediaActionSheet(
+                    item = item,
+                    playing = playbackState.isPlaying && playbackState.currentId == item.id,
+                    favorite = favorite,
+                    onFavorite = container?.let { app -> { scope.launch { favorite = app.structured.toggleFavorite(item) } } },
+                    groups = groups,
+                    onDismiss = { selected = null },
+                )
             }
-            AirPlayrPremiumMediaActionSheet(
-                item = item,
-                playing = playbackState.isPlaying && playbackState.currentId == item.id,
-                favorite = favorite,
-                onFavorite = container?.let { app -> { scope.launch { favorite = app.structured.toggleFavorite(item) } } },
-                groups = groups,
-                onDismiss = { selected = null },
-            )
         }
         playlistTarget?.let { target ->
             val app = container
             if (app != null) HistoryFavoritePlaylistSheet(app, target, onDismiss = { playlistTarget = null })
         }
     }
+}
+
+@Composable
+private fun RediscoverHero(
+    items: List<MediaItem>,
+    colors: AirPlayrColors,
+    onPlay: (MediaItem) -> Unit,
+    onShuffle: () -> Unit,
+) {
+    val video = items.firstOrNull()
+    var slide by rememberSaveable(video?.id) { mutableIntStateOf(0) }
+    val composition by com.airbnb.lottie.compose.rememberLottieComposition(
+        com.airbnb.lottie.compose.LottieCompositionSpec.Asset("rediscover_illustration/animation.json")
+    )
+    val lottieProgress by com.airbnb.lottie.compose.animateLottieCompositionAsState(
+        composition = composition,
+        iterations = com.airbnb.lottie.compose.LottieConstants.IterateForever,
+        isPlaying = slide == 0,
+    )
+    LaunchedEffect(video?.id) {
+        slide = 0
+        if (video == null) return@LaunchedEffect
+        while (true) {
+            delay(10_000L)
+            slide = 1
+            delay(10_000L)
+            slide = 0
+        }
+    }
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(360.dp)
+            .padding(horizontal = 22.dp)
+            .clip(RoundedCornerShape(30.dp))
+            .clickable { if (video != null) onPlay(video) },
+    ) {
+        androidx.compose.animation.Crossfade(targetState = slide, animationSpec = androidx.compose.animation.core.tween(700), label = "rediscover-hero-fade") { page ->
+            if (page == 0 || video == null) {
+                Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(colors.primary, colors.secondary, colors.tertiary))))
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .12f)))
+                com.airbnb.lottie.compose.LottieAnimation(
+                    composition = composition,
+                    progress = { lottieProgress },
+                    modifier = Modifier.align(Alignment.Center).fillMaxHeight(.72f).aspectRatio(1f),
+                )
+                Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.Bottom) {
+                    Surface(shape = RoundedCornerShape(30.dp), color = Color.White.copy(alpha = .18f)) {
+                        Text("REDISCOVER", fontFamily = AirPlayrFonts.OpenSans, fontSize = 10.sp, letterSpacing = 1.2.sp, color = Color.White, modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp))
+                    }
+                    Text("Rewatch your past plays", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 34.sp, lineHeight = 39.sp, color = Color.White, maxLines = 2, modifier = Modifier.padding(top = 9.dp))
+                    Text("A visual rewind built from the videos you keep returning to.", fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, color = Color.White.copy(alpha = .88f), modifier = Modifier.padding(top = 4.dp))
+                }
+            } else {
+                RediscoverVideoPreview(video)
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .78f)))))
+                Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.Bottom) {
+                    Surface(shape = RoundedCornerShape(30.dp), color = Color.Black.copy(alpha = .36f)) {
+                        Text("TOP VIDEO", fontFamily = AirPlayrFonts.OpenSans, fontSize = 10.sp, letterSpacing = 1.2.sp, color = Color.White, modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp))
+                    }
+                    Text(video.title.ifBlank { video.filename }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 32.sp, lineHeight = 37.sp, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 9.dp))
+                    Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(video.artist.orEmpty().ifBlank { "Your past play" }, fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, color = Color.White.copy(alpha = .88f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Surface(Modifier.size(50.dp).clickable { onPlay(video) }, shape = CircleShape, color = colors.primary) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Default.PlayArrow, "Play top video", tint = colors.onPrimary, modifier = Modifier.size(23.dp)) } }
+                    }
+                }
+            }
+            IconButton(onClick = onShuffle, modifier = Modifier.align(Alignment.TopEnd).padding(18.dp).size(46.dp)) {
+                Surface(Modifier.fillMaxSize(), shape = CircleShape, color = colors.primary) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Default.Shuffle, "Shuffle", tint = colors.onPrimary) } }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RediscoverVideoPreview(item: MediaItem) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var player by remember(item.id) { mutableStateOf<ExoPlayer?>(null) }
+    DisposableEffect(item.id) {
+        val exo = ExoPlayer.Builder(context).build()
+        player = exo
+        val start = if (item.durationMs > 10_000L) (item.durationMs / 2L - 5_000L).coerceAtLeast(0L) else 0L
+        exo.setMediaItem(
+            androidx.media3.common.MediaItem.Builder().setMediaId("rediscover-preview:${item.id}").setUri(item.uri).build(),
+            start,
+        )
+        exo.prepare()
+        exo.playWhenReady = true
+        onDispose { exo.release(); player = null }
+    }
+    LaunchedEffect(player) {
+        val exo = player ?: return@LaunchedEffect
+        delay(10_000L)
+        exo.pause()
+    }
+    player?.let { AndroidVideoSurface(it, VideoFitMode.ZOOM, Modifier.fillMaxSize()) }
 }
 
 @Composable

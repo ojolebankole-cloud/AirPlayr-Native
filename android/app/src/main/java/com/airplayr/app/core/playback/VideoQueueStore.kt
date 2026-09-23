@@ -18,12 +18,27 @@ object VideoQueueStore {
     private val _currentId = MutableStateFlow<String?>(null)
     val currentId: StateFlow<String?> = _currentId.asStateFlow()
 
+    private val _repeatQueue = MutableStateFlow(false)
+    val repeatQueue: StateFlow<Boolean> = _repeatQueue.asStateFlow()
+
+    /** Starts a screen-owned video sequence. The queue cursor is preserved by VideoScreen as it navigates. */
+    fun setLoopingQueue(items: List<MediaItem>, startId: String? = items.firstOrNull()?.id) {
+        val ordered = items.distinctBy { it.id }
+        _queue.value = ordered
+        _currentId.value = startId?.takeIf { id -> ordered.any { it.id == id } } ?: ordered.firstOrNull()?.id
+        _repeatQueue.value = ordered.isNotEmpty()
+    }
+
     fun setCurrent(item: MediaItem) {
+        val alreadyQueued = _queue.value.any { it.id == item.id }
         _currentId.value = item.id
         _queue.update { current ->
-            if (current.any { it.id == item.id }) current else current + item
+            if (alreadyQueued) current else current + item
         }
+        if (!alreadyQueued) _repeatQueue.value = false
     }
+
+    fun setRepeat(enabled: Boolean) { _repeatQueue.value = enabled }
 
     fun add(items: List<MediaItem>) {
         if (items.isEmpty()) return
@@ -75,7 +90,12 @@ object VideoQueueStore {
         val id = currentId ?: return null
         val items = _queue.value
         val index = items.indexOfFirst { it.id == id }
-        return if (index >= 0 && index + 1 < items.size) items[index + 1] else null
+        if (index < 0 || items.isEmpty()) return null
+        return when {
+            index + 1 < items.size -> items[index + 1]
+            _repeatQueue.value -> items.firstOrNull()
+            else -> null
+        }
     }
 
     fun previous(currentId: String? = _currentId.value): MediaItem? {
@@ -93,5 +113,6 @@ object VideoQueueStore {
     fun clear() {
         _queue.value = emptyList()
         _currentId.value = null
+        _repeatQueue.value = false
     }
 }

@@ -248,7 +248,16 @@ fun VideoScreen(
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     if (playbackState == Player.STATE_ENDED) {
                         vm.completePlayback(item)
-                        VideoQueueStore.next(item.id)?.let { next -> onNavigate("video/${next.id}") }
+                        VideoQueueStore.next(item.id)?.let { next ->
+                            if (next.id == item.id) {
+                                // A looping single-item/last-item sequence restarts in-place instead
+                                // of stacking another identical navigation destination.
+                                ready.seekTo(0L)
+                                ready.play()
+                            } else {
+                                onNavigate("video/${next.id}")
+                            }
+                        }
                     }
                 }
             })

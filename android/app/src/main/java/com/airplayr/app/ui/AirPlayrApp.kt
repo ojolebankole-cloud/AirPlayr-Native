@@ -322,7 +322,6 @@ fun AirPlayrApp(
                             if (item.mediaType == com.airplayr.app.core.data.media.MediaType.VIDEO) {
                                 navigate("video/${item.id}")
                             } else {
-                                playbackController.play(item)
                                 navigate("player")
                             }
                         },

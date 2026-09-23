@@ -10,6 +10,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -96,12 +102,26 @@ fun AirPlayrFeatureCard(
     val currentPhase = phase(clockHour)
     val seed = "$wallpaper:$sessionSeed"
     val p = remember(kind, currentPhase, seed, dark, colors.primary, colors.secondary, colors.tertiary, colors.surface, colors.surfaceContainerLow, colors.surfaceContainerHigh, colors.surfaceContainerHighest) { palette(kind, currentPhase, seed, dark, colors.primary, colors.secondary, colors.tertiary, colors.surface, colors.surfaceContainerLow, colors.surfaceContainerHigh, colors.surfaceContainerHighest) }
+    val gradientMotion = rememberInfiniteTransition(label = "feature-card-gradient")
+    val gradientPhase by gradientMotion.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(9000, easing = LinearEasing), RepeatMode.Reverse),
+        label = "feature-card-gradient-phase",
+    )
     val width = (configuration.screenWidthDp * .49f).coerceIn(178f, 196f).dp
     val height = (width.value * 1.39f).dp
     val titleFont = when (kind) { "rock" -> AirPlayrFonts.DancingScript; "playlists" -> AirPlayrFonts.ShadowsIntoLight; "rediscover" -> AirPlayrFonts.Oswald; else -> AirPlayrFonts.SmoochSans }
     Box(Modifier.width(width).height(height).clip(RoundedCornerShape(27.dp)).clickable(onClick = onClick)) {
-        // One smooth Material-compatible gradient with no stacked overlays or transition seams.
-        Box(Modifier.fillMaxSize().background(Brush.linearGradient(p.gradient, start = androidx.compose.ui.geometry.Offset(0f, 0f), end = androidx.compose.ui.geometry.Offset(1000f, 1000f))))
+        // One smooth Material-You-compatible gradient. The per-app session seed changes the
+        // palette on a fresh app entry, while this slow drift keeps the card alive without
+        // changing the existing artwork, layout or interaction model.
+        val drift = gradientPhase * 180f
+        Box(Modifier.fillMaxSize().background(Brush.linearGradient(
+            p.gradient,
+            start = androidx.compose.ui.geometry.Offset(-drift, 0f),
+            end = androidx.compose.ui.geometry.Offset(1000f + drift, 1000f),
+        )))
         Image(painterResource(imageRes), title, Modifier.fillMaxWidth().height(height*.64f).padding(10.dp).align(Alignment.TopCenter))
         if (kind in setOf("morning","afternoon","night")) Text(digitalTime(now), color=p.ink.copy(alpha=.78f), fontSize=12.sp, lineHeight=16.sp, fontWeight=FontWeight.Medium, modifier=Modifier.align(Alignment.TopEnd).padding(top=16.dp,end=17.dp))
         Column(Modifier.align(Alignment.BottomStart).padding(start=17.dp,end=16.dp,bottom=17.dp)) {

@@ -6,6 +6,13 @@ import android.content.Intent
 import android.net.Uri
 import com.airplayr.app.ui.airPlayrBottomContentPadding
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDp
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
@@ -41,6 +48,7 @@ import com.airplayr.app.core.data.media.MediaItem
 import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.core.lyrics.LyricsService
 import com.airplayr.app.core.lyrics.LyricsTrack
+import com.airplayr.app.core.playback.VideoQueueStore
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.components.AirPlayrSheetScaffold
 import com.airplayr.app.ui.components.AirPlayrMediaMenuAction
@@ -56,6 +64,12 @@ import com.airplayr.app.ui.navigation.LibraryViewModel
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
+import com.airplayr.app.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -130,6 +144,32 @@ fun SearchScreen(
     val favoriteIds = snapshot.favorites
     val favoriteIdSet = remember(favoriteIds) { favoriteIds.map { it.mediaId }.toSet() }
     val playbackState by playback.stableState.collectAsStateWithLifecycle()
+    val searchSessionSeed = rememberSaveable { java.util.UUID.randomUUID().toString() }
+    val searchIconComposition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.airplayr_animated_icon))
+    val searchIconProgress by animateLottieCompositionAsState(
+        composition = searchIconComposition,
+        iterations = LottieConstants.IterateForever,
+    )
+    val playColors = remember(searchSessionSeed, colors.primary, colors.secondary, colors.tertiary) {
+        val palette = listOf(colors.primary, colors.secondary, colors.tertiary)
+        val start = Math.floorMod(searchSessionSeed.hashCode(), palette.size)
+        listOf(palette[start], palette[(start + 1) % palette.size], palette[(start + 2) % palette.size])
+    }
+    val playTransition = rememberInfiniteTransition(label = "search-play-icon")
+    val playOffset by playTransition.animateDp(
+        initialValue = 0.dp,
+        targetValue = (-3).dp,
+        animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Reverse),
+        label = "search-play-float",
+    )
+    var playColorIndex by rememberSaveable { mutableIntStateOf(0) }
+    LaunchedEffect(searchSessionSeed) {
+        while (true) {
+            delay(1700L)
+            playColorIndex = (playColorIndex + 1) % playColors.size
+        }
+    }
+    val animatedPlayColor by animateColorAsState(playColors[playColorIndex], tween(600), label = "search-play-color")
 
     LaunchedEffect(query) {
         delay(120)
@@ -255,9 +295,24 @@ fun SearchScreen(
         if (debounced.isBlank()) base else base.filter { matches(it, debounced) }
     }
 
+    fun playSearchAudio(item: MediaItem, sequence: List<MediaItem>) {
+        val ordered = sequence.filter { it.mediaType == MediaType.AUDIO }.distinctBy { it.id }
+        val index = ordered.indexOfFirst { it.id == item.id }
+        if (index >= 0) playback.playLoopingQueue(ordered, index)
+        onOpen(item)
+    }
+
+    fun playSearchVideo(item: MediaItem, sequence: List<MediaItem>) {
+        val ordered = sequence.filter { it.mediaType == MediaType.VIDEO }.distinctBy { it.id }
+        val index = ordered.indexOfFirst { it.id == item.id }
+        if (index >= 0) VideoQueueStore.setLoopingQueue(ordered, item.id)
+        onOpen(item)
+    }
+
     fun openEntry(entry: SearchEntry) {
         when (entry.type) {
-            "song", "video" -> entry.item?.let(onOpen)
+            "song" -> entry.item?.let { item -> playSearchAudio(item, filtered.mapNotNull { it.item }) }
+            "video" -> entry.item?.let { item -> playSearchVideo(item, filtered.mapNotNull { it.item }) }
             "album" -> entry.routeKey?.let { onNavigate("album/${Uri.encode(it)}") }
             "artist" -> entry.routeKey?.let { onNavigate("artist/${Uri.encode(it)}") }
             "genre" -> entry.routeKey?.let { onNavigate("genre/${Uri.encode(it)}") }
@@ -276,7 +331,7 @@ fun SearchScreen(
                 Icon(Icons.Default.ChevronLeft, "Back", tint = colors.primary)
             }
             Surface(
-                Modifier.weight(1f).height(48.dp),
+                Modifier.weight(1f).height(54.dp),
                 shape = RoundedCornerShape(24.dp),
                 color = colors.surfaceContainerHigh,
                 tonalElevation = 0.dp,
@@ -296,12 +351,46 @@ fun SearchScreen(
                             focus.clearFocus()
                         }),
                         decorationBox = { inner ->
-                            if (query.isEmpty()) Text(
-                                "Search your plays",
-                                color = colors.textSecondary,
-                                fontSize = 17.sp,
-                                fontFamily = AirPlayrFonts.SmoochSans,
-                            )
+                            if (query.isEmpty()) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                                ) {
+                                    LottieAnimation(
+                                        composition = searchIconComposition,
+                                        progress = { searchIconProgress },
+                                        modifier = Modifier.size(24.dp),
+                                    )
+                                    Column(verticalArrangement = Arrangement.Center) {
+                                        Text(
+                                            "Search your plays",
+                                            color = colors.textSecondary,
+                                            fontSize = 16.sp,
+                                            fontFamily = AirPlayrFonts.SmoochSans,
+                                            lineHeight = 18.sp,
+                                            maxLines = 1,
+                                        )
+                                        Text(
+                                            "AIR PLAYR",
+                                            color = colors.textPrimary,
+                                            fontSize = 9.sp,
+                                            lineHeight = 10.sp,
+                                            fontFamily = AirPlayrFonts.OpenSansBold,
+                                            letterSpacing = .7.sp,
+                                        )
+                                    }
+                                    Surface(
+                                        modifier = Modifier.offset(y = playOffset).size(30.dp),
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = animatedPlayColor.copy(alpha = .18f),
+                                        tonalElevation = 0.dp,
+                                    ) {
+                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.PlayArrow, "Play", tint = animatedPlayColor, modifier = Modifier.size(18.dp))
+                                        }
+                                    }
+                                }
+                            }
                             inner()
                         },
                     )
@@ -333,7 +422,7 @@ fun SearchScreen(
                 count = selectedIds.size,
                 onClear = { selectedIds = emptySet() },
                 onSelectAll = { selectedIds = (audio + video).map { it.id }.toSet() },
-                onPlay = chosen.firstOrNull { it.mediaType == MediaType.AUDIO }?.let { song -> ({ onOpen(song); selectedIds = emptySet() }) },
+                onPlay = chosen.firstOrNull { it.mediaType == MediaType.AUDIO }?.let { song -> ({ playSearchAudio(song, chosen.filter { it.mediaType == MediaType.AUDIO }); selectedIds = emptySet() }) },
                 onPlayNext = chosen.filter { it.mediaType == MediaType.AUDIO }.takeIf { it.isNotEmpty() }?.let { songs -> ({ songs.forEach(playback::playNext); selectedIds = emptySet() }) },
                 onPlaylist = chosen.firstOrNull { it.mediaType == MediaType.AUDIO }?.let { song -> ({ playlistTarget = song }) },
                 onLike = { scope.launch { chosen.filter { it.mediaType == MediaType.AUDIO }.forEach { if (it.id !in favoriteIdSet) container.structured.toggleFavorite(it) }; selectedIds = emptySet() } },
@@ -375,26 +464,46 @@ fun SearchScreen(
                 if (recentArtists.isNotEmpty()) {
                     item { SearchSectionHeader("RECENTLY PLAYED ARTISTS", colors) }
                     items(recentArtists, key = { "recent-artist:${it.id}" }) { entry ->
-                        SearchArtistRow(entry, colors, selected = entry.item?.id in selectedIds, onClick = { val id = entry.item?.id; if (selectedIds.isNotEmpty() && id != null) selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id else openEntry(entry) }, onLongPress = { entry.item?.id?.let { selectedIds = if (it in selectedIds) selectedIds - it else selectedIds + it } }, onMore = { entry.item?.let { selected = it } })
+                        SearchArtistRow(
+                            entry, colors, selected = entry.item?.id in selectedIds,
+                            onClick = { val id = entry.item?.id; if (selectedIds.isNotEmpty() && id != null) selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id else openEntry(entry.copy(type = "artist")) },
+                            onLongPress = { entry.item?.id?.let { selectedIds = if (it in selectedIds) selectedIds - it else selectedIds + it } },
+                            onMore = { entry.item?.let { selected = it } },
+                        )
                     }
                 }
                 if (recentSongs.isNotEmpty()) {
                     item { SearchSectionHeader("RECENTLY PLAYED SONGS", colors) }
                     items(recentSongs, key = { "recent-song:${it.id}" }) { entry ->
                         val playing = entry.item?.let { playbackState.isPlaying && playbackState.currentId == it.id } == true
-                        SearchSongRow(entry, colors, playing, selected = entry.item?.id in selectedIds, onClick = { val id = entry.item?.id; if (selectedIds.isNotEmpty() && id != null) selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id else openEntry(entry) }, onLongPress = { entry.item?.id?.let { selectedIds = if (it in selectedIds) selectedIds - it else selectedIds + it } }, onMore = { entry.item?.let { selected = it } })
+                        SearchSongRow(
+                            entry, colors, playing, selected = entry.item?.id in selectedIds,
+                            onClick = { val id = entry.item?.id; if (selectedIds.isNotEmpty() && id != null) selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id else entry.item?.let { playSearchAudio(it, recentSongs.mapNotNull { e -> e.item }) } },
+                            onLongPress = { entry.item?.id?.let { selectedIds = if (it in selectedIds) selectedIds - it else selectedIds + it } },
+                            onMore = { entry.item?.let { selected = it } },
+                        )
                     }
                 }
                 if (recentAlbums.isNotEmpty()) {
                     item { SearchSectionHeader("RECENTLY PLAYED ALBUMS", colors) }
                     items(recentAlbums, key = { "recent-album:${it.id}" }) { entry ->
-                        SearchAlbumRow(entry, colors, selected = entry.item?.id in selectedIds, onClick = { val id = entry.item?.id; if (selectedIds.isNotEmpty() && id != null) selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id else openEntry(entry) }, onLongPress = { entry.item?.id?.let { selectedIds = if (it in selectedIds) selectedIds - it else selectedIds + it } }, onMore = { entry.item?.let { selected = it } })
+                        SearchAlbumRow(
+                            entry, colors, selected = entry.item?.id in selectedIds,
+                            onClick = { val id = entry.item?.id; if (selectedIds.isNotEmpty() && id != null) selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id else openEntry(entry.copy(type = "album")) },
+                            onLongPress = { entry.item?.id?.let { selectedIds = if (it in selectedIds) selectedIds - it else selectedIds + it } },
+                            onMore = { entry.item?.let { selected = it } },
+                        )
                     }
                 }
                 if (recentVideos.isNotEmpty()) {
                     item { SearchSectionHeader("RECENTLY PLAYED VIDEOS", colors) }
                     items(recentVideos, key = { "recent-video:${it.id}" }) { entry ->
-                        SearchVideoRow(entry, colors, selected = entry.item?.id in selectedIds, onClick = { val id = entry.item?.id; if (selectedIds.isNotEmpty() && id != null) selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id else openEntry(entry) }, onLongPress = { entry.item?.id?.let { selectedIds = if (it in selectedIds) selectedIds - it else selectedIds + it } }, onMore = { entry.item?.let { selected = it } })
+                        SearchVideoRow(
+                            entry, colors, selected = entry.item?.id in selectedIds,
+                            onClick = { val id = entry.item?.id; if (selectedIds.isNotEmpty() && id != null) selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id else entry.item?.let { playSearchVideo(it, recentVideos.mapNotNull { e -> e.item }) } },
+                            onLongPress = { entry.item?.id?.let { selectedIds = if (it in selectedIds) selectedIds - it else selectedIds + it } },
+                            onMore = { entry.item?.let { selected = it } },
+                        )
                     }
                 }
                 if (snapshot.ready && recentSearches.isEmpty() && recentArtists.isEmpty() && recentSongs.isEmpty() && recentAlbums.isEmpty() && recentVideos.isEmpty()) {

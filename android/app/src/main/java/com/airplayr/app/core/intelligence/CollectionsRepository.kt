@@ -49,9 +49,16 @@ class CollectionsRepository(private val library: MediaLibraryRepository, private
         recentlyPlayedItems(limit)
 
     suspend fun rediscoverVideos(limit: Int = 40): List<MediaItem> {
-        val history = structured.recent(limit * 3).filter { it.mediaType == MediaType.VIDEO.value }
+        // Rediscover is intentionally driven by repeated watching, not simply the last video
+        // opened. Aggregate the durable history counts and use recency only as the tie-breaker.
+        val history = structured.recent(500).filter { it.mediaType == MediaType.VIDEO.value }
         val videos = library.page(MediaType.VIDEO, 250, 0).associateBy { it.id }
-        return history.mapNotNull { videos[it.mediaId] }.distinctBy { it.id }.take(limit)
+        val latestById = history.groupBy { it.mediaId }.mapValues { (_, rows) -> rows.maxByOrNull { it.playedAt } }
+        val countById = history.groupBy { it.mediaId }.mapValues { (_, rows) -> rows.maxOfOrNull { it.playCount } ?: rows.size }
+        return countById.entries
+            .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenByDescending { latestById[it.key]?.playedAt ?: 0L })
+            .mapNotNull { videos[it.key] }
+            .take(limit)
     }
 
     suspend fun tunedIn(limit: Int = 40): List<MediaItem> =

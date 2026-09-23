@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airplayr.app.core.data.media.MediaItem
 import com.airplayr.app.core.data.media.MediaType
+import com.airplayr.app.core.playback.VideoQueueStore
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.components.*
 import com.airplayr.app.ui.feedback.AppFeedback
@@ -107,10 +108,7 @@ fun HistoryScreen(
 
     fun playSong(item: MediaItem) {
         val index = songs.indexOfFirst { it.id == item.id }
-        if (index >= 0) {
-            playback.playQueue(songs, index)
-            onOpenPlayer()
-        }
+        if (index >= 0) playback.playLoopingQueue(songs, index)
     }
 
     Box(Modifier.fillMaxSize().background(colors.background)) {
@@ -214,7 +212,10 @@ fun HistoryScreen(
                             selectedIds = selectedIds,
                             onOpen = { item ->
                                 if (selectedIds.isNotEmpty()) selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id
-                                else onOpenVideo(item.id)
+                                else {
+                                    VideoQueueStore.setLoopingQueue(list, item.id)
+                                    onOpenVideo(item.id)
+                                }
                             },
                             onMore = { item -> selected = item },
                             onLongPress = { item -> selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id },
