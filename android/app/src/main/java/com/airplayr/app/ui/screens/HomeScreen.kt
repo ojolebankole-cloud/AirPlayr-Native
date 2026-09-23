@@ -14,6 +14,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.drawscope.Fill
@@ -45,6 +52,11 @@ import com.airplayr.app.ui.theme.AirPlayrArtworkTokens
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.AirPlayrIcons
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
 import kotlinx.coroutines.launch
 
 @Composable
@@ -346,13 +358,34 @@ private fun HomeHeader(
 ) {
     val colors = LocalAirPlayrColors.current
     var showSearchPrompt by remember { mutableStateOf(false) }
-
+    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.airplayr_animated_icon))
+    val lottieProgress by animateLottieCompositionAsState(
+        composition = composition,
+        iterations = LottieConstants.IterateForever,
+        isPlaying = showSearchPrompt,
+    )
+    val playTransition = rememberInfiniteTransition(label = "home-search-play")
+    val playOffset by playTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = -3f,
+        animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Reverse),
+        label = "home-search-play-float",
+    )
+    var playColorIndex by rememberSaveable { mutableIntStateOf(0) }
+    val playColors = listOf(colors.primary, colors.secondary, colors.tertiary)
     LaunchedEffect(Unit) {
         showSearchPrompt = false
         kotlinx.coroutines.delay(10_000L)
         showSearchPrompt = true
     }
-
+    LaunchedEffect(showSearchPrompt, playColors) {
+        if (!showSearchPrompt) return@LaunchedEffect
+        while (true) {
+            kotlinx.coroutines.delay(1700L)
+            playColorIndex = (playColorIndex + 1) % playColors.size
+        }
+    }
+    val animatedPlayColor by animateColorAsState(playColors[playColorIndex], tween(600), label = "home-search-play-color")
     val searchEnabled = !scanProgress.visible
     Column(Modifier.fillMaxWidth().padding(top = 6.dp, start = 24.dp, end = 24.dp, bottom = 4.dp)) {
         Row(
@@ -389,16 +422,45 @@ private fun HomeHeader(
                     }
                 } else {
                     if (showSearchPrompt) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
+                            LottieAnimation(
+                                composition = composition,
+                                progress = { lottieProgress },
+                                modifier = Modifier.size(31.dp),
+                            )
+                            Text(
+                                "AIR PLAYR",
+                                fontFamily = AirPlayrFonts.OpenSansBold,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 15.sp,
+                                letterSpacing = .65.sp,
+                                color = colors.textPrimary,
+                                maxLines = 1,
+                            )
+                            Surface(
+                                modifier = Modifier.offset(y = playOffset.dp).size(32.dp).padding(start = 3.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                color = animatedPlayColor.copy(alpha = .18f),
+                                tonalElevation = 0.dp,
+                            ) {
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.PlayArrow, "Play", tint = animatedPlayColor, modifier = Modifier.size(19.dp))
+                                }
+                            }
+                        }
+                    } else {
                         Text(
                             "Search your plays",
                             fontFamily = AirPlayrFonts.SmoochSans,
-                            fontSize = 17.sp,
+                            fontSize = 18.sp,
                             color = colors.textPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                    } else {
-                        AirPlayrWordmark()
                     }
                 }
             }

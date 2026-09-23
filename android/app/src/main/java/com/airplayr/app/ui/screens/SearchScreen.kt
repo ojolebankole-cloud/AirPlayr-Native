@@ -6,13 +6,6 @@ import android.content.Intent
 import android.net.Uri
 import com.airplayr.app.ui.airPlayrBottomContentPadding
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
@@ -64,12 +57,6 @@ import com.airplayr.app.ui.navigation.LibraryViewModel
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.animateLottieCompositionAsState
-import com.airbnb.lottie.compose.rememberLottieComposition
-import com.airplayr.app.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -144,33 +131,6 @@ fun SearchScreen(
     val favoriteIds = snapshot.favorites
     val favoriteIdSet = remember(favoriteIds) { favoriteIds.map { it.mediaId }.toSet() }
     val playbackState by playback.stableState.collectAsStateWithLifecycle()
-    val searchSessionSeed = rememberSaveable { java.util.UUID.randomUUID().toString() }
-    val searchIconComposition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.airplayr_animated_icon))
-    val searchIconProgress by animateLottieCompositionAsState(
-        composition = searchIconComposition,
-        iterations = LottieConstants.IterateForever,
-    )
-    val playColors = remember(searchSessionSeed, colors.primary, colors.secondary, colors.tertiary) {
-        val palette = listOf(colors.primary, colors.secondary, colors.tertiary)
-        val start = Math.floorMod(searchSessionSeed.hashCode(), palette.size)
-        listOf(palette[start], palette[(start + 1) % palette.size], palette[(start + 2) % palette.size])
-    }
-    val playTransition = rememberInfiniteTransition(label = "search-play-icon")
-    val playOffset by playTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = -3f,
-        animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Reverse),
-        label = "search-play-float",
-    )
-    var playColorIndex by rememberSaveable { mutableIntStateOf(0) }
-    LaunchedEffect(searchSessionSeed) {
-        while (true) {
-            delay(1700L)
-            playColorIndex = (playColorIndex + 1) % playColors.size
-        }
-    }
-    val animatedPlayColor by animateColorAsState(playColors[playColorIndex], tween(600), label = "search-play-color")
-
     LaunchedEffect(query) {
         delay(120)
         debounced = query.trim()
@@ -352,44 +312,14 @@ fun SearchScreen(
                         }),
                         decorationBox = { inner ->
                             if (query.isEmpty()) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(7.dp),
-                                ) {
-                                    LottieAnimation(
-                                        composition = searchIconComposition,
-                                        progress = { searchIconProgress },
-                                        modifier = Modifier.size(24.dp),
-                                    )
-                                    Column(verticalArrangement = Arrangement.Center) {
-                                        Text(
-                                            "Search your plays",
-                                            color = colors.textSecondary,
-                                            fontSize = 16.sp,
-                                            fontFamily = AirPlayrFonts.SmoochSans,
-                                            lineHeight = 18.sp,
-                                            maxLines = 1,
-                                        )
-                                        Text(
-                                            "AIR PLAYR",
-                                            color = colors.textPrimary,
-                                            fontSize = 9.sp,
-                                            lineHeight = 10.sp,
-                                            fontFamily = AirPlayrFonts.OpenSansBold,
-                                            letterSpacing = .7.sp,
-                                        )
-                                    }
-                                    Surface(
-                                        modifier = Modifier.offset(y = playOffset.dp).size(30.dp),
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = animatedPlayColor.copy(alpha = .18f),
-                                        tonalElevation = 0.dp,
-                                    ) {
-                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                            Icon(Icons.Default.PlayArrow, "Play", tint = animatedPlayColor, modifier = Modifier.size(18.dp))
-                                        }
-                                    }
-                                }
+                                Text(
+                                    "Search your plays",
+                                    color = colors.textSecondary,
+                                    fontSize = 17.sp,
+                                    fontFamily = AirPlayrFonts.SmoochSans,
+                                    lineHeight = 20.sp,
+                                    maxLines = 1,
+                                )
                             }
                             inner()
                         },

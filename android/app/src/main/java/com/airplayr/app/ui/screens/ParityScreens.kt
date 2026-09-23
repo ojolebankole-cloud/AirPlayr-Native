@@ -12,6 +12,7 @@ import com.airplayr.app.ui.airPlayrFloatingPlayBottomPadding
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -126,9 +127,10 @@ fun FeatureCollectionScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val cachedFeatures by libraryViewModel.cachedFeatures.collectAsStateWithLifecycle()
+    val liveHistory by libraryViewModel.history.collectAsStateWithLifecycle()
     val cacheKey = "feature:$title"
     var items by remember(cachedFeatures, cacheKey) { mutableStateOf(cachedFeatures[cacheKey].orEmpty()) }
-    var loading by remember(cachedFeatures, cacheKey) { mutableStateOf(cachedFeatures[cacheKey] == null) }
+    var loading by remember(cachedFeatures, cacheKey, title) { mutableStateOf(cachedFeatures[cacheKey] == null && title != "Rediscover") }
     var menuOpen by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<MediaItem?>(null) }
     var favorite by remember { mutableStateOf(false) }
@@ -146,7 +148,9 @@ fun FeatureCollectionScreen(
             else -> Triple("NIGHT", "Settle into the night.", "A softer soundtrack for the quiet hours.")
         }
     }
-    LaunchedEffect(title) { libraryViewModel.loadFeature(cacheKey, loader) }
+    LaunchedEffect(title, cacheKey, if (title == "Rediscover") liveHistory else null) {
+        libraryViewModel.loadFeature(cacheKey, loader, force = title == "Rediscover")
+    }
     LaunchedEffect(isTime) { if (isTime) while (true) { kotlinx.coroutines.delay(30_000); now = java.util.Calendar.getInstance() } }
     LaunchedEffect(cachedFeatures, cacheKey) { cachedFeatures[cacheKey]?.let { items = it; loading = false } }
     val playbackState by playback.stableState.collectAsStateWithLifecycle()
@@ -226,7 +230,20 @@ fun FeatureCollectionScreen(
                 Text(if (title == "Rediscover") "Your unfinished and recently watched stories." else if (title == "Rock your world") "Songs ready when you want more energy." else if (title == "For you now") "A few familiar sounds to bring you back in." else "A hand-picked sequence for this moment.", fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, color = colors.textSecondary, modifier = Modifier.padding(horizontal = 22.dp))
             }
             items(items, key = { it.id }) { item ->
-                FeatureMediaRow(
+                if (title == "Rediscover") {
+                    AirPlayrMediaRow(
+                        item = item,
+                        onOpen = {
+                            if (selectionMode) {
+                                selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id
+                            } else if (item.mediaType == MediaType.AUDIO) playback.play(item) else onVideoOpen(item.id)
+                        },
+                        onMore = { if (!selectionMode) { selected = item; scope.launch { favorite = container?.structured?.isFavorite(item.id) ?: false } } },
+                        playing = playbackState.isPlaying && playbackState.currentId == item.id,
+                        selected = item.id in selectedIds,
+                        onLongPress = { selectionMode = true; selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id },
+                    )
+                } else FeatureMediaRow(
                     item = item,
                     colors = colors,
                     playing = playbackState.isPlaying && playbackState.currentId == item.id,
@@ -362,8 +379,11 @@ private fun RediscoverHero(
     onPlay: (MediaItem) -> Unit,
     onShuffle: () -> Unit,
 ) {
-    val video = items.firstOrNull()
-    var slide by rememberSaveable(video?.id) { mutableIntStateOf(0) }
+    val videos = items.filter { it.mediaType == MediaType.VIDEO }
+    val firstVideo = videos.firstOrNull()
+    var slide by rememberSaveable(videos.map { it.id }.joinToString("|") ) { mutableIntStateOf(0) }
+    var previewIndex by rememberSaveable(videos.map { it.id }.joinToString("|") ) { mutableIntStateOf(0) }
+    val previewVideo = videos.getOrNull(previewIndex) ?: firstVideo
     val composition by com.airbnb.lottie.compose.rememberLottieComposition(
         com.airbnb.lottie.compose.LottieCompositionSpec.Asset("rediscover_illustration/animation.json")
     )
@@ -372,13 +392,15 @@ private fun RediscoverHero(
         iterations = com.airbnb.lottie.compose.LottieConstants.IterateForever,
         isPlaying = slide == 0,
     )
-    LaunchedEffect(video?.id) {
+    LaunchedEffect(videos.map { it.id }.joinToString("|")) {
         slide = 0
-        if (video == null) return@LaunchedEffect
+        previewIndex = 0
+        if (firstVideo == null) return@LaunchedEffect
         while (true) {
             delay(10_000L)
             slide = 1
-            delay(10_000L)
+            delay(15_000L)
+            if (videos.size > 1) previewIndex = (previewIndex + 1) % videos.size
             slide = 0
         }
     }
@@ -387,11 +409,12 @@ private fun RediscoverHero(
             .fillMaxWidth()
             .height(360.dp)
             .padding(horizontal = 22.dp)
+            .shadow(8.dp, RoundedCornerShape(30.dp), clip = false)
             .clip(RoundedCornerShape(30.dp))
-            .clickable { if (video != null) onPlay(video) },
+            .clickable { if (previewVideo != null) onPlay(previewVideo) },
     ) {
         androidx.compose.animation.Crossfade(targetState = slide, animationSpec = androidx.compose.animation.core.tween(700), label = "rediscover-hero-fade") { page ->
-            if (page == 0 || video == null) {
+            if (page == 0 || previewVideo == null) {
                 Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(colors.primary, colors.secondary, colors.tertiary))))
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .12f)))
                 com.airbnb.lottie.compose.LottieAnimation(
@@ -407,16 +430,16 @@ private fun RediscoverHero(
                     Text("A visual rewind built from the videos you keep returning to.", fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, color = Color.White.copy(alpha = .88f), modifier = Modifier.padding(top = 4.dp))
                 }
             } else {
-                RediscoverVideoPreview(video)
+                RediscoverVideoPreview(previewVideo)
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .78f)))))
                 Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.Bottom) {
                     Surface(shape = RoundedCornerShape(30.dp), color = Color.Black.copy(alpha = .36f)) {
                         Text("TOP VIDEO", fontFamily = AirPlayrFonts.OpenSans, fontSize = 10.sp, letterSpacing = 1.2.sp, color = Color.White, modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp))
                     }
-                    Text(video.title.ifBlank { video.filename }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 32.sp, lineHeight = 37.sp, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 9.dp))
+                    Text(previewVideo.title.ifBlank { previewVideo.filename }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 32.sp, lineHeight = 37.sp, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 9.dp))
                     Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(video.artist.orEmpty().ifBlank { "Your past play" }, fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, color = Color.White.copy(alpha = .88f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        Surface(Modifier.size(50.dp).clickable { onPlay(video) }, shape = CircleShape, color = colors.primary) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Default.PlayArrow, "Play top video", tint = colors.onPrimary, modifier = Modifier.size(23.dp)) } }
+                        Text(previewVideo.artist.orEmpty().ifBlank { "Your past play" }, fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, color = Color.White.copy(alpha = .88f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Surface(Modifier.size(50.dp).clickable { onPlay(previewVideo) }, shape = CircleShape, color = colors.primary) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Default.PlayArrow, "Play top video", tint = colors.onPrimary, modifier = Modifier.size(23.dp)) } }
                     }
                 }
             }
@@ -439,14 +462,10 @@ private fun RediscoverVideoPreview(item: MediaItem) {
             androidx.media3.common.MediaItem.Builder().setMediaId("rediscover-preview:${item.id}").setUri(item.uri).build(),
             start,
         )
+        exo.volume = 0f
         exo.prepare()
         exo.playWhenReady = true
         onDispose { exo.release(); player = null }
-    }
-    LaunchedEffect(player) {
-        val exo = player ?: return@LaunchedEffect
-        delay(10_000L)
-        exo.pause()
     }
     player?.let { AndroidVideoSurface(it, VideoFitMode.ZOOM, Modifier.fillMaxSize()) }
 }

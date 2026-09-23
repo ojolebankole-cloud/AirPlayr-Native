@@ -52,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -346,6 +347,7 @@ private fun MostPlayedHero(
             .fillMaxWidth()
             .height(350.dp)
             .padding(horizontal = 22.dp)
+            .shadow(8.dp, shape, clip = false)
             .clip(shape)
             .clickable(enabled = slide == 1 && topTrack != null, onClick = onTrack),
     ) {
