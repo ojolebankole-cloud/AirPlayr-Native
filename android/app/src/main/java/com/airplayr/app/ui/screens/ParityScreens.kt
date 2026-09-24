@@ -1998,8 +1998,11 @@ private fun PlaylistTypeHeroCard(
     val phase by motion.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            androidx.compose.animation.core.tween(7000, easing = androidx.compose.animation.core.LinearEasing),
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable<Float>(
+            animation = androidx.compose.animation.core.tween<Float>(
+                durationMillis = 7000,
+                easing = androidx.compose.animation.core.LinearEasing,
+            ),
             repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
         ),
         label = "playlist-card-gradient-phase",
@@ -2025,8 +2028,7 @@ private fun PlaylistTypeHeroCard(
     ) {
         com.airbnb.lottie.compose.LottieAnimation(
             composition = composition,
-            progress = { progress },
-            contentDescription = title,
+            progress = progress,
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(.68f)
