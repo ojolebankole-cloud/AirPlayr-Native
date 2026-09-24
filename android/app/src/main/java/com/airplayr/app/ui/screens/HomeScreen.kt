@@ -112,22 +112,22 @@ fun HomeScreen(
     }
     val hour = currentHour
     val timeCard = when (hour) {
-        in 5..8 -> Triple("Early Morning Jam", "Tuned in this very hour.", R.drawable.recording_pana)
-        in 9..11 -> Triple("Late Morning Jam", "Tuned in this very hour.", R.drawable.recording_pana)
-        in 12..16 -> Triple("Afternoon Mix", "Live with the culture.", R.drawable.music_cuate)
-        in 17..19 -> Triple("Evening Jam", "Beyond sounds.", R.drawable.dj_boy_cuate)
-        in 20..22 -> Triple("Night Jam", "Tuned in this very hour.", R.drawable.recording_pana)
-        in 23..23, in 0..1 -> Triple("Night Extra", "Feel the night.", R.drawable.dj_boy_cuate)
-        else -> Triple("Late Night Jam", "For the night.", R.drawable.dj_boy_cuate)
+        in 5..8 -> Triple("Early Morning Jam", "Tuned in this very hour.", "feature-cards/Headphone-cuate.svg")
+        in 9..11 -> Triple("Late Morning Jam", "Tuned in this very hour.", "feature-cards/Headphone-cuate.svg")
+        in 12..16 -> Triple("Afternoon Mix", "Live with the culture.", "feature-cards/Music-cuate.svg")
+        in 17..19 -> Triple("Evening Jam", "Beyond sounds.", "feature-cards/DJ boy-cuate.svg")
+        in 20..22 -> Triple("Night Jam", "Tuned in this very hour.", "feature-cards/Recording-pana.svg")
+        in 23..23, in 0..1 -> Triple("Night Extra", "Feel the night.", "feature-cards/DJ boy-cuate.svg")
+        else -> Triple("Late Night Jam", "For the night.", "feature-cards/DJ boy-cuate.svg")
     }
     val featureSessionSeed = rememberSaveable { java.util.UUID.randomUUID().toString() }
     val features = remember(timeCard, featureSessionSeed) {
         val list = listOf(
-            FeatureSpec("For you now", "Press play & tuned in", "for-you", "for-you", R.drawable.headphone_amico),
+            FeatureSpec("For you now", "Press play & tuned in", "for-you", "for-you", "feature-cards/Headphone-amico.svg"),
             FeatureSpec(timeCard.first, timeCard.second, "tuned-in", when (hour) { in 5..11 -> "morning"; in 12..16 -> "afternoon"; else -> "night" }, timeCard.third),
-            FeatureSpec("Rediscover", "From your previous plays.", "rediscover", "rediscover", R.drawable.media_player_bro),
-            FeatureSpec("Rock your world", "Turn it up.", "rock-your-world", "rock", R.drawable.playing_music_bro),
-            FeatureSpec("My playlists", "Your Archive", "my-playlists", "playlists", R.drawable.playlist_pana),
+            FeatureSpec("Rediscover", "From your previous plays.", "rediscover", "rediscover", "feature-cards/Media player-bro.svg"),
+            FeatureSpec("Rock your world", "Turn it up.", "rock-your-world", "rock", "feature-cards/Playing Music-bro.svg"),
+            FeatureSpec("My playlists", "Your Archive", "my-playlists", "playlists", "feature-cards/Playlist-pana.svg"),
         )
         list.shuffled(java.util.Random(featureSessionSeed.hashCode().toLong()))
     }
@@ -348,7 +348,7 @@ fun SafScanOverlay(state: SafScanUiState) {
     }
 }
 
-private data class FeatureSpec(val title: String, val eyebrow: String, val route: String, val kind: String, val image: Int)
+private data class FeatureSpec(val title: String, val eyebrow: String, val route: String, val kind: String, val image: String)
 
 @Composable
 private fun HomeHeader(
@@ -364,6 +364,32 @@ private fun HomeHeader(
         composition = composition,
         iterations = LottieConstants.IterateForever,
         isPlaying = showSearchPrompt,
+    )
+    var lottiePaletteCycle by rememberSaveable { mutableIntStateOf(0) }
+    LaunchedEffect(showSearchPrompt, colors.primary, colors.secondary, colors.tertiary) {
+        if (!showSearchPrompt) return@LaunchedEffect
+        while (true) {
+            kotlinx.coroutines.delay(2_800L)
+            lottiePaletteCycle = (lottiePaletteCycle + 1) % 3
+        }
+    }
+    val baseLottieColors = remember(colors.primary, colors.secondary, colors.tertiary) {
+        listOf(colors.primary, colors.secondary, colors.tertiary)
+    }
+    val lottieThemeColors = remember(baseLottieColors, lottiePaletteCycle) {
+        listOf(
+            baseLottieColors[lottiePaletteCycle % 3],
+            baseLottieColors[(lottiePaletteCycle + 1) % 3],
+            baseLottieColors[(lottiePaletteCycle + 2) % 3],
+        )
+    }
+    val lottieDynamicProperties = rememberAirPlayrLottieTheme(
+        colors = lottieThemeColors,
+        keyPaths = listOf(
+            arrayOf("Pre-comp 1", "Layer 4", "**"),
+            arrayOf("Pre-comp 1", "Layer 1", "**"),
+            arrayOf("Pre-comp 1", "Layer 4", "Group 1", "Path 1"),
+        ),
     )
     val playTransition = rememberInfiniteTransition(label = "home-search-play")
     val playOffset by playTransition.animateFloat(
@@ -431,6 +457,7 @@ private fun HomeHeader(
                             LottieAnimation(
                                 composition = composition,
                                 progress = { lottieProgress },
+                                dynamicProperties = lottieDynamicProperties,
                                 modifier = Modifier.size(37.dp),
                             )
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -443,13 +470,9 @@ private fun HomeHeader(
                                     letterSpacing = .7.sp,
                                     color = colors.brandAccent,
                                 )
-                                val wordmarkTransition = rememberInfiniteTransition(label = "home-search-wordmark-gradient")
-                                val wordmarkPhase by wordmarkTransition.animateFloat(
-                                    initialValue = 0f,
-                                    targetValue = 1f,
-                                    animationSpec = infiniteRepeatable(tween(5200, easing = LinearEasing), RepeatMode.Reverse),
-                                    label = "home-search-wordmark-phase",
-                                )
+                                val wordmarkColors = remember(colors.primary, colors.secondary, colors.tertiary) {
+                                    listOf(colors.primary, colors.secondary, colors.tertiary, colors.primary)
+                                }
                                 Text(
                                     "PLAYR",
                                     fontFamily = AirPlayrFonts.SmoochSans,
@@ -459,9 +482,9 @@ private fun HomeHeader(
                                     letterSpacing = .7.sp,
                                     style = MaterialTheme.typography.titleLarge.copy(
                                         brush = Brush.linearGradient(
-                                            colors = listOf(colors.primary, colors.secondary, colors.tertiary, colors.primary),
-                                            start = androidx.compose.ui.geometry.Offset(-120f + wordmarkPhase * 120f, 0f),
-                                            end = androidx.compose.ui.geometry.Offset(180f + wordmarkPhase * 120f, 0f),
+                                            colors = wordmarkColors,
+                                            start = androidx.compose.ui.geometry.Offset(-120f, 0f),
+                                            end = androidx.compose.ui.geometry.Offset(180f, 0f),
                                         ),
                                         fontFamily = AirPlayrFonts.SmoochSans,
                                         fontWeight = FontWeight.Bold,
@@ -470,15 +493,11 @@ private fun HomeHeader(
                                     maxLines = 1,
                                 )
                             }
-                            Surface(
+                            Box(
                                 modifier = Modifier.offset(y = playOffset.dp).size(34.dp).padding(start = 3.dp),
-                                shape = RoundedCornerShape(10.dp),
-                                color = animatedPlayColor.copy(alpha = .18f),
-                                tonalElevation = 0.dp,
+                                contentAlignment = Alignment.Center,
                             ) {
-                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Default.PlayArrow, "Play", tint = animatedPlayColor, modifier = Modifier.size(19.dp))
-                                }
+                                Icon(Icons.Default.PlayArrow, "Play", tint = animatedPlayColor, modifier = Modifier.size(19.dp))
                             }
                         }
                     } else {

@@ -86,6 +86,7 @@ dependencies {
     implementation("androidx.mediarouter:mediarouter:1.8.1")
     implementation("androidx.media3:media3-ui:1.11.0")
     implementation("com.airbnb.android:lottie-compose:6.7.1")
+    implementation("com.caverock:androidsvg:1.4")
     implementation("net.jthink:jaudiotagger:3.0.1")
 
     implementation("androidx.work:work-runtime-ktx:2.11.2")

@@ -146,14 +146,14 @@ class PlaybackController(private val appContext: Context) : ViewModel() {
         c.setMediaItem(media, 0L); c.prepare(); c.play()
     }
 
-    /** Plays the supplied sequence from [startIndex] and continuously wraps to the first item. */
-    fun playLoopingQueue(items: List<MediaItem>, startIndex: Int = 0) {
+    /** Plays the supplied sequence. Existing callers keep repeat-all behaviour by default. */
+    fun playLoopingQueue(items: List<MediaItem>, startIndex: Int = 0, repeatAll: Boolean = true) {
         val c = controller ?: return
         val audioItems = items.filter { it.mediaType == MediaType.AUDIO }
         if (audioItems.isEmpty()) return
         val requestedIndex = startIndex.coerceIn(0, audioItems.lastIndex)
         c.setMediaItems(audioItems.map(MediaItemMapper::toExo), requestedIndex, 0L)
-        c.repeatMode = Player.REPEAT_MODE_ALL
+        c.repeatMode = if (repeatAll) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
         c.prepare()
         viewModelScope.launch {
             val settings = preferences.settings.first()

@@ -7,6 +7,7 @@ import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.components.AirPlayrCard
+import com.airplayr.app.ui.components.rememberAirPlayrLottieTheme
 import com.airplayr.app.ui.components.airPlayrShadow
 import com.airplayr.app.ui.airPlayrBottomContentPadding
 import com.airplayr.app.ui.airPlayrFloatingPlayBottomPadding
@@ -86,6 +87,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.airplayr.app.core.data.media.MediaItem
 import com.airplayr.app.core.data.media.MediaType
@@ -396,6 +398,16 @@ private fun RediscoverHero(
         iterations = com.airbnb.lottie.compose.LottieConstants.IterateForever,
         isPlaying = slide == 0,
     )
+    val lottieDynamicProperties = rememberAirPlayrLottieTheme(
+        colors = remember(colors.primary, colors.secondary, colors.tertiary) {
+            listOf(colors.primary, colors.secondary, colors.tertiary)
+        },
+        keyPaths = listOf(
+            arrayOf("checkmark", "**"),
+            arrayOf("TV-outline", "**"),
+            arrayOf("headband", "**"),
+        ),
+    )
     LaunchedEffect(videos.map { it.id }.joinToString("|")) {
         slide = 0
         previewIndex = 0
@@ -424,6 +436,7 @@ private fun RediscoverHero(
                 com.airbnb.lottie.compose.LottieAnimation(
                     composition = composition,
                     progress = { lottieProgress },
+                    dynamicProperties = lottieDynamicProperties,
                     modifier = Modifier.align(Alignment.Center).fillMaxHeight(.72f).aspectRatio(1f),
                 )
                 Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.Bottom) {
@@ -467,6 +480,7 @@ private fun RediscoverVideoPreview(item: MediaItem) {
             start,
         )
         exo.volume = 0f
+        exo.repeatMode = Player.REPEAT_MODE_ONE
         exo.prepare()
         exo.playWhenReady = true
         onDispose { exo.release(); player = null }
@@ -1761,7 +1775,12 @@ fun MyPlaylistsScreen(container: AppContainer, libraryViewModel: LibraryViewMode
                 }
             }
         }
-        Column(Modifier.align(Alignment.BottomEnd).padding(end = 22.dp, bottom = 24.dp), horizontalAlignment = Alignment.End) {
+        Column(
+            Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 22.dp, bottom = airPlayrFloatingPlayBottomPadding()),
+            horizontalAlignment = Alignment.End,
+        ) {
             if (fabOpen) Column(verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.End) {
                 SmallFabOption("External playlist", Icons.Default.Public) { fabOpen = false; com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("External playlist URLs are not connected to AirPlayr yet.") }
                 SmallFabOption("Import playlist (.m3u)", Icons.Default.FileDownload) { fabOpen = false; importPickerLauncher.launch(arrayOf("audio/x-mpegurl","application/x-mpegURL","text/plain","*/*")) }
@@ -1996,6 +2015,34 @@ private fun PlaylistTypeHeroCard(
         speed = 1f,
         restartOnPlay = false,
     )
+    var paletteCycle by rememberSaveable(asset) { mutableIntStateOf(0) }
+    LaunchedEffect(asset) {
+        while (true) {
+            delay(15_000L)
+            paletteCycle += 1
+        }
+    }
+    val basePalette = remember(primary, secondary, accent) { listOf(primary, secondary, accent) }
+    val themedPalette = remember(basePalette, paletteCycle) {
+        val shift = paletteCycle % basePalette.size
+        List(basePalette.size) { index -> basePalette[(index + shift) % basePalette.size] }
+    }
+    val playlistDynamicProperties = rememberAirPlayrLottieTheme(
+        colors = themedPalette,
+        keyPaths = if (asset.contains("music_playlist")) {
+            listOf(
+                arrayOf("Icon", "Screen_03", "**"),
+                arrayOf("Icon", "Screen_02", "**"),
+                arrayOf("Icon", "ScreenContent", "**"),
+            )
+        } else {
+            listOf(
+                arrayOf("TV Center", "volume", "**"),
+                arrayOf("TV Center", "on", "**"),
+                arrayOf("TV Center", "chanel", "**"),
+            )
+        },
+    )
     val motion = rememberInfiniteTransition(label = "playlist-card-gradient")
     val phase by motion.animateFloat(
         initialValue = 0f,
@@ -2013,6 +2060,7 @@ private fun PlaylistTypeHeroCard(
     Box(
         modifier
             .aspectRatio(1f)
+            .shadow(8.dp, shape, clip = false)
             .clip(shape)
             .background(
                 Brush.linearGradient(
@@ -2031,6 +2079,7 @@ private fun PlaylistTypeHeroCard(
         com.airbnb.lottie.compose.LottieAnimation(
             composition = composition,
             progress = progress,
+            dynamicProperties = playlistDynamicProperties,
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(.68f)

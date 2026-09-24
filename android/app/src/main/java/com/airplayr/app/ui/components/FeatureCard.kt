@@ -3,7 +3,6 @@ package com.airplayr.app.ui.components
 import android.app.WallpaperManager
 import android.os.Build
 import androidx.core.graphics.ColorUtils
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,20 +19,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.layout.ContentScale
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import java.util.Calendar
@@ -84,7 +79,7 @@ private fun wallpaperSeed(context: android.content.Context): String {
 fun AirPlayrFeatureCard(
     eyebrow: String,
     title: String,
-    imageRes: Int,
+    imageAsset: String,
     onClick: () -> Unit,
     kind: String = "rediscover",
     clockHour: Int = Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
@@ -103,8 +98,17 @@ fun AirPlayrFeatureCard(
     val sessionSeed = stableSessionSeed ?: remember { "${System.currentTimeMillis()}-${kotlin.random.Random.nextInt()}" }
     val wallpaper = remember { wallpaperSeed(context) }
     val currentPhase = phase(clockHour)
-    val seed = "$wallpaper:$sessionSeed"
-    val p = remember(kind, currentPhase, seed, dark, colors.primary, colors.secondary, colors.tertiary, colors.surface, colors.surfaceContainerLow, colors.surfaceContainerHigh, colors.surfaceContainerHighest) { palette(kind, currentPhase, seed, dark, colors.primary, colors.secondary, colors.tertiary, colors.surface, colors.surfaceContainerLow, colors.surfaceContainerHigh, colors.surfaceContainerHighest) }
+    var paletteCycle by rememberSaveable(kind) { mutableIntStateOf(0) }
+    LaunchedEffect(kind) {
+        while (true) {
+            kotlinx.coroutines.delay(12_000L)
+            paletteCycle += 1
+        }
+    }
+    val seed = "$wallpaper:$sessionSeed:$paletteCycle"
+    val p = remember(kind, currentPhase, seed, dark, colors.primary, colors.secondary, colors.tertiary, colors.surface, colors.surfaceContainerLow, colors.surfaceContainerHigh, colors.surfaceContainerHighest) {
+        palette(kind, currentPhase, seed, dark, colors.primary, colors.secondary, colors.tertiary, colors.surface, colors.surfaceContainerLow, colors.surfaceContainerHigh, colors.surfaceContainerHighest)
+    }
     val gradientMotion = rememberInfiniteTransition(label = "feature-card-gradient")
     val gradientPhase by gradientMotion.animateFloat(
         initialValue = 0f,
@@ -125,23 +129,15 @@ fun AirPlayrFeatureCard(
             start = androidx.compose.ui.geometry.Offset(-drift, 0f),
             end = androidx.compose.ui.geometry.Offset(1000f + drift, 1000f),
         )))
-        Image(
-            painter = painterResource(imageRes),
-            contentDescription = title,
-            contentScale = ContentScale.Fit,
+        AirPlayrSvgImage(
+            assetPath = imageAsset,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(height * .66f)
                 .padding(8.dp)
-                .align(Alignment.TopCenter)
-                .drawWithContent {
-                    drawContent()
-                    drawRect(
-                        brush = Brush.linearGradient(p.gradient),
-                        alpha = .16f,
-                        blendMode = BlendMode.SrcIn,
-                    )
-                },
+                .align(Alignment.TopCenter),
+            tint = Brush.linearGradient(p.gradient),
+            tintAlpha = .16f,
         )
         if (kind in setOf("morning","afternoon","night")) Text(digitalTime(now), color=p.ink.copy(alpha=.78f), fontSize=12.sp, lineHeight=16.sp, fontWeight=FontWeight.Medium, modifier=Modifier.align(Alignment.TopEnd).padding(top=16.dp,end=17.dp))
         Column(Modifier.align(Alignment.BottomStart).padding(start=17.dp,end=16.dp,bottom=17.dp)) {

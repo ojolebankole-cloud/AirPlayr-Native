@@ -78,6 +78,7 @@ import com.airplayr.app.ui.components.AirPlayrFeatureCollectionActionSheet
 import com.airplayr.app.ui.components.AirPlayrMediaRow
 import com.airplayr.app.ui.components.AirPlayrSectionEmpty
 import com.airplayr.app.ui.components.Artwork
+import com.airplayr.app.ui.components.rememberAirPlayrLottieTheme
 import com.airplayr.app.ui.components.displayArtworkUri
 import com.airplayr.app.ui.feedback.AppFeedback
 import com.airplayr.app.ui.theme.AirPlayrArtworkTokens
@@ -85,6 +86,7 @@ import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.airplayr.app.ui.navigation.LibraryViewModel
 import com.airplayr.app.ui.playback.PlaybackController
@@ -365,6 +367,16 @@ private fun MostPlayedHero(
         iterations = LottieConstants.IterateForever,
         isPlaying = slide == 0,
     )
+    val lottieDynamicProperties = rememberAirPlayrLottieTheme(
+        colors = remember(colors.primary, colors.secondary, colors.tertiary) {
+            listOf(colors.primary, colors.secondary, colors.tertiary)
+        },
+        keyPaths = listOf(
+            arrayOf("Layer 6 Outlines 15", "**"),
+            arrayOf("Layer 6 Outlines 14", "**"),
+            arrayOf("Layer 6 Outlines 13", "**"),
+        ),
+    )
     val shape = RoundedCornerShape(32.dp)
     Box(
         Modifier
@@ -434,6 +446,7 @@ private fun MostPlayedHero(
                     LottieAnimation(
                         composition = composition,
                         progress = { lottieProgress },
+                        dynamicProperties = lottieDynamicProperties,
                         modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp).width(190.dp).height(190.dp),
                     )
                 }
@@ -455,6 +468,7 @@ private fun MostPlayedVideoPreview(item: MediaItem) {
             start,
         )
         exo.volume = 0f
+        exo.repeatMode = Player.REPEAT_MODE_ONE
         exo.prepare()
         exo.playWhenReady = true
         onDispose { exo.release(); player = null }
