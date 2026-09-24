@@ -1,6 +1,7 @@
 package com.airplayr.app.ui.screens
 
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
 import com.airplayr.app.ui.theme.AirPlayrIcons
 
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
