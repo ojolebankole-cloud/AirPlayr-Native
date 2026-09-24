@@ -2,6 +2,7 @@
 
 package com.airplayr.app.ui.screens
 
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
