@@ -39,9 +39,9 @@ fun rememberAirPlayrLottieTheme(
         BlendModeColorFilterCompat.createBlendModeColorFilterCompat(color3.toArgb(), BlendModeCompat.SRC_ATOP)
     }
 
-    val property1 = rememberLottieDynamicProperty(LottieProperty.COLOR_FILTER, filter1, keyPaths[0])
-    val property2 = rememberLottieDynamicProperty(LottieProperty.COLOR_FILTER, filter2, keyPaths[1])
-    val property3 = rememberLottieDynamicProperty(LottieProperty.COLOR_FILTER, filter3, keyPaths[2])
+    val property1 = rememberLottieDynamicProperty(LottieProperty.COLOR_FILTER, filter1, *keyPaths[0])
+    val property2 = rememberLottieDynamicProperty(LottieProperty.COLOR_FILTER, filter2, *keyPaths[1])
+    val property3 = rememberLottieDynamicProperty(LottieProperty.COLOR_FILTER, filter3, *keyPaths[2])
 
     return rememberLottieDynamicProperties(property1, property2, property3)
 }
