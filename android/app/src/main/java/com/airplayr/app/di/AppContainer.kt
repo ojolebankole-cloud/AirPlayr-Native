@@ -119,6 +119,13 @@ class AppContainer(context: Context) {
         }
     }
 
+
+    private val migration6To7 = object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE music_playlists ADD COLUMN mediaType TEXT NOT NULL DEFAULT 'audio'")
+        }
+    }
+
     // Keep application construction cheap. Room, Cast and player-adjacent repositories are
     // created only when their first consumer actually needs them, so an existing user can get
     // a Compose frame without constructing the entire media stack on the Activity thread.
@@ -127,7 +134,7 @@ class AppContainer(context: Context) {
             appContext,
             AirPlayrDatabase::class.java,
             "airplayr.db",
-        ).addMigrations(migration1To2, migration2To3, migration3To4, migration4To5, migration5To6).build()
+        ).addMigrations(migration1To2, migration2To3, migration3To4, migration4To5, migration5To6, migration6To7).build()
     }
 
     val lyricsRepository: com.airplayr.app.core.lyrics.LyricsRepository by lazy {

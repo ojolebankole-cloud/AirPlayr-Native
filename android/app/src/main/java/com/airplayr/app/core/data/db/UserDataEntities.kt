@@ -2,6 +2,7 @@ package com.airplayr.app.core.data.db
 
 import androidx.room.Entity
 import androidx.room.Index
+import com.airplayr.app.core.data.media.MediaType
 
 @Entity(tableName = "favorites", primaryKeys = ["mediaId"])
 data class FavoriteEntity(val mediaId: String, val mediaType: String, val addedAt: Long)
@@ -27,6 +28,7 @@ data class MusicPlaylistEntity(
     val createdAt: Long,
     val updatedAt: Long,
     val artworkUri: String?,
+    val mediaType: String = MediaType.AUDIO.value,
 )
 
 @Entity(tableName = "music_playlist_items", primaryKeys = ["playlistId", "mediaId"], indices = [Index(value=["playlistId", "position"])])

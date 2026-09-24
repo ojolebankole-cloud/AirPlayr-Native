@@ -49,15 +49,22 @@ class CollectionsRepository(private val library: MediaLibraryRepository, private
         recentlyPlayedItems(limit)
 
     suspend fun rediscoverVideos(limit: Int = 40): List<MediaItem> {
-        // Rediscover is intentionally driven by repeated watching, not simply the last video
-        // opened. Aggregate the durable history counts and use recency only as the tie-breaker.
+        // Rediscover must include every video the user actually started watching, including
+        // videos watched only part-way. Playback history can be disabled or bounded, while
+        // video_progress remains the durable source for unfinished and completed watching.
         val history = structured.recent(500).filter { it.mediaType == MediaType.VIDEO.value }
+        val progress = structured.allVideoProgress().first()
+            .filter { it.positionMs > 0L || it.completed }
         val videos = library.page(MediaType.VIDEO, 250, 0).associateBy { it.id }
-        val latestById = history.groupBy { it.mediaId }.mapValues { (_, rows) -> rows.maxByOrNull { it.playedAt } }
-        val countById = history.groupBy { it.mediaId }.mapValues { (_, rows) -> rows.maxOfOrNull { it.playCount } ?: rows.size }
-        return countById.entries
-            .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenByDescending { latestById[it.key]?.playedAt ?: 0L })
-            .mapNotNull { videos[it.key] }
+        val historyById = history.associateBy { it.mediaId }
+        val progressById = progress.associateBy { it.mediaId }
+        val ids = (historyById.keys + progressById.keys).toSet()
+        return ids
+            .sortedWith(
+                compareByDescending<String> { historyById[it]?.playCount ?: 0 }
+                    .thenByDescending { maxOf(historyById[it]?.playedAt ?: 0L, progressById[it]?.updatedAt ?: 0L) }
+            )
+            .mapNotNull { videos[it] }
             .take(limit)
     }
 

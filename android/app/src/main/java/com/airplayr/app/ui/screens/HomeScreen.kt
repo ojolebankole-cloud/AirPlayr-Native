@@ -23,6 +23,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -115,7 +116,7 @@ fun HomeScreen(
         in 9..11 -> Triple("Late Morning Jam", "Tuned in this very hour.", R.drawable.recording_pana)
         in 12..16 -> Triple("Afternoon Mix", "Live with the culture.", R.drawable.music_cuate)
         in 17..19 -> Triple("Evening Jam", "Beyond sounds.", R.drawable.dj_boy_cuate)
-        in 20..22 -> Triple("Night Jam", "Tuned in this very hour.", R.drawable.playing_music_bro)
+        in 20..22 -> Triple("Night Jam", "Tuned in this very hour.", R.drawable.recording_pana)
         in 23..23, in 0..1 -> Triple("Night Extra", "Feel the night.", R.drawable.dj_boy_cuate)
         else -> Triple("Late Night Jam", "For the night.", R.drawable.dj_boy_cuate)
     }
@@ -430,19 +431,47 @@ private fun HomeHeader(
                             LottieAnimation(
                                 composition = composition,
                                 progress = { lottieProgress },
-                                modifier = Modifier.size(31.dp),
+                                modifier = Modifier.size(37.dp),
                             )
-                            Text(
-                                "AIR PLAYR",
-                                fontFamily = AirPlayrFonts.OpenSansBold,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 15.sp,
-                                letterSpacing = .65.sp,
-                                color = colors.textPrimary,
-                                maxLines = 1,
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "AIR",
+                                    fontFamily = AirPlayrFonts.SmoochSans,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 21.sp,
+                                    lineHeight = 24.sp,
+                                    letterSpacing = .7.sp,
+                                    color = colors.brandAccent,
+                                )
+                                val wordmarkTransition = rememberInfiniteTransition(label = "home-search-wordmark-gradient")
+                                val wordmarkPhase by wordmarkTransition.animateFloat(
+                                    initialValue = 0f,
+                                    targetValue = 1f,
+                                    animationSpec = infiniteRepeatable(tween(5200, easing = LinearEasing), RepeatMode.Reverse),
+                                    label = "home-search-wordmark-phase",
+                                )
+                                Text(
+                                    "PLAYR",
+                                    fontFamily = AirPlayrFonts.SmoochSans,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 21.sp,
+                                    lineHeight = 24.sp,
+                                    letterSpacing = .7.sp,
+                                    style = MaterialTheme.typography.titleLarge.copy(
+                                        brush = Brush.linearGradient(
+                                            colors = listOf(colors.primary, colors.secondary, colors.tertiary, colors.primary),
+                                            start = androidx.compose.ui.geometry.Offset(-120f + wordmarkPhase * 120f, 0f),
+                                            end = androidx.compose.ui.geometry.Offset(180f + wordmarkPhase * 120f, 0f),
+                                        ),
+                                        fontFamily = AirPlayrFonts.SmoochSans,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = .7.sp,
+                                    ),
+                                    maxLines = 1,
+                                )
+                            }
                             Surface(
-                                modifier = Modifier.offset(y = playOffset.dp).size(32.dp).padding(start = 3.dp),
+                                modifier = Modifier.offset(y = playOffset.dp).size(34.dp).padding(start = 3.dp),
                                 shape = RoundedCornerShape(10.dp),
                                 color = animatedPlayColor.copy(alpha = .18f),
                                 tonalElevation = 0.dp,
@@ -456,7 +485,7 @@ private fun HomeHeader(
                         Text(
                             "Search your plays",
                             fontFamily = AirPlayrFonts.SmoochSans,
-                            fontSize = 18.sp,
+                            fontSize = 20.sp,
                             color = colors.textPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,

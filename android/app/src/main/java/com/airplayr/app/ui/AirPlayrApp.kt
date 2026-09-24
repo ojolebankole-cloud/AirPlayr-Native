@@ -63,6 +63,8 @@ import com.airplayr.app.ui.screens.StatsScreen
 import com.airplayr.app.ui.screens.FoldersScreen
 import com.airplayr.app.ui.screens.MyPlaylistsScreen
 import com.airplayr.app.ui.screens.PlaylistDetailScreen
+import com.airplayr.app.ui.screens.PlaylistGridScreen
+import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.ui.screens.RecentScreen
 import com.airplayr.app.ui.screens.FeatureCollectionScreen
 import com.airplayr.app.ui.screens.MostPlayedScreen
@@ -351,8 +353,40 @@ fun AirPlayrApp(
                     onBack = { navController.popBackStack() },
                 ) }
                 composable("folders") { FoldersScreen(container, libraryViewModel, playbackController, onOpen = { navigate("folder/$it") }, onBack = { navController.popBackStack() }) }
-                composable("my-playlists") { MyPlaylistsScreen(container, libraryViewModel, playbackController, { navigate("music-playlist/$it") }, { navController.popBackStack() }) }
-                composable("music-playlist/{id}") { entry -> PlaylistDetailScreen(container, libraryViewModel, entry.arguments?.getString("id").orEmpty(), playbackController, onOpenPlayer = { navigate("player") }) }
+                composable("my-playlists") {
+                    MyPlaylistsScreen(
+                        container = container,
+                        libraryViewModel = libraryViewModel,
+                        playback = playbackController,
+                        onOpen = { navigate("music-playlist/$it") },
+                        onOpenGrid = { type ->
+                            navigate(if (type == MediaType.VIDEO) "video-playlists" else "music-playlists")
+                        },
+                        onBack = { navController.popBackStack() },
+                    )
+                }
+                composable("music-playlists") {
+                    PlaylistGridScreen(
+                        title = "Music playlists",
+                        mediaType = MediaType.AUDIO,
+                        container = container,
+                        libraryViewModel = libraryViewModel,
+                        onOpenPlaylist = { navigate("music-playlist/$it") },
+                        onBack = { navController.popBackStack() },
+                    )
+                }
+                composable("video-playlists") {
+                    PlaylistGridScreen(
+                        title = "Video playlists",
+                        mediaType = MediaType.VIDEO,
+                        container = container,
+                        libraryViewModel = libraryViewModel,
+                        onOpenPlaylist = { navigate("video-playlist/$it") },
+                        onBack = { navController.popBackStack() },
+                    )
+                }
+                composable("music-playlist/{id}") { entry -> PlaylistDetailScreen(container, libraryViewModel, entry.arguments?.getString("id").orEmpty(), playbackController, mediaType = MediaType.AUDIO, onOpenPlayer = { navigate("player") }) }
+                composable("video-playlist/{id}") { entry -> PlaylistDetailScreen(container, libraryViewModel, entry.arguments?.getString("id").orEmpty(), playbackController, mediaType = MediaType.VIDEO, onOpenPlayer = { navigate("player") }, onOpenVideo = { navigate("video/$it") }) }
                 composable("playlist/{id}") { entry -> PlaylistDetailScreen(container, libraryViewModel, entry.arguments?.getString("id").orEmpty(), playbackController, onOpenPlayer = { navigate("player") }) }
                 composable("recent/{type}") { entry -> RecentScreen(entry.arguments?.getString("type").orEmpty(), libraryViewModel, playbackController, { navigate("video/$it") }, container, { navigate("player") }) }
                 composable("most-played") { MostPlayedScreen(container, libraryViewModel, playbackController, { id -> navigate("video/$id") }, { navigate("player") }, { route -> navigate(route) }, { navController.popBackStack() }) }

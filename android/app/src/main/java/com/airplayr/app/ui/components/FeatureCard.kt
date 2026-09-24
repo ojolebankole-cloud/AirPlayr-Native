@@ -20,7 +20,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -31,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import java.util.Calendar
@@ -122,7 +125,24 @@ fun AirPlayrFeatureCard(
             start = androidx.compose.ui.geometry.Offset(-drift, 0f),
             end = androidx.compose.ui.geometry.Offset(1000f + drift, 1000f),
         )))
-        Image(painterResource(imageRes), title, Modifier.fillMaxWidth().height(height*.64f).padding(10.dp).align(Alignment.TopCenter))
+        Image(
+            painter = painterResource(imageRes),
+            contentDescription = title,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(height * .66f)
+                .padding(8.dp)
+                .align(Alignment.TopCenter)
+                .drawWithContent {
+                    drawContent()
+                    drawRect(
+                        brush = Brush.linearGradient(p.gradient),
+                        alpha = .16f,
+                        blendMode = BlendMode.SrcIn,
+                    )
+                },
+        )
         if (kind in setOf("morning","afternoon","night")) Text(digitalTime(now), color=p.ink.copy(alpha=.78f), fontSize=12.sp, lineHeight=16.sp, fontWeight=FontWeight.Medium, modifier=Modifier.align(Alignment.TopEnd).padding(top=16.dp,end=17.dp))
         Column(Modifier.align(Alignment.BottomStart).padding(start=17.dp,end=16.dp,bottom=17.dp)) {
             Text(title,color=p.ink,fontFamily=titleFont,fontSize=21.sp,lineHeight=24.sp,fontWeight=if(kind=="rock"||kind=="playlists") FontWeight.Normal else FontWeight.Normal,maxLines=2,overflow=TextOverflow.Ellipsis)

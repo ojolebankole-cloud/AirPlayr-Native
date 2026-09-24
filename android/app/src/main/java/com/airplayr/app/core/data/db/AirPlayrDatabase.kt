@@ -6,7 +6,7 @@ import com.airplayr.app.core.data.media.MediaItemEntity
 
 @Database(
     entities = [MediaItemEntity::class, FavoriteEntity::class, PlaybackHistoryEntity::class, MusicPlaylistEntity::class, MusicPlaylistItemEntity::class, VideoProgressEntity::class, VideoBookmarkEntity::class, PlaybackEventEntity::class, PlaybackSessionEntity::class, PlaybackActivityEntity::class, LyricsCacheEntity::class],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 abstract class AirPlayrDatabase : RoomDatabase() {

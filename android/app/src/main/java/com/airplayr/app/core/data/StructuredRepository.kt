@@ -87,8 +87,12 @@ class StructuredRepository(private val databaseProvider: () -> AirPlayrDatabase)
         db.userDataDao().completedHistoryCount(MediaType.VIDEO.value)
 
     fun playlists(): Flow<List<MusicPlaylistEntity>> = flow { emitAll(db.userDataDao().observePlaylists()) }.flowOn(Dispatchers.IO)
-    suspend fun createPlaylist(name:String): MusicPlaylistEntity {
-        val now=System.currentTimeMillis(); val p=MusicPlaylistEntity(UUID.randomUUID().toString(), name.trim().ifBlank { "Playlist" }, now, now, null); db.userDataDao().upsertPlaylist(p); return p
+    suspend fun createPlaylist(name:String, mediaType:String = MediaType.AUDIO.value): MusicPlaylistEntity {
+        val now=System.currentTimeMillis()
+        val type = if (mediaType == MediaType.VIDEO.value) MediaType.VIDEO.value else MediaType.AUDIO.value
+        val p=MusicPlaylistEntity(UUID.randomUUID().toString(), name.trim().ifBlank { "Playlist" }, now, now, null, type)
+        db.userDataDao().upsertPlaylist(p)
+        return p
     }
     suspend fun addToPlaylist(playlistId:String, mediaId:String) {
         val dao=db.userDataDao(); val ids=dao.playlistItemIds(playlistId).toMutableList(); if(mediaId !in ids) ids.add(mediaId)

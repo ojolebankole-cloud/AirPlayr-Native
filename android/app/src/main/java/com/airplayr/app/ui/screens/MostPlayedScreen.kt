@@ -42,6 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -59,6 +60,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.widthIn
 import androidx.compose.ui.unit.sp
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
@@ -83,6 +85,7 @@ import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.exoplayer.ExoPlayer
 import com.airplayr.app.ui.navigation.LibraryViewModel
 import com.airplayr.app.ui.playback.PlaybackController
 import kotlinx.coroutines.Dispatchers
@@ -108,6 +111,7 @@ fun MostPlayedScreen(
     val videos = snapshot.video
     val allMedia = remember(music, videos) { music + videos }
     var summary by remember { mutableStateOf<PlaybackStatsRepository.Summary?>(null) }
+    var daySummary by remember { mutableStateOf<PlaybackStatsRepository.Summary?>(null) }
     var menuOpen by rememberSaveable { mutableStateOf(false) }
     var playlistTarget by remember { mutableStateOf<List<MediaItem>?>(null) }
     var selected by remember { mutableStateOf<MediaItem?>(null) }
@@ -121,17 +125,23 @@ fun MostPlayedScreen(
     LaunchedEffect(allMedia) {
         withContext(Dispatchers.IO) {
             summary = container.stats.summary("all", allMedia, 12)
+            daySummary = container.stats.summary("day", allMedia, 12)
         }
     }
     LaunchedEffect(Unit) {
         while (true) {
-            delay(6000)
-            slide = (slide + 1) % 3
+            slide = 0
+            delay(6_000L)
+            slide = 1
+            delay(6_000L)
+            slide = 2
+            delay(15_000L)
         }
     }
 
     val all = summary
-    val topTrack = all?.topSongs?.firstOrNull()
+    val day = daySummary
+    val topTrack = day?.topSongs?.firstOrNull()
     val topVideo = all?.topVideos?.firstOrNull()
     val topTrackItem = remember(topTrack?.id, music) { topTrack?.let { t -> music.firstOrNull { it.id == t.id } } }
     val topVideoItem = remember(topVideo?.id, videos) { topVideo?.let { v -> videos.firstOrNull { it.id == v.id } } }
@@ -335,6 +345,20 @@ private fun MostPlayedHero(
         infiniteRepeatable(tween(6500, easing = LinearEasing), RepeatMode.Reverse),
         label = "most-played-hero-phase",
     )
+    val clockTransition = rememberInfiniteTransition(label = "most-played-clock")
+    val clockAlpha by clockTransition.animateFloat(
+        initialValue = .72f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Reverse),
+        label = "most-played-clock-alpha",
+    )
+    var now by remember { mutableStateOf(java.util.Calendar.getInstance()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = java.util.Calendar.getInstance()
+            delay(1_000L)
+        }
+    }
     val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.airplayr_intro))
     val lottieProgress by animateLottieCompositionAsState(
         composition = composition,
@@ -349,7 +373,7 @@ private fun MostPlayedHero(
             .padding(horizontal = 22.dp)
             .shadow(8.dp, shape, clip = false)
             .clip(shape)
-            .clickable(enabled = slide == 1 && topTrack != null, onClick = onTrack),
+            .clickable(enabled = when (slide) { 1 -> topTrack != null; 2 -> topVideo != null; else -> false }, onClick = { if (slide == 1) onTrack() else if (slide == 2) onVideo() }),
     ) {
         Crossfade(
             targetState = slide,
@@ -362,7 +386,7 @@ private fun MostPlayedHero(
                     if (topTrack != null) Artwork(topTrack.displayArtworkUri(), Modifier.fillMaxSize(), 32.dp, topTrack.title, MediaType.AUDIO, AirPlayrIcons.Music, isPlaying = false)
                     else HeroPlaceholder()
                     HeroScrim()
-                    HeroCopy(eyebrow = "TOP TRACK", title = topTrack?.title ?: "No top track", subtitle = topTrack?.artist ?: "Play some music.")
+                    HeroCopy(eyebrow = "TOP TRACK · TODAY", title = topTrack?.title ?: "No top track today", subtitle = topTrack?.artist ?: "Play some music today.")
                     if (topTrack != null) {
                         Surface(Modifier.align(Alignment.BottomEnd).padding(22.dp).size(52.dp).clickable(onClick = onTrack), shape = CircleShape, color = colors.primary) {
                             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Default.PlayArrow, "Play top track", tint = colors.onPrimary, modifier = Modifier.size(24.dp)) }
@@ -370,13 +394,19 @@ private fun MostPlayedHero(
                     }
                 }
                 2 -> {
-                    if (topVideo != null) Artwork(topVideo.thumbnailUri ?: topVideo.artworkUri ?: topVideo.uri, Modifier.fillMaxSize(), 32.dp, topVideo.title, MediaType.VIDEO, AirPlayrIcons.Video, isPlaying = false)
+                    if (topVideo != null) MostPlayedVideoPreview(topVideo)
                     else HeroPlaceholder()
-                    HeroScrim()
-                    HeroCopy(eyebrow = "TOP VIDEO", title = topVideo?.title ?: "No top video today", subtitle = topVideo?.artist ?: "Play some video today.")
-                    if (topVideo != null) {
-                        Surface(Modifier.align(Alignment.BottomEnd).padding(22.dp).size(52.dp).clickable(onClick = onVideo), shape = CircleShape, color = colors.primary) {
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Default.PlayArrow, "Open top video", tint = colors.onPrimary, modifier = Modifier.size(24.dp)) }
+                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .78f)))))
+                    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Bottom) {
+                        Surface(shape = RoundedCornerShape(50.dp), color = Color.Black.copy(alpha = .36f)) {
+                            Text("TOP VIDEO", fontFamily = AirPlayrFonts.OpenSans, fontSize = 11.sp, letterSpacing = 1.4.sp, color = Color.White, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp))
+                        }
+                        Text(topVideo?.title ?: "No top video today", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 34.sp, lineHeight = 39.sp, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 9.dp))
+                        Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(topVideo?.artist.orEmpty().ifBlank { "Your most played video" }, fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, color = Color.White.copy(alpha = .88f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                            if (topVideo != null) Surface(Modifier.size(52.dp).clickable(onClick = onVideo), shape = CircleShape, color = colors.primary) {
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Default.PlayArrow, "Open top video", tint = colors.onPrimary, modifier = Modifier.size(24.dp)) }
+                            }
                         }
                     }
                 }
@@ -387,23 +417,49 @@ private fun MostPlayedHero(
                         end = Offset(sizeForGradient(phase) + 760f, 560f),
                     )))
                     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .10f)))
+                    Text(
+                        text = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(now.time),
+                        fontFamily = AirPlayrFonts.OpenSans,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = .5.sp,
+                        color = Color.White.copy(alpha = clockAlpha),
+                        modifier = Modifier.align(Alignment.TopStart).padding(24.dp),
+                    )
                     Column(Modifier.fillMaxSize().padding(24.dp)) {
-                        Surface(shape = RoundedCornerShape(50.dp), color = Color.White.copy(alpha = .16f)) {
-                            Text("AIRPLAYR", fontFamily = AirPlayrFonts.OpenSans, fontSize = 11.sp, letterSpacing = 1.8.sp, color = Color.White, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp))
-                        }
                         Spacer(Modifier.weight(1f))
-                        Text("Your sound. Your story.", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 36.sp, lineHeight = 40.sp, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 2)
-                        Text("The music and videos you keep coming back to.", fontFamily = AirPlayrFonts.OpenSans, fontSize = 14.sp, lineHeight = 20.sp, color = Color.White.copy(alpha = .92f), modifier = Modifier.padding(top = 7.dp), maxLines = 2)
+                        Text("Your sound. Your story.", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 36.sp, lineHeight = 40.sp, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 2, modifier = Modifier.widthIn(max = 245.dp))
+                        Text("The music and videos you keep coming back to.", fontFamily = AirPlayrFonts.OpenSans, fontSize = 14.sp, lineHeight = 20.sp, color = Color.White.copy(alpha = .92f), modifier = Modifier.padding(top = 7.dp).widthIn(max = 245.dp), maxLines = 2)
                     }
                     LottieAnimation(
                         composition = composition,
                         progress = { lottieProgress },
-                        modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp).width(196.dp).height(196.dp),
+                        modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp).width(190.dp).height(190.dp),
                     )
                 }
             }
         }
     }
+}
+
+@Composable
+private fun MostPlayedVideoPreview(item: MediaItem) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var player by remember(item.id) { mutableStateOf<ExoPlayer?>(null) }
+    DisposableEffect(item.id) {
+        val exo = ExoPlayer.Builder(context).build()
+        player = exo
+        val start = if (item.durationMs > 10_000L) (item.durationMs / 2L - 5_000L).coerceAtLeast(0L) else 0L
+        exo.setMediaItem(
+            androidx.media3.common.MediaItem.Builder().setMediaId("most-played-preview:${item.id}").setUri(item.uri).build(),
+            start,
+        )
+        exo.volume = 0f
+        exo.prepare()
+        exo.playWhenReady = true
+        onDispose { exo.release(); player = null }
+    }
+    player?.let { AndroidVideoSurface(it, VideoFitMode.ZOOM, Modifier.fillMaxSize()) }
 }
 
 private fun sizeForGradient(phase: Float): Float = 560f + (phase * 420f)

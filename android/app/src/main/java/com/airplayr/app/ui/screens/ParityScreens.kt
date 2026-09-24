@@ -24,6 +24,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.ArrowBack
@@ -385,7 +387,7 @@ private fun RediscoverHero(
     var previewIndex by rememberSaveable(videos.map { it.id }.joinToString("|") ) { mutableIntStateOf(0) }
     val previewVideo = videos.getOrNull(previewIndex) ?: firstVideo
     val composition by com.airbnb.lottie.compose.rememberLottieComposition(
-        com.airbnb.lottie.compose.LottieCompositionSpec.Asset("rediscover_illustration/animation.json")
+        com.airbnb.lottie.compose.LottieCompositionSpec.Asset("rediscover_illustration/tv_clock_animation.json")
     )
     val lottieProgress by com.airbnb.lottie.compose.animateLottieCompositionAsState(
         composition = composition,
@@ -397,9 +399,9 @@ private fun RediscoverHero(
         previewIndex = 0
         if (firstVideo == null) return@LaunchedEffect
         while (true) {
-            delay(10_000L)
+            delay(6_000L)
             slide = 1
-            delay(15_000L)
+            delay(20_000L)
             if (videos.size > 1) previewIndex = (previewIndex + 1) % videos.size
             slide = 0
         }
@@ -1653,13 +1655,13 @@ fun RecentScreen(
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun MyPlaylistsScreen(container: AppContainer, libraryViewModel: LibraryViewModel, playback: PlaybackController, onOpen: (String) -> Unit, onBack: () -> Unit = {}) {
+fun MyPlaylistsScreen(container: AppContainer, libraryViewModel: LibraryViewModel, playback: PlaybackController, onOpen: (String) -> Unit, onOpenGrid: (MediaType) -> Unit = {}, onBack: () -> Unit = {}) {
     val colors = LocalAirPlayrColors.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
     val playlists = snapshot.playlists
-    val library = snapshot.audio
+    val library = snapshot.audio + snapshot.video
     val libraryReady = snapshot.ready
     var selected by remember { mutableStateOf<com.airplayr.app.core.data.db.MusicPlaylistEntity?>(null) }
     var headerMenu by remember { mutableStateOf(false) }
@@ -1716,8 +1718,28 @@ fun MyPlaylistsScreen(container: AppContainer, libraryViewModel: LibraryViewMode
                 }
             }
             item {
-                AirPlayrCard(Modifier.fillMaxWidth().padding(horizontal = 22.dp), shape = RoundedCornerShape(30.dp), containerColor = colors.primaryContainer, elevation = 5.dp) {
-                    Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) { Surface(Modifier.size(54.dp), shape = androidx.compose.foundation.shape.CircleShape, color = colors.primary) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Default.QueueMusic, null, tint = colors.onPrimary) } }; Column(Modifier.padding(start = 12.dp)) { Text("Your archive, your rules", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 21.sp, color = colors.textPrimary); Text("${playlists.size} playlists · ${idMap.values.sumOf { it.size }} songs", fontSize = 12.sp, color = colors.textPrimary, modifier = Modifier.padding(top = 4.dp)) } }
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 22.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    PlaylistTypeHeroCard(
+                        title = "Music playlist",
+                        asset = "playlist/music_playlist.json",
+                        primary = colors.primaryContainer,
+                        secondary = colors.secondaryContainer,
+                        accent = colors.primary,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onOpenGrid(MediaType.AUDIO) },
+                    )
+                    PlaylistTypeHeroCard(
+                        title = "Video playlist",
+                        asset = "playlist/video_playlist.json",
+                        primary = colors.tertiaryContainer,
+                        secondary = colors.secondaryContainer,
+                        accent = colors.tertiary,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onOpenGrid(MediaType.VIDEO) },
+                    )
                 }
             }
             item { Text("Your playlists", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 24.sp, color = colors.textPrimary, modifier = Modifier.padding(horizontal = 22.dp, vertical = 6.dp)) }
@@ -1782,11 +1804,13 @@ fun PlaylistDetailScreen(
     libraryViewModel: LibraryViewModel,
     id: String,
     playback: PlaybackController,
+    mediaType: MediaType = MediaType.AUDIO,
     onOpenPlayer: () -> Unit = {},
+    onOpenVideo: (String) -> Unit = {},
 ) {
     val colors = LocalAirPlayrColors.current
     val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
-    val library = snapshot.audio
+    val library = if (mediaType == MediaType.VIDEO) snapshot.video else snapshot.audio
     var name by remember { mutableStateOf("Playlist") }
     var ids by remember { mutableStateOf<List<String>>(emptyList()) }
     var idsLoaded by remember { mutableStateOf(false) }
@@ -1794,7 +1818,7 @@ fun PlaylistDetailScreen(
     var selectedItem by remember { mutableStateOf<MediaItem?>(null) }
     val scope = rememberCoroutineScope()
     var playlistTarget by remember { mutableStateOf<List<MediaItem>?>(null) }
-    LaunchedEffect(id) {
+    LaunchedEffect(id, mediaType) {
         val p = container.database.userDataDao().playlist(id)
         name = p?.name ?: "Playlist"
         ids = container.structured.playlistIds(id)
@@ -1804,9 +1828,14 @@ fun PlaylistDetailScreen(
     val playbackState by playback.stableState.collectAsStateWithLifecycle()
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            ListTopBar(name, "${items.size} songs")
+            ListTopBar(name, "${items.size} ${if (mediaType == MediaType.VIDEO) "videos" else "songs"}")
             LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = airPlayrBottomContentPadding()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                item { Button(onClick = { playback.playQueue(items); if (items.isNotEmpty()) onOpenPlayer() }, enabled = items.isNotEmpty()) { Text("Play playlist") } }
+                item { Button(onClick = {
+                    playback.playQueue(items)
+                    if (items.isNotEmpty()) {
+                        if (mediaType == MediaType.VIDEO) onOpenVideo(items.first().id) else onOpenPlayer()
+                    }
+                }, enabled = items.isNotEmpty()) { Text("Play playlist") } }
                 if (!snapshot.ready || !idsLoaded) item { Box(Modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = colors.primary) } }
                 else if (items.isEmpty()) item { AirPlayrSectionEmpty("Playlist is empty", "Add songs to this playlist to see them here.") }
                 else items(items, key = { it.id }) { item ->
@@ -1818,14 +1847,19 @@ fun PlaylistDetailScreen(
                         onMore = { selectedItem = item },
                     ) {
                         if (selectedIds.isNotEmpty()) selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id
-                        else playback.play(item)
+                        else if (mediaType == MediaType.VIDEO) onOpenVideo(item.id) else playback.play(item)
                     }
                 }
             }
         }
         if (items.isNotEmpty()) {
             FloatingActionButton(
-                onClick = { playback.playQueue(items); onOpenPlayer() },
+                onClick = {
+                    playback.playQueue(items)
+                    if (items.isNotEmpty()) {
+                        if (mediaType == MediaType.VIDEO) onOpenVideo(items.first().id) else onOpenPlayer()
+                    }
+                },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 22.dp, bottom = airPlayrFloatingPlayBottomPadding())
@@ -1845,7 +1879,11 @@ fun PlaylistDetailScreen(
                 count = chosen.size,
                 onClear = { selectedIds = emptySet() },
                 onSelectAll = { selectedIds = items.map { it.id }.toSet() },
-                onPlay = { playback.playQueue(chosen); selectedIds = emptySet(); onOpenPlayer() },
+                onPlay = {
+                    playback.playQueue(chosen)
+                    selectedIds = emptySet()
+                    if (mediaType == MediaType.VIDEO && chosen.isNotEmpty()) onOpenVideo(chosen.first().id) else onOpenPlayer()
+                },
                 onPlayNext = { chosen.asReversed().forEach(playback::playNext); selectedIds = emptySet() },
                 onPlaylist = { if (chosen.isNotEmpty()) { playlistTarget = chosen; selectedIds = emptySet() } },
             )
@@ -1927,6 +1965,262 @@ fun BrowseIndexScreen(
                         Column(Modifier.weight(1f).padding(start = 12.dp)) {
                             Text(name, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, color = LocalAirPlayrColors.current.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text("${items.size} items", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = LocalAirPlayrColors.current.textSecondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun PlaylistTypeHeroCard(
+    title: String,
+    asset: String,
+    primary: Color,
+    secondary: Color,
+    accent: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val colors = LocalAirPlayrColors.current
+    val composition by com.airbnb.lottie.compose.rememberLottieComposition(
+        com.airbnb.lottie.compose.LottieCompositionSpec.Asset(asset)
+    )
+    val progress by com.airbnb.lottie.compose.animateLottieCompositionAsState(
+        composition = composition,
+        iterations = com.airbnb.lottie.compose.LottieConstants.IterateForever,
+        speed = 1f,
+        restartOnPlay = false,
+    )
+    val motion = rememberInfiniteTransition(label = "playlist-card-gradient")
+    val phase by motion.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(7000, easing = androidx.compose.animation.core.LinearEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+        ),
+        label = "playlist-card-gradient-phase",
+    )
+    val shape = RoundedCornerShape(27.dp)
+    Box(
+        modifier
+            .aspectRatio(1f)
+            .clip(shape)
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        Color(primary.red, primary.green, primary.blue, 1f),
+                        Color(secondary.red, secondary.green, secondary.blue, 1f),
+                        colors.surfaceContainerHighest,
+                    ),
+                    start = androidx.compose.ui.geometry.Offset(-400f + phase * 500f, 0f),
+                    end = androidx.compose.ui.geometry.Offset(450f + phase * 500f, 900f),
+                )
+            )
+            .border(1.dp, accent.copy(alpha = .20f), shape)
+            .clickable(onClick = onClick)
+    ) {
+        com.airbnb.lottie.compose.LottieAnimation(
+            composition = composition,
+            progress = { progress },
+            contentDescription = title,
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(.68f)
+                .padding(12.dp)
+                .align(Alignment.TopCenter),
+        )
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(76.dp)
+                .align(Alignment.BottomCenter)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Transparent, colors.surface.copy(alpha = .16f), colors.surface.copy(alpha = .72f))
+                    )
+                )
+        )
+        Column(
+            Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .padding(start = 17.dp, end = 12.dp, bottom = 16.dp)
+        ) {
+            Text(
+                title,
+                fontFamily = AirPlayrFonts.SmoochSans,
+                fontSize = 20.sp,
+                lineHeight = 22.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                color = colors.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                "Open playlist library",
+                fontFamily = AirPlayrFonts.OpenSans,
+                fontSize = 10.sp,
+                color = colors.textSecondary,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+        }
+    }
+}
+
+@Composable
+fun PlaylistGridScreen(
+    title: String,
+    mediaType: MediaType,
+    container: AppContainer,
+    libraryViewModel: LibraryViewModel,
+    onOpenPlaylist: (String) -> Unit,
+    onBack: () -> Unit,
+) {
+    val colors = LocalAirPlayrColors.current
+    val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
+    val library = if (mediaType == MediaType.VIDEO) snapshot.video else snapshot.audio
+    val playlists = snapshot.playlists.filter { it.mediaType == mediaType.value }
+    val idMap by produceState(initialValue = emptyMap<String, List<MediaItem>>(), playlists, library) {
+        value = playlists.associate { playlist ->
+            playlist.id to runCatching {
+                container.structured.playlistIds(playlist.id)
+                    .mapNotNull { id -> library.firstOrNull { it.id == id } }
+            }.getOrDefault(emptyList())
+        }
+    }
+
+    Column(Modifier.fillMaxSize().background(colors.background)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Default.ArrowBack, "Back", tint = colors.primary)
+            }
+            Column(Modifier.weight(1f).padding(horizontal = 6.dp)) {
+                Text(
+                    "MY PLAYLISTS",
+                    fontFamily = AirPlayrFonts.OpenSans,
+                    fontSize = 10.sp,
+                    letterSpacing = 1.4.sp,
+                    color = colors.textSecondary,
+                )
+                Text(
+                    title,
+                    fontFamily = AirPlayrFonts.SmoochSans,
+                    fontSize = 29.sp,
+                    lineHeight = 32.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    color = colors.textPrimary,
+                )
+            }
+            Surface(
+                shape = CircleShape,
+                color = if (mediaType == MediaType.VIDEO) colors.tertiaryContainer else colors.primaryContainer,
+                modifier = Modifier.size(46.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        if (mediaType == MediaType.VIDEO) Icons.Default.VideoLibrary else Icons.Default.QueueMusic,
+                        null,
+                        tint = if (mediaType == MediaType.VIDEO) colors.tertiary else colors.primary,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            }
+        }
+
+        if (!snapshot.ready) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = colors.primary)
+            }
+        } else if (playlists.isEmpty()) {
+            AirPlayrSectionEmpty(
+                if (mediaType == MediaType.VIDEO) "No video playlists yet" else "No music playlists yet",
+                if (mediaType == MediaType.VIDEO)
+                    "Create one from a video's Add to playlist action."
+                else
+                    "Create a music playlist and it will appear here.",
+            )
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    top = 6.dp,
+                    end = 16.dp,
+                    bottom = airPlayrBottomContentPadding(),
+                ),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                gridItems(playlists, key = { it.id }) { playlist ->
+                    val rows = idMap[playlist.id].orEmpty()
+                    AirPlayrCard(
+                        Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        containerColor = colors.surfaceContainer,
+                        elevation = 4.dp,
+                        onClick = { onOpenPlaylist(playlist.id) },
+                    ) {
+                        Column(Modifier.padding(8.dp)) {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(19.dp))
+                                    .background(colors.surfaceVariant),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (playlist.artworkUri != null) {
+                                    com.airplayr.app.ui.components.Artwork(
+                                        playlist.artworkUri,
+                                        Modifier.fillMaxSize(),
+                                        19.dp,
+                                        playlist.name,
+                                    )
+                                } else if (rows.isNotEmpty()) {
+                                    com.airplayr.app.ui.components.Artwork(
+                                        rows.first().artworkUri ?: rows.first().thumbnailUri,
+                                        Modifier.fillMaxSize(),
+                                        19.dp,
+                                        rows.first().title,
+                                        rows.first().mediaType,
+                                    )
+                                } else {
+                                    Icon(
+                                        if (mediaType == MediaType.VIDEO) Icons.Default.VideoLibrary else Icons.Default.QueueMusic,
+                                        null,
+                                        tint = if (mediaType == MediaType.VIDEO) colors.tertiary else colors.primary,
+                                        modifier = Modifier.size(48.dp),
+                                    )
+                                }
+                            }
+                            Text(
+                                playlist.name,
+                                fontFamily = AirPlayrFonts.SmoochSans,
+                                fontSize = 18.sp,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                color = colors.textPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 8.dp),
+                            )
+                            Text(
+                                "${rows.size} ${if (rows.size == 1) if (mediaType == MediaType.VIDEO) "video" else "song" else if (mediaType == MediaType.VIDEO) "videos" else "songs"}",
+                                fontFamily = AirPlayrFonts.OpenSans,
+                                fontSize = 11.sp,
+                                color = colors.textSecondary,
+                                modifier = Modifier.padding(horizontal = 5.dp).padding(bottom = 8.dp),
+                            )
                         }
                     }
                 }
