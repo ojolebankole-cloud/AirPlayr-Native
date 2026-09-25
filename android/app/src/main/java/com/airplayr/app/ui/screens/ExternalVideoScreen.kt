@@ -40,8 +40,6 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 
 @Composable
 fun ExternalVideoScreen(
