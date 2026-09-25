@@ -796,7 +796,7 @@ private fun VideoControlsOverlay(
                         GlassGroup {
                             GlassAction(Icons.Default.Cast, "Cast", onCast)
                             GlassAction(Icons.Default.Audiotrack, "Audio tracks", onAudioTracks)
-                            GlassAction(if (subtitleOnState.value) Icons.Default.ClosedCaption else Icons.Default.SubtitlesOff, "Subtitles", onSubtitle)
+                            GlassAction(if (subtitleOn) Icons.Default.ClosedCaption else Icons.Default.SubtitlesOff, "Subtitles", onSubtitle)
                         }
                         Spacer(Modifier.width(6.dp))
                         GlassIconButton(Icons.Default.GraphicEq, "Equalizer", Modifier.size(48.dp), onEqualizer)
