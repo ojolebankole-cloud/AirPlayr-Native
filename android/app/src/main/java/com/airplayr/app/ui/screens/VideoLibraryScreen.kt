@@ -243,7 +243,7 @@ fun VideoLibraryScreen(
                 } else {
                     LazyColumn(
                         state = videoListState,
-                        Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding() + 8.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {

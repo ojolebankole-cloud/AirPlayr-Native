@@ -395,24 +395,24 @@ class AirPlayrPlaybackService : MediaLibraryService() {
             )
                 .setDisplayName("Shuffle")
                 .setPlayerCommand(Player.COMMAND_SET_SHUFFLE_MODE)
-                .setSlots(intArrayOf(CommandButton.SLOT_BACK_SECONDARY))
+                .setSlots(CommandButton.SLOT_BACK_SECONDARY)
                 .build(),
             CommandButton.Builder(CommandButton.ICON_PREVIOUS)
                 .setDisplayName("Previous")
                 .setSessionCommand(SessionCommand(COMMAND_NOTIFICATION_PREVIOUS, Bundle.EMPTY))
-                .setSlots(intArrayOf(CommandButton.SLOT_BACK))
+                .setSlots(CommandButton.SLOT_BACK)
                 .build(),
             CommandButton.Builder(
                 if (source.isPlaying || source.playWhenReady) CommandButton.ICON_PAUSE else CommandButton.ICON_PLAY,
             )
                 .setDisplayName(if (source.isPlaying || source.playWhenReady) "Pause" else "Play")
                 .setPlayerCommand(Player.COMMAND_PLAY_PAUSE)
-                .setSlots(intArrayOf(CommandButton.SLOT_CENTRAL))
+                .setSlots(CommandButton.SLOT_CENTRAL)
                 .build(),
             CommandButton.Builder(CommandButton.ICON_NEXT)
                 .setDisplayName("Next")
                 .setSessionCommand(SessionCommand(COMMAND_NOTIFICATION_NEXT, Bundle.EMPTY))
-                .setSlots(intArrayOf(CommandButton.SLOT_FORWARD))
+                .setSlots(CommandButton.SLOT_FORWARD)
                 .build(),
             CommandButton.Builder(
                 when (source.repeatMode) {
@@ -429,7 +429,7 @@ class AirPlayrPlaybackService : MediaLibraryService() {
                     },
                 )
                 .setPlayerCommand(Player.COMMAND_SET_REPEAT_MODE, nextRepeatMode)
-                .setSlots(intArrayOf(CommandButton.SLOT_FORWARD_SECONDARY))
+                .setSlots(CommandButton.SLOT_FORWARD_SECONDARY)
                 .build(),
         )
     }

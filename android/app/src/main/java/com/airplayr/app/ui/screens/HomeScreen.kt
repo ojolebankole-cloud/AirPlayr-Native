@@ -60,6 +60,8 @@ import com.airbnb.lottie.compose.animateLottieCompositionAsState
 import com.airbnb.lottie.compose.rememberLottieComposition
 import kotlinx.coroutines.launch
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 @Composable
 fun HomeScreen(
     container: AppContainer,

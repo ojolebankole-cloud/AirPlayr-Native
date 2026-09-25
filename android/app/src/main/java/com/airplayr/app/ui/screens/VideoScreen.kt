@@ -1,4 +1,8 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 package com.airplayr.app.ui.screens
 import androidx.compose.foundation.rememberScrollState
 
@@ -323,7 +327,7 @@ fun VideoScreen(
                     }
                 }
             })
-            ready.addAnalyticsListener(object : AnalyticsListener {
+            (ready as? androidx.media3.exoplayer.ExoPlayer)?.addAnalyticsListener(object : AnalyticsListener {
                 override fun onVideoDecoderInitialized(
                     eventTime: AnalyticsListener.EventTime,
                     decoderName: String,
@@ -546,7 +550,7 @@ fun VideoScreen(
             queueCount = queue.count { it.id != id },
             shuffleQueue = shuffleQueue,
             repeatQueue = repeatQueue,
-            qualityLabel = player?.videoFormat?.let { videoQualityLabel(it.width, it.height, decoderLabel) }
+            qualityLabel = player?.videoSize?.let { videoQualityLabel(it.width, it.height, decoderLabel) }
                 ?: video?.let { videoQualityLabel(it.width, it.height, decoderLabel) }
                 ?: "",
             onBack = { if (isFullscreen) toggleFullscreen() else (context as? ComponentActivity)?.onBackPressedDispatcher?.onBackPressed() },

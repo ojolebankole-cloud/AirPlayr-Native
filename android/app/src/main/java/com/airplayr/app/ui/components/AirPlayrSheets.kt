@@ -173,6 +173,7 @@ fun SleepTimerSheet(
     val teal = MaterialTheme.colorScheme.primary
     val ringTrack = MaterialTheme.colorScheme.surfaceContainerHigh
     val text = MaterialTheme.colorScheme.onSurface
+    val outlineVariant = MaterialTheme.colorScheme.outlineVariant
 
     fun updateFromRing(position: Offset, size: Size) {
         val cx = size.width / 2f
@@ -224,7 +225,7 @@ fun SleepTimerSheet(
                     val inner = if (i % 3 == 0) outer - 12.dp.toPx() else outer - 7.dp.toPx()
                     val p1 = Offset(c.x + cos(a).toFloat() * inner, c.y + sin(a).toFloat() * inner)
                     val p2 = Offset(c.x + cos(a).toFloat() * outer, c.y + sin(a).toFloat() * outer)
-                    drawLine(MaterialTheme.colorScheme.outlineVariant, p1, p2, strokeWidth = if (i % 3 == 0) 4.dp.toPx() else 2.dp.toPx(), cap = StrokeCap.Round)
+                    drawLine(outlineVariant, p1, p2, strokeWidth = if (i % 3 == 0) 4.dp.toPx() else 2.dp.toPx(), cap = StrokeCap.Round)
                 }
                 val handleAngle = (-90f + progress * 360f) * (PI / 180f)
                 val handle = Offset(c.x + cos(handleAngle).toFloat() * r, c.y + sin(handleAngle).toFloat() * r)

@@ -40,11 +40,12 @@ class CastController(context: Context) : DefaultLifecycleObserver {
     init { ProcessLifecycleOwner.get().lifecycle.addObserver(this) }
 
     fun start() {
-        if (started || castContext == null) return
+        val context = castContext ?: return
+        if (started) return
         started = true
         runCatching {
-            castContext.sessionManager.addSessionManagerListener(listener, CastSession::class.java)
-            castContext.addCastStateListener(castStateListener)
+            context.sessionManager.addSessionManagerListener(listener, CastSession::class.java)
+            context.addCastStateListener(castStateListener)
             emit()
         }.onFailure {
             started = false
@@ -53,10 +54,11 @@ class CastController(context: Context) : DefaultLifecycleObserver {
     }
 
     fun stop() {
-        if (!started || castContext == null) return
+        val context = castContext ?: return
+        if (!started) return
         started = false
-        runCatching { castContext.sessionManager.removeSessionManagerListener(listener, CastSession::class.java) }
-        runCatching { castContext.removeCastStateListener(castStateListener) }
+        runCatching { context.sessionManager.removeSessionManagerListener(listener, CastSession::class.java) }
+        runCatching { context.removeCastStateListener(castStateListener) }
     }
 
     fun endSession() {

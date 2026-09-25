@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Context
 import android.hardware.biometrics.BiometricManager
 import android.hardware.biometrics.BiometricPrompt
-import android.hardware.fingerprint.FingerprintManager
 import android.os.CancellationSignal
 import android.net.Uri
 import android.os.Build
@@ -136,8 +135,7 @@ class VaultManager(private val context: Context) {
                 val manager = context.getSystemService(BiometricManager::class.java) ?: return@runCatching false
                 manager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
             } else {
-                val manager = context.getSystemService(Context.FINGERPRINT_SERVICE) as? FingerprintManager
-                manager?.isHardwareDetected == true && manager.hasEnrolledFingerprints()
+                false
             }
         }.getOrDefault(false)
     }

@@ -121,6 +121,11 @@ import com.airplayr.app.ui.theme.AirPlayrColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+import androidx.compose.foundation.verticalScroll
+import com.airplayr.app.ui.components.Artwork
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.PlaylistRemove
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun FeatureCollectionScreen(

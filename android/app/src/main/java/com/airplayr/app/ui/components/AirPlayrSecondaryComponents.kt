@@ -53,6 +53,7 @@ import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 
+import androidx.compose.foundation.verticalScroll
 /** Shared screen header. The content owns the status-bar inset while the application shell stays edge-to-edge. */
 @Composable
 fun AirPlayrScreenHeader(

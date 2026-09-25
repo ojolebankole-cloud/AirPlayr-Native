@@ -125,6 +125,7 @@ import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
 
+import java.util.Locale
 private enum class PlayerSheet { More, Lyrics, Sleep, Speed, Details, Tags, LyricsEdit, Playlist, QueueSaved }
 
 @Composable

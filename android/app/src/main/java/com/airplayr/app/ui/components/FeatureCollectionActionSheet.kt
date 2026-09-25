@@ -1,5 +1,6 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 
+import androidx.compose.foundation.verticalScroll
 package com.airplayr.app.ui.components
 import androidx.compose.foundation.rememberScrollState
 
