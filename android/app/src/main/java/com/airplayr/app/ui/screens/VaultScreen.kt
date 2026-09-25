@@ -1,3 +1,4 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.airplayr.app.ui.screens
 
 import android.app.Activity
