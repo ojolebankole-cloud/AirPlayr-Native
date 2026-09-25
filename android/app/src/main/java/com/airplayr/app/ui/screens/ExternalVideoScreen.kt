@@ -69,9 +69,16 @@ fun ExternalVideoScreen(
     var position by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
     var interaction by remember { mutableIntStateOf(0) }
-    var subtitleOn by remember(uri, settings?.subtitlesEnabledDefault, settings?.rememberSubtitleTrack) {
+    val subtitleOnState = remember(uri, settings?.subtitlesEnabledDefault, settings?.rememberSubtitleTrack) {
         val defaultOn = settings?.subtitlesEnabledDefault ?: true
-        if (settings?.rememberSubtitleTrack == true) context.getSharedPreferences("airplayr_video_subtitles", 0).getBoolean("enabled:external:$uri", defaultOn) else defaultOn
+        mutableStateOf(
+            if (settings?.rememberSubtitleTrack == true) {
+                context.getSharedPreferences("airplayr_video_subtitles", 0)
+                    .getBoolean("enabled:external:$uri", defaultOn)
+            } else {
+                defaultOn
+            }
+        )
     }
     var cues by remember { mutableStateOf<List<String>>(emptyList()) }
     var pendingCues by remember { mutableStateOf<List<String>?>(null) }
@@ -102,9 +109,9 @@ fun ExternalVideoScreen(
     }
     fun toggleSubtitles() {
         val p = player ?: return
-        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, subtitleOn).build()
-        subtitleOn = !subtitleOn
-        if (settings?.rememberSubtitleTrack == true) context.getSharedPreferences("airplayr_video_subtitles", 0).edit().putBoolean("enabled:external:$uri", subtitleOn).apply()
+        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, subtitleOnState.value).build()
+        subtitleOnState.value = !subtitleOnState.value
+        if (settings?.rememberSubtitleTrack == true) context.getSharedPreferences("airplayr_video_subtitles", 0).edit().putBoolean("enabled:external:$uri", subtitleOnState.value).apply()
         touch()
     }
 
@@ -232,7 +239,7 @@ fun ExternalVideoScreen(
         }
         ) {
         player?.let { AndroidVideoSurface(it, fitMode, Modifier.fillMaxSize().graphicsLayer(scaleX = pinchZoomState.floatValue, scaleY = pinchZoomState.floatValue)) }
-        if (subtitleOn && cues.isNotEmpty()) {
+        if (subtitleOnState.value && cues.isNotEmpty()) {
             VideoSubtitleOverlay(cues, settings?.subtitleSize ?: 1.0, parseSubtitleColor(settings?.subtitleColor), settings?.subtitleBg ?: true, settings?.subtitlePosition == "top", controlsVisible)
         }
         AnimatedVisibility(visible = controlsVisible, modifier = Modifier.fillMaxSize(), enter = fadeIn(tween(120)), exit = fadeOut(tween(90))) {
@@ -249,7 +256,7 @@ fun ExternalVideoScreen(
                     Spacer(Modifier.width(6.dp))
                     GlassIconButton(Icons.Default.GraphicEq, "Equalizer", Modifier.size(48.dp), onClick = { onNavigate("equalizer") })
                     Spacer(Modifier.width(6.dp))
-                    GlassIconButton(if (subtitleOn) Icons.Default.ClosedCaption else Icons.Default.SubtitlesOff, "Subtitles", Modifier.size(48.dp), ::toggleSubtitles)
+                    GlassIconButton(if (subtitleOnState.value) Icons.Default.ClosedCaption else Icons.Default.SubtitlesOff, "Subtitles", Modifier.size(48.dp), ::toggleSubtitles)
                     Spacer(Modifier.width(6.dp))
                     GlassIconButton(if (muted) Icons.Default.VolumeOff else Icons.Default.VolumeUp, "Mute", Modifier.size(48.dp), ::toggleMute)
                     Spacer(Modifier.width(6.dp))

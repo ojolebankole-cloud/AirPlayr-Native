@@ -124,11 +124,16 @@ fun VideoScreen(
     var locked by remember { mutableStateOf(false) }
     var muted by remember(video?.id, muteOnStart) { mutableStateOf(muteOnStart) }
     var speed by remember(video?.id, defaultSpeed) { mutableFloatStateOf(defaultSpeed) }
-    var subtitleOn by remember(video?.id, settings?.subtitlesEnabledDefault, settings?.rememberSubtitleTrack) {
+    val subtitleOnState = remember(video?.id, settings?.subtitlesEnabledDefault, settings?.rememberSubtitleTrack) {
         val defaultOn = settings?.subtitlesEnabledDefault ?: true
-        if (settings?.rememberSubtitleTrack == true && video?.id != null) {
-            context.getSharedPreferences("airplayr_video_subtitles", 0).getBoolean("enabled:${video!!.id}", defaultOn)
-        } else defaultOn
+        mutableStateOf(
+            if (settings?.rememberSubtitleTrack == true && video?.id != null) {
+                context.getSharedPreferences("airplayr_video_subtitles", 0)
+                    .getBoolean("enabled:${video!!.id}", defaultOn)
+            } else {
+                defaultOn
+            }
+        )
     }
     var subtitleCues by remember { mutableStateOf<List<String>>(emptyList()) }
     var pendingSubtitleCues by remember { mutableStateOf<List<String>?>(null) }
@@ -198,11 +203,11 @@ fun VideoScreen(
     fun toggleSubtitles() {
         val p = player ?: return
         p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
-            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, subtitleOn)
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, subtitleOnState.value)
             .build()
-        subtitleOn = !subtitleOn
+        subtitleOnState.value = !subtitleOnState.value
         if (settings?.rememberSubtitleTrack == true && video?.id != null) {
-            context.getSharedPreferences("airplayr_video_subtitles", 0).edit().putBoolean("enabled:${video!!.id}", subtitleOn).apply()
+            context.getSharedPreferences("airplayr_video_subtitles", 0).edit().putBoolean("enabled:${video!!.id}", subtitleOnState.value).apply()
         }
         touch()
     }
@@ -249,7 +254,7 @@ fun VideoScreen(
         current.setMediaItem(base.buildUpon().setSubtitleConfigurations(listOf(sub)).build(), current.currentPosition)
         current.prepare()
         current.play()
-        subtitleOn = true
+        subtitleOnState.value = true
         touch()
     }
 
@@ -432,7 +437,7 @@ fun VideoScreen(
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         player?.let { p -> AndroidVideoSurface(p, fitMode, Modifier.fillMaxSize().graphicsLayer(scaleX = pinchZoomState.floatValue, scaleY = pinchZoomState.floatValue)) }
 
-        if (subtitleOn && subtitleCues.isNotEmpty()) {
+        if (subtitleOnState.value && subtitleCues.isNotEmpty()) {
             VideoSubtitleOverlay(
                 cues = subtitleCues,
                 sizeScale = settings?.subtitleSize ?: 1.0,
@@ -539,7 +544,7 @@ fun VideoScreen(
             locked = locked,
             muted = muted,
             speed = speed,
-            subtitleOn = subtitleOn,
+            subtitleOn = subtitleOnState.value,
             isFullscreen = isFullscreenState.value,
             isLandscape = (context.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE),
             positionMs = positionMs,
@@ -565,7 +570,7 @@ fun VideoScreen(
             onBack10 = { seekBy(-seekStepMs) },
             onForward10 = { seekBy(seekStepMs) },
             onSubtitle = {
-                if (subtitleOn) toggleSubtitles() else subtitleLauncher.launch(arrayOf("text/vtt", "application/x-subrip", "text/plain"))
+                if (subtitleOnState.value) toggleSubtitles() else subtitleLauncher.launch(arrayOf("text/vtt", "application/x-subrip", "text/plain"))
             },
             onSubtitleSettings = { subtitleSettingsOpen = true },
             onPiP = { if (Build.VERSION.SDK_INT >= 26 && allowsPiP) runCatching { (context as? Activity)?.enterPictureInPictureMode() }; touch() },
@@ -791,7 +796,7 @@ private fun VideoControlsOverlay(
                         GlassGroup {
                             GlassAction(Icons.Default.Cast, "Cast", onCast)
                             GlassAction(Icons.Default.Audiotrack, "Audio tracks", onAudioTracks)
-                            GlassAction(if (subtitleOn) Icons.Default.ClosedCaption else Icons.Default.SubtitlesOff, "Subtitles", onSubtitle)
+                            GlassAction(if (subtitleOnState.value) Icons.Default.ClosedCaption else Icons.Default.SubtitlesOff, "Subtitles", onSubtitle)
                         }
                         Spacer(Modifier.width(6.dp))
                         GlassIconButton(Icons.Default.GraphicEq, "Equalizer", Modifier.size(48.dp), onEqualizer)
