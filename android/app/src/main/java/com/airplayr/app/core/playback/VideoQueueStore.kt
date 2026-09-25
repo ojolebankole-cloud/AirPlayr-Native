@@ -20,13 +20,16 @@ object VideoQueueStore {
 
     private val _repeatQueue = MutableStateFlow(false)
     val repeatQueue: StateFlow<Boolean> = _repeatQueue.asStateFlow()
+    private val _shuffleQueue = MutableStateFlow(false)
+    val shuffleQueue: StateFlow<Boolean> = _shuffleQueue.asStateFlow()
 
     /** Starts a screen-owned video sequence. The queue cursor is preserved by VideoScreen as it navigates. */
     fun setLoopingQueue(items: List<MediaItem>, startId: String? = items.firstOrNull()?.id) {
         val ordered = items.distinctBy { it.id }
         _queue.value = ordered
         _currentId.value = startId?.takeIf { id -> ordered.any { it.id == id } } ?: ordered.firstOrNull()?.id
-        _repeatQueue.value = ordered.isNotEmpty()
+        _repeatQueue.value = false
+        _shuffleQueue.value = false
     }
 
     fun setCurrent(item: MediaItem) {
@@ -39,6 +42,9 @@ object VideoQueueStore {
     }
 
     fun setRepeat(enabled: Boolean) { _repeatQueue.value = enabled }
+    fun setShuffle(enabled: Boolean) { _shuffleQueue.value = enabled }
+    fun toggleRepeat() { _repeatQueue.value = !_repeatQueue.value }
+    fun toggleShuffle() { _shuffleQueue.value = !_shuffleQueue.value }
 
     fun add(items: List<MediaItem>) {
         if (items.isEmpty()) return
@@ -91,6 +97,10 @@ object VideoQueueStore {
         val items = _queue.value
         val index = items.indexOfFirst { it.id == id }
         if (index < 0 || items.isEmpty()) return null
+        if (_shuffleQueue.value) {
+            val candidates = items.filter { it.id != id }
+            return candidates.randomOrNull() ?: if (_repeatQueue.value) items.firstOrNull() else null
+        }
         return when {
             index + 1 < items.size -> items[index + 1]
             _repeatQueue.value -> items.firstOrNull()
@@ -114,5 +124,6 @@ object VideoQueueStore {
         _queue.value = emptyList()
         _currentId.value = null
         _repeatQueue.value = false
+        _shuffleQueue.value = false
     }
 }

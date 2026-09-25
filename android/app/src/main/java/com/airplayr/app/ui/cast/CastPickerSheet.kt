@@ -62,7 +62,16 @@ fun CastPickerSheet(
     val context = LocalContext.current
     val status by controller.status.collectAsState()
     var routeButton by remember { mutableStateOf<MediaRouteButton?>(null) }
+    var routeButtonReady by remember { mutableStateOf(false) }
+    var pickerRequested by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { controller.start() }
+    LaunchedEffect(pickerRequested, routeButtonReady) {
+        if (pickerRequested && routeButtonReady) {
+            runCatching { routeButton?.performClick() }
+                .onFailure { context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)) }
+            pickerRequested = false
+        }
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 10.dp),
@@ -103,6 +112,7 @@ fun CastPickerSheet(
                                     connected -> status.deviceName.ifBlank { "Cast device" }
                                     status.state == "connecting" -> "Connecting…"
                                     status.state == "no-devices" -> "No device found yet"
+                                    status.state == "unavailable" -> "Cast unavailable on this device"
                                     else -> "Ready to connect"
                                 },
                                 fontFamily = AirPlayrFonts.SmoochSans, fontSize = 22.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -112,6 +122,7 @@ fun CastPickerSheet(
                                     connected -> "AirPlayr is casting to this device."
                                     status.state == "connecting" -> "Waiting for the Cast session to start."
                                     status.state == "no-devices" -> "Put your phone and TV or receiver on the same Wi-Fi network."
+                                    status.state == "unavailable" -> "Google Play services Cast support is unavailable; AirPlayr will remain open."
                                     else -> "Choose a device from the Android Cast picker."
                                 },
                                 fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, lineHeight = 19.sp, color = colors.textSecondary, modifier = Modifier.padding(top = 3.dp),
@@ -121,15 +132,27 @@ fun CastPickerSheet(
                 }
             }
 
-            AndroidView(
-                modifier = Modifier.size(1.dp),
-                factory = { ctx ->
-                    MediaRouteButton(ctx).also {
-                        CastButtonFactory.setUpMediaRouteButton(ctx, it)
-                        routeButton = it
-                    }
-                },
-            )
+            // Do not initialize MediaRouteButton while the Cast sheet is merely opening.
+            // The system Cast route is created lazily only after the user explicitly asks for
+            // a device, preventing intermittent Cast-framework initialization crashes from
+            // taking down the app when the top-level Cast icon is tapped.
+            if (pickerRequested && !routeButtonReady) {
+                AndroidView(
+                    modifier = Modifier.size(1.dp),
+                    factory = { ctx ->
+                        MediaRouteButton(ctx).also { button ->
+                            runCatching {
+                                CastButtonFactory.setUpMediaRouteButton(ctx, button)
+                                routeButton = button
+                                routeButtonReady = true
+                            }.onFailure {
+                                routeButtonReady = false
+                                pickerRequested = false
+                            }
+                        }
+                    },
+                )
+            }
 
             if (connected) {
                 Button(
@@ -142,12 +165,18 @@ fun CastPickerSheet(
                 }
             } else {
                 Button(
-                    onClick = { routeButton?.performClick() },
+                    onClick = {
+                        if (routeButtonReady) {
+                            pickerRequested = true
+                        } else {
+                            pickerRequested = true
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth().height(54.dp),
                     shape = RoundedCornerShape(18.dp),
                 ) {
                     Icon(Icons.Default.Cast, null)
-                    Text("Choose a device", modifier = Modifier.padding(start = 9.dp), fontFamily = AirPlayrFonts.OpenSans)
+                    Text("Choose a Cast device", modifier = Modifier.padding(start = 9.dp), fontFamily = AirPlayrFonts.OpenSans)
                 }
                 OutlinedButton(
                     onClick = { context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)) },

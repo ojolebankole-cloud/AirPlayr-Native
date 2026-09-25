@@ -2,6 +2,7 @@
 
 package com.airplayr.app.ui.screens
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SkipNext
@@ -51,6 +53,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -74,6 +77,7 @@ import com.airplayr.app.ui.airPlayrBottomContentPadding
 import com.airplayr.app.ui.airPlayrFloatingPlayBottomPadding
 import com.airplayr.app.ui.components.AirPlayrCard
 import com.airplayr.app.ui.components.AirPlayrMoreButton
+import com.airplayr.app.ui.components.AirPlayrMediaRow
 import com.airplayr.app.ui.components.AirPlayrPremiumMediaActionSheet
 import com.airplayr.app.ui.components.Artwork
 import com.airplayr.app.ui.components.AirPlayrMediaMenuAction
@@ -117,6 +121,7 @@ fun VideoLibraryScreen(
     onNavigate: (String) -> Unit,
 ) {
     val colors = LocalAirPlayrColors.current
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
     val videoModePreference by container.preferences.videoLibraryMode.collectAsStateWithLifecycle(initialValue = VIDEO_MODE_FOLDERS)
@@ -133,6 +138,12 @@ fun VideoLibraryScreen(
     var menuItem by remember { mutableStateOf<MediaItem?>(null) }
     var menuFavorite by remember { mutableStateOf(false) }
     var detailsTarget by remember { mutableStateOf<MediaItem?>(null) }
+    var folderMenu by remember { mutableStateOf<VideoFolderGroup?>(null) }
+    val videoListState = rememberSaveable(saver = androidx.compose.foundation.lazy.LazyListState.Saver) { androidx.compose.foundation.lazy.LazyListState(0) }
+
+    LaunchedEffect(selectedFolder) {
+        videoListState.scrollToItem(0)
+    }
 
     LaunchedEffect(videoModePreference) {
         viewMode = if (videoModePreference == VIDEO_MODE_ALL) VIDEO_MODE_ALL else VIDEO_MODE_FOLDERS
@@ -213,11 +224,11 @@ fun VideoLibraryScreen(
                 } else {
                     LazyColumn(
                         Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = airPlayrBottomContentPadding()),
+                        contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding() + 8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(orderedFolders, key = { it.path }) { folder ->
-                            VideoFolderRow(folder = folder, onOpen = { selectedFolder = folder.path })
+                            VideoFolderRow(folder = folder, onOpen = { selectedFolder = folder.path }, onMore = { folderMenu = folder })
                         }
                     }
                 }
@@ -231,16 +242,18 @@ fun VideoLibraryScreen(
                     )
                 } else {
                     LazyColumn(
+                        state = videoListState,
                         Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding() + 8.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         items(orderedVideos, key = { it.id }) { item ->
-                            VideoLibraryRow(
+                            AirPlayrMediaRow(
                                 item = item,
-                                playing = currentVideoId == item.id,
                                 onOpen = { onOpenVideo(item.id) },
                                 onMore = { menuItem = item },
+                                playing = false,
+                                compact = false,
                             )
                         }
                     }
@@ -252,8 +265,37 @@ fun VideoLibraryScreen(
             FloatingCurrentVideo(
                 item = item,
                 onClick = { onOpenVideo(item.id) },
+                collapsed = videoListState.firstVisibleItemIndex > 0 || videoListState.firstVisibleItemScrollOffset > 72,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = airPlayrFloatingPlayBottomPadding()),
             )
+        }
+    }
+
+    folderMenu?.let { folder ->
+        ModalBottomSheet(onDismissRequest = { folderMenu = null }, containerColor = colors.surfaceContainerLow) {
+            Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(folder.name, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 25.sp, color = colors.textPrimary)
+                Text("${folder.items.size} ${if (folder.items.size == 1) "video" else "videos"}", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary)
+                Surface(onClick = {
+                    folderMenu = null
+                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_TEXT, "AirPlayr video folder: ${folder.name}\n${folder.path}")
+                    }
+                    context.startActivity(android.content.Intent.createChooser(send, "Share folder"))
+                }, shape = RoundedCornerShape(18.dp), color = colors.surfaceContainer) {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Share, null, tint = colors.primary, modifier = Modifier.size(22.dp))
+                        Text("Share folder", color = colors.textPrimary, modifier = Modifier.padding(start = 12.dp))
+                    }
+                }
+                Surface(onClick = { folderMenu = null; selectedFolder = folder.path }, shape = RoundedCornerShape(18.dp), color = colors.surfaceContainer) {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Folder, null, tint = colors.primary, modifier = Modifier.size(22.dp))
+                        Text("Open folder", color = colors.textPrimary, modifier = Modifier.padding(start = 12.dp))
+                    }
+                }
+            }
         }
     }
 
@@ -438,7 +480,7 @@ private fun VideoFilterMenuItem(label: String, icon: androidx.compose.ui.graphic
 }
 
 @Composable
-private fun VideoFolderRow(folder: VideoFolderGroup, onOpen: () -> Unit) {
+private fun VideoFolderRow(folder: VideoFolderGroup, onOpen: () -> Unit, onMore: () -> Unit) {
     val colors = LocalAirPlayrColors.current
     AirPlayrCard(
         modifier = Modifier.fillMaxWidth(),
@@ -457,7 +499,7 @@ private fun VideoFolderRow(folder: VideoFolderGroup, onOpen: () -> Unit) {
                 Text(folder.name, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${folder.items.size} ${if (folder.items.size == 1) "video" else "videos"}", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary, modifier = Modifier.padding(top = 3.dp))
             }
-            Icon(Icons.Default.VideoLibrary, null, tint = colors.textSecondary, modifier = Modifier.size(21.dp))
+            AirPlayrMoreButton(onMore)
         }
     }
 }
@@ -479,30 +521,29 @@ private fun VideoLibraryRow(item: MediaItem, playing: Boolean, onOpen: () -> Uni
 }
 
 @Composable
-private fun FloatingCurrentVideo(item: MediaItem, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun FloatingCurrentVideo(item: MediaItem, onClick: () -> Unit, collapsed: Boolean, modifier: Modifier = Modifier) {
     val colors = LocalAirPlayrColors.current
     Surface(
         onClick = onClick,
-        modifier = modifier.height(68.dp),
-        shape = RoundedCornerShape(34.dp),
+        modifier = modifier.animateContentSize(animationSpec = androidx.compose.animation.core.tween(220)),
+        shape = RoundedCornerShape(28.dp),
         color = colors.primary,
-        shadowElevation = 8.dp,
+        shadowElevation = 10.dp,
     ) {
-        Row(Modifier.width(310.dp).padding(horizontal = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(Modifier.size(50.dp), shape = RoundedCornerShape(25.dp), color = colors.onPrimary.copy(alpha = .15f)) {
+        Row(Modifier.padding(horizontal = 9.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(Modifier.size(50.dp), shape = CircleShape, color = colors.onPrimary.copy(alpha = .15f)) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Icon(Icons.Default.PlayArrow, "Resume video", tint = colors.onPrimary, modifier = Modifier.size(30.dp))
                 }
             }
-            Box(Modifier.weight(1f).padding(horizontal = 12.dp).clip(RoundedCornerShape(12.dp))) {
-                Text(
-                    item.title.ifBlank { item.filename },
-                    fontFamily = AirPlayrFonts.SmoochSans,
-                    fontSize = 17.sp,
-                    color = colors.onPrimary,
-                    maxLines = 1,
-                    modifier = Modifier.basicMarquee(),
-                )
+            androidx.compose.animation.AnimatedVisibility(
+                visible = !collapsed,
+                enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) + androidx.compose.animation.slideInHorizontally(initialOffsetX = { it / 3 }),
+                exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(140)) + androidx.compose.animation.slideOutHorizontally(targetOffsetX = { it / 3 }),
+            ) {
+                Box(Modifier.padding(start = 10.dp).widthIn(max = 220.dp).clip(RoundedCornerShape(12.dp))) {
+                    Text(item.title.ifBlank { item.filename }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 17.sp, color = colors.onPrimary, maxLines = 1, modifier = Modifier.basicMarquee())
+                }
             }
         }
     }

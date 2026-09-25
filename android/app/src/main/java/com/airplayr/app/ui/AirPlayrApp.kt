@@ -22,6 +22,13 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -120,6 +127,7 @@ fun AirPlayrApp(
     var menuOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var donateOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var musicPlayerSheetOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var appSplashVisible by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
     val syncState by container.syncState.collectAsStateWithLifecycle()
     val safScanState by container.safScanState.collectAsStateWithLifecycle()
     val rootScope = androidx.compose.runtime.rememberCoroutineScope()
@@ -131,6 +139,10 @@ fun AirPlayrApp(
             container.appContext.contentResolver.takePersistableUriPermission(uri, flags)
         }
         container.startSafMediaScan(uri)
+    }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(850L)
+        appSplashVisible = false
     }
     androidx.compose.runtime.LaunchedEffect(Unit) {
         AppFeedback.snackbar.collect { message ->
@@ -223,6 +235,7 @@ fun AirPlayrApp(
     AirPlayrTheme(
         darkTheme = darkTheme,
         accentColor = accentColor,
+        amoledMode = settings?.amoledMode == true,
         highContrast = settings?.highContrast == true,
     ) {
         val context = LocalContext.current
@@ -657,7 +670,7 @@ fun AirPlayrApp(
                 SafScanOverlay(safScanState)
             }
 
-            StartupPermissionFlow(
+            if (!appSplashVisible) StartupPermissionFlow(
                 context = container.appContext,
                 onCompleted = {
                     // Do not start any media synchronization until the complete startup
@@ -666,6 +679,24 @@ fun AirPlayrApp(
                     permissionFlowCompleted = true
                 },
             )
+
+            if (appSplashVisible) {
+                Box(
+                    Modifier.fillMaxSize().background(
+                        Brush.linearGradient(
+                            listOf(Color(0xFF58B4F5), Color(0xFF79C5FD), Color(0xFFB7E3FF))
+                        )
+                    ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        painter = painterResource(com.airplayr.app.R.drawable.airplayr_about_logo),
+                        contentDescription = "AirPlayr",
+                        modifier = Modifier.fillMaxWidth(0.66f),
+                        contentScale = ContentScale.Fit,
+                    )
+                }
+            }
 
             if (donateOpen) {
                 DonateSheet(onDismiss = { donateOpen = false })

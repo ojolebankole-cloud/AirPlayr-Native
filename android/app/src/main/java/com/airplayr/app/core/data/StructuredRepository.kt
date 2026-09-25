@@ -128,6 +128,12 @@ class StructuredRepository(private val databaseProvider: () -> AirPlayrDatabase)
         dao.playlist(playlistId)?.let { dao.upsertPlaylist(it.copy(updatedAt=System.currentTimeMillis())) }
     }
     suspend fun playlistIds(playlistId:String)=db.userDataDao().playlistItemIds(playlistId)
+    suspend fun removeFromPlaylist(playlistId:String, mediaId:String) {
+        val dao = db.userDataDao()
+        val ids = dao.playlistItemIds(playlistId).filterNot { it == mediaId }
+        dao.replacePlaylistItems(playlistId, ids.mapIndexed { i, id -> MusicPlaylistItemEntity(playlistId, id, i, System.currentTimeMillis()) })
+        dao.playlist(playlistId)?.let { dao.upsertPlaylist(it.copy(updatedAt = System.currentTimeMillis())) }
+    }
     suspend fun renamePlaylist(playlistId:String, name:String) { db.userDataDao().playlist(playlistId)?.let { db.userDataDao().upsertPlaylist(it.copy(name=name.trim().ifBlank { it.name }, updatedAt=System.currentTimeMillis())) } }
     suspend fun setPlaylistArtwork(playlistId:String, uri:String?) { db.userDataDao().playlist(playlistId)?.let { db.userDataDao().upsertPlaylist(it.copy(artworkUri=uri, updatedAt=System.currentTimeMillis())) } }
     suspend fun deletePlaylist(playlistId:String) { db.userDataDao().clearPlaylistItems(playlistId); db.userDataDao().deletePlaylist(playlistId) }

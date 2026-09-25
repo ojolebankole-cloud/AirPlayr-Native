@@ -304,6 +304,7 @@ fun AirPlayrTheme(
     darkTheme: Boolean = false,
     accentColor: String = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) "dynamic" else "blue",
     dynamicColor: Boolean = true,
+    amoledMode: Boolean = false,
     highContrast: Boolean = false,
     content: @Composable () -> Unit,
 ) {
@@ -365,8 +366,10 @@ fun AirPlayrTheme(
         )
     } else scheme
 
+    val displayScheme = if (amoledMode && darkTheme) accessibleScheme.copy(background = Color.Black) else accessibleScheme
+
     val airColors = airPlayrColorsFor(
-        scheme = accessibleScheme,
+        scheme = displayScheme,
         darkTheme = darkTheme,
         dynamic = useDynamicColor,
         brandAccent = fixedSeed,
@@ -374,7 +377,7 @@ fun AirPlayrTheme(
 
     androidx.compose.runtime.CompositionLocalProvider(LocalAirPlayrColors provides airColors) {
         MaterialTheme(
-            colorScheme = accessibleScheme,
+            colorScheme = displayScheme,
             typography = AirPlayrTypography,
         ) {
             Surface(

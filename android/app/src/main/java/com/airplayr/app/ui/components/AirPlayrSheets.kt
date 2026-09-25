@@ -14,6 +14,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,6 +35,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -80,6 +83,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
@@ -103,6 +107,7 @@ import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -132,7 +137,7 @@ fun AirPlayrSheetScaffold(
                 )
             }
             Column(
-                Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 22.dp, vertical = 8.dp),
+                Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 22.dp, vertical = 8.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -161,47 +166,96 @@ fun SleepTimerSheet(
     var minutes by remember(currentMinutes) { mutableIntStateOf(currentMinutes.takeIf { it > 0 } ?: 30) }
     var finishCurrentState by remember(finishCurrent) { mutableStateOf(finishCurrent) }
     var fadeOutState by remember(fadeOut) { mutableStateOf(fadeOut) }
-    val maxMinutes = 120f
-    val progress = (minutes / maxMinutes).coerceIn(0f, 1f)
+    val maxMinutes = 120
+    val minMinutes = 5
+    val progress = ((minutes - minMinutes).toFloat() / (maxMinutes - minMinutes)).coerceIn(0f, 1f)
     val presets = listOf(5, 10, 15, 30, 45, 60, 90)
+    val teal = MaterialTheme.colorScheme.primary
+    val ringTrack = MaterialTheme.colorScheme.surfaceContainerHigh
+    val text = MaterialTheme.colorScheme.onSurface
+
+    fun updateFromRing(position: Offset, size: Size) {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val dx = position.x - cx
+        val dy = position.y - cy
+        if (dx * dx + dy * dy < (size.minDimension * .22f) * (size.minDimension * .22f)) return
+        val degrees = ((Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())) + 90.0 + 360.0) % 360.0)
+        val raw = minMinutes + ((degrees / 360.0) * (maxMinutes - minMinutes))
+        minutes = ((raw / 5.0).roundToInt() * 5).coerceIn(minMinutes, maxMinutes)
+    }
+
     AirPlayrSheetScaffold("Sleep timer", "PLAYBACK", onDismiss) {
-        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(28.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
-            Column(Modifier.fillMaxWidth().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.size(240.dp), contentAlignment = Alignment.Center) {
-                    val trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                    val progressColor = MaterialTheme.colorScheme.primary
-                    Canvas(Modifier.fillMaxSize()) {
-                        val stroke = 16.dp.toPx()
-                        drawArc(trackColor, -90f, 360f, false, style = Stroke(stroke, cap = StrokeCap.Round))
-                        drawArc(progressColor, -90f, progress * 360f, false, style = Stroke(stroke, cap = StrokeCap.Round))
-                        val a = (-90f + progress * 360f) * (PI / 180f)
-                        val r = (size.minDimension - stroke) / 2f
-                        val c = Offset(size.width / 2f, size.height / 2f)
-                        drawCircle(progressColor, 13.dp.toPx(), Offset(c.x + cos(a).toFloat() * r, c.y + sin(a).toFloat() * r))
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(minutes.toString(), style = MaterialTheme.typography.displayMedium)
-                        Text("minutes", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Sleep timer", style = MaterialTheme.typography.headlineLarge, color = text)
+            }
+            Icon(Icons.Default.Timer, "Sleep timer", tint = teal, modifier = Modifier.size(28.dp))
+        }
+
+        Box(
+            Modifier.fillMaxWidth().height(340.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Canvas(
+                Modifier
+                    .size(300.dp)
+                    .pointerInput(maxMinutes) {
+                        detectDragGestures(
+                            onDragStart = { position ->
+                                updateFromRing(position, Size(size.width.toFloat(), size.height.toFloat()))
+                            },
+                            onDrag = { change, _ ->
+                                change.consume()
+                                updateFromRing(change.position, Size(size.width.toFloat(), size.height.toFloat()))
+                            },
+                        )
+                    },
+            ) {
+                val stroke = 22.dp.toPx()
+                val r = (size.minDimension - stroke) / 2f
+                val c = Offset(size.width / 2f, size.height / 2f)
+                drawArc(ringTrack, -90f, 360f, false, style = Stroke(stroke, cap = StrokeCap.Round))
+                drawArc(teal, -90f, progress * 360f, false, style = Stroke(stroke, cap = StrokeCap.Round))
+                // Reference-style minute ticks and labels.
+                for (i in 0 until 24) {
+                    val a = (-90f + i * 15f) * (PI / 180f)
+                    val outer = r + 14.dp.toPx()
+                    val inner = if (i % 3 == 0) outer - 12.dp.toPx() else outer - 7.dp.toPx()
+                    val p1 = Offset(c.x + cos(a).toFloat() * inner, c.y + sin(a).toFloat() * inner)
+                    val p2 = Offset(c.x + cos(a).toFloat() * outer, c.y + sin(a).toFloat() * outer)
+                    drawLine(MaterialTheme.colorScheme.outlineVariant, p1, p2, strokeWidth = if (i % 3 == 0) 4.dp.toPx() else 2.dp.toPx(), cap = StrokeCap.Round)
                 }
-                Slider(value = minutes.toFloat(), onValueChange = { minutes = it.toInt().coerceIn(5, 120) }, valueRange = 5f..120f, steps = 22)
-                if (remainingSeconds > 0) Text("Remaining ${remainingSeconds / 60}:${(remainingSeconds % 60).toString().padStart(2, '0')}", color = MaterialTheme.colorScheme.primary)
-                Text("Stops at the selected time", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val handleAngle = (-90f + progress * 360f) * (PI / 180f)
+                val handle = Offset(c.x + cos(handleAngle).toFloat() * r, c.y + sin(handleAngle).toFloat() * r)
+                drawCircle(Color.White, 25.dp.toPx(), handle)
+                drawCircle(teal, 18.dp.toPx(), handle)
+                drawCircle(Color.White, 7.dp.toPx(), handle)
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(minutes.toString(), style = MaterialTheme.typography.displayLarge, color = text)
+                Text(if (minutes >= 60 && minutes % 60 != 0) "h : mm" else "min", color = teal, style = MaterialTheme.typography.titleMedium)
             }
         }
+
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            Text("STOPS AT  ", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date(System.currentTimeMillis() + minutes * 60_000L))}", style = MaterialTheme.typography.titleSmall, color = teal)
+        }
+
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             presets.forEach { value ->
                 FilterChip(selected = minutes == value, onClick = { minutes = value }, label = { Text(if (value >= 60) "${value / 60}h${if (value % 60 == 0) "" else " ${value % 60}m"}" else "${value}m") })
             }
         }
-        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), elevation = androidx.compose.material3.CardDefaults.cardElevation(defaultElevation = 0.dp)) {
+        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)) {
             Column(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) { Text("Finish current song", style = MaterialTheme.typography.titleMedium); Text("Don't cut off mid-track", color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     Switch(finishCurrentState, { finishCurrentState = it })
                 }
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) { Text("Fade out", style = MaterialTheme.typography.titleMedium); Text("Fade the final 10 seconds", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    Column(Modifier.weight(1f)) { Text("Fade out", style = MaterialTheme.typography.titleMedium); Text("Last 10 sec", color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     Switch(fadeOutState, { fadeOutState = it })
                 }
             }
@@ -488,7 +542,7 @@ fun TagEditorSheet(context: Context, item: MediaItem, metadata: MetadataReposito
     var matches by remember { mutableStateOf<List<MetadataMatch>>(emptyList()) }
     fun set(key: String, value: String) { fields.value = fields.value + (key to value) }
     AirPlayrSheetScaffold("Tag editor", "MUSIC METADATA", onClose) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) { Button(enabled = !busy, onClick = { scope.launch { busy = true; matches = metadata.search(item.copy(title = fields.value["Title"].orEmpty(), artist = fields.value["Artist"].orEmpty(), album = fields.value["Album"].orEmpty()), force = true); busy = false } }) { Icon(Icons.Default.Search, null); Spacer(Modifier.width(8.dp)); Text(if (busy) "Searching…" else "Lookup") }; TextButton(onClick = { fields.value = fields.value + ("Title" to item.title) }) { Text("Restore title") } }
             fields.value.forEach { (label, value) -> OutlinedTextField(value, { set(label, it) }, Modifier.fillMaxWidth(), label = { Text(label) }, singleLine = label !in setOf("Composer")) }
             if (matches.isNotEmpty()) {

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -69,6 +70,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.input.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -92,23 +95,25 @@ fun VaultScreen(
 ) {
     val manager = container.vaultManager
     val colors = LocalAirPlayrColors.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var configured by remember { mutableStateOf(manager.configured) }
     var unlocked by remember { mutableStateOf(manager.unlocked) }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
-    var showPassword by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var addOpen by remember { mutableStateOf(false) }
     var entries by remember { mutableStateOf(manager.entries()) }
     var pendingStages by remember { mutableStateOf<List<Pair<MediaItem, com.airplayr.app.core.vault.VaultManager.Entry>>>(emptyList()) }
     var deleteUris by remember { mutableStateOf<List<android.net.Uri>>(emptyList()) }
+    var restoreConfirm by remember { mutableStateOf(false) }
+    val biometricAvailable = remember(manager) { manager.canUseBiometric() }
 
     val videos by container.mediaLibrary.observe(MediaType.VIDEO).collectAsStateWithLifecycle(initialValue = emptyList())
 
     fun setupOrUnlock() {
-        if (password.length < 6) { error = "Use at least 6 characters."; return }
+        if (password.length != 4 || password.any { !it.isDigit() }) { error = "Enter a 4-digit PIN."; return }
         busy = true
         error = null
         scope.launch {
@@ -166,22 +171,35 @@ fun VaultScreen(
         }
         busy = true
         scope.launch {
-            val staged = selected.mapNotNull { item -> manager.stageMove(item)?.let { item to it } }
-            if (staged.size != selected.size) {
+            val staged = ArrayList<Pair<MediaItem, com.airplayr.app.core.vault.VaultManager.Entry>>(selected.size)
+            try {
+                selected.forEach { item ->
+                    val entry = manager.stageMove(item) ?: error("Could not encrypt ${item.title}")
+                    staged += item to entry
+                }
+            } catch (t: Throwable) {
                 staged.forEach { manager.rollbackStaged(it.second) }
                 busy = false
-                AppFeedback.showSnackbar("Could not prepare every selected video for the Vault.")
+                AppFeedback.showSnackbar("Could not secure every selected video. No partial Vault move was kept.")
                 return@launch
             }
             pendingStages = staged
             val mediaStoreUris = staged.mapNotNull { (item, _) -> item.mediaStoreId?.let { ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, it) } }
-            deleteUris = mediaStoreUris
-            if (Build.VERSION.SDK_INT >= 30 && mediaStoreUris.isNotEmpty()) {
-                val request = MediaStore.createDeleteRequest(container.appContext.contentResolver, mediaStoreUris)
+            // App-owned media can be removed directly. User-owned MediaStore rows may require
+            // Android's one-time confirmation; only request that confirmation for the rows that
+            // actually reject direct deletion. This avoids an unnecessary permission sheet for
+            // every Vault operation when the platform already grants AirPlayr deletion rights.
+            val remaining = mediaStoreUris.filter { uri ->
+                runCatching { container.appContext.contentResolver.delete(uri, null, null) > 0 }.getOrDefault(false).not()
+            }
+            deleteUris = remaining
+            if (remaining.isEmpty()) {
+                completeMove()
+            } else if (Build.VERSION.SDK_INT >= 30) {
+                val request = MediaStore.createDeleteRequest(container.appContext.contentResolver, remaining)
                 deleteLauncher.launch(IntentSenderRequest.Builder(request.intentSender).build())
             } else {
-                val deleted = staged.all { (item, _) -> runCatching { container.appContext.contentResolver.delete(android.net.Uri.parse(item.uri), null, null) > 0 }.getOrDefault(false) }
-                if (deleted) completeMove() else cancelMove()
+                cancelMove()
             }
         }
     }
@@ -193,25 +211,46 @@ fun VaultScreen(
                 configured = configured,
                 password = password,
                 confirmPassword = confirmPassword,
-                showPassword = showPassword,
                 busy = busy,
                 error = error,
                 fingerprint = manager.deviceFingerprint(),
-                onPassword = { password = it },
-                onConfirmPassword = { confirmPassword = it },
-                onToggleVisibility = { showPassword = !showPassword },
+                onPassword = { password = it.filter(Char::isDigit).take(4) },
+                onConfirmPassword = { confirmPassword = it.filter(Char::isDigit).take(4) },
                 onSubmit = ::setupOrUnlock,
+                onBiometric = if (configured && biometricAvailable) {
+                    {
+                        val activity = context as? Activity
+                        if (activity != null) {
+                            manager.authenticateBiometric(
+                                activity = activity,
+                                onSuccess = {
+                                    configured = manager.configured
+                                    unlocked = manager.unlocked
+                                    entries = manager.entries()
+                                    error = null
+                                },
+                                onError = { message -> error = message },
+                            )
+                        }
+                    }
+                } else null,
                 onBack = onBack,
             )
         } else {
             Column(Modifier.fillMaxSize()) {
-                Row(Modifier.fillMaxWidth().padding(top = 14.dp, start = 8.dp, end = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().statusBarsPadding().padding(top = 8.dp, start = 8.dp, end = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = colors.primary) }
                     Column(Modifier.weight(1f)) {
                         Text("Vault", color = colors.textPrimary, fontFamily = AirPlayrFonts.OpenSans, fontSize = 29.sp, fontWeight = FontWeight.SemiBold)
                         Text("Private videos · device protected", color = colors.textSecondary, fontSize = 12.sp)
                     }
-                    Surface(shape = CircleShape, color = Color(0xFF193C2C)) { Icon(Icons.Default.Lock, null, tint = Color(0xFFB9F5D1), modifier = Modifier.padding(9.dp).size(20.dp)) }
+                    Surface(
+                        onClick = { if (!busy && entries.isNotEmpty()) restoreConfirm = true },
+                        shape = CircleShape,
+                        color = Color(0xFF193C2C),
+                    ) {
+                        Icon(Icons.Default.LockOpen, "Restore all Vault videos", tint = Color(0xFFB9F5D1), modifier = Modifier.padding(9.dp).size(20.dp))
+                    }
                 }
                 Surface(Modifier.fillMaxWidth().padding(18.dp), RoundedCornerShape(28.dp), color = Color(0xFF101820)) {
                     Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -261,6 +300,28 @@ fun VaultScreen(
         }
     }
 
+    if (restoreConfirm) {
+        AlertDialog(
+            onDismissRequest = { restoreConfirm = false },
+            title = { Text("Restore all Vault videos?") },
+            text = { Text("AirPlayr will decrypt every private video back into the Android media library and remove it from the Vault.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    restoreConfirm = false
+                    busy = true
+                    scope.launch {
+                        val count = manager.restoreAllToMediaStore()
+                        runCatching { container.mediaLibrary.deltaRefresh(MediaType.VIDEO) }
+                        entries = manager.entries()
+                        busy = false
+                        AppFeedback.showSnackbar(if (count == 0) "No Vault videos were restored." else "$count video${if (count == 1) "" else "s"} restored to your library.")
+                    }
+                }, enabled = !busy) { Text("Restore all") }
+            },
+            dismissButton = { TextButton(onClick = { restoreConfirm = false }) { Text("Cancel") } },
+        )
+    }
+
     if (addOpen && unlocked) {
         VaultVideoPicker(videos.filter { it.mediaStoreId != null }, onDismiss = { addOpen = false }, onAdd = ::beginMove, busy = busy)
     }
@@ -271,14 +332,13 @@ private fun VaultGate(
     configured: Boolean,
     password: String,
     confirmPassword: String,
-    showPassword: Boolean,
     busy: Boolean,
     error: String?,
     fingerprint: String,
     onPassword: (String) -> Unit,
     onConfirmPassword: (String) -> Unit,
-    onToggleVisibility: () -> Unit,
     onSubmit: () -> Unit,
+    onBiometric: (() -> Unit)?,
     onBack: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -286,12 +346,18 @@ private fun VaultGate(
         Spacer(Modifier.height(34.dp))
         Surface(Modifier.size(104.dp), CircleShape, color = Color(0xFF101820)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(if (configured) Icons.Default.Lock else Icons.Default.Security, null, tint = Color(0xFF8BE5BA), modifier = Modifier.size(48.dp)) } }
         Text(if (configured) "Unlock your Vault" else "Create your Vault", fontFamily = AirPlayrFonts.OpenSans, fontSize = 30.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 22.dp))
-        Text(if (configured) "Your private videos are protected by this device and your password." else "A device-bound encrypted space for videos you want hidden from the rest of AirPlayr.", color = Color.Gray, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Text(if (configured) "Enter your 4-digit PIN or use your device biometric." else "Create a 4-digit PIN for this device-bound encrypted Vault.", color = Color.Gray, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         Surface(Modifier.fillMaxWidth().padding(top = 20.dp), RoundedCornerShape(18.dp), color = Color(0xFF101820)) { Text("DEVICE KEY  •  $fingerprint", color = Color(0xFF8BE5BA), fontSize = 11.sp, modifier = Modifier.padding(14.dp)) }
-        OutlinedTextField(password, onPassword, Modifier.fillMaxWidth().padding(top = 22.dp), label = { Text("Password") }, singleLine = true, visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(), trailingIcon = { IconButton(onClick = onToggleVisibility) { Icon(if (showPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility, null) } })
-        if (!configured) OutlinedTextField(confirmPassword, onConfirmPassword, Modifier.fillMaxWidth().padding(top = 10.dp), label = { Text("Confirm password") }, singleLine = true, visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation())
+        OutlinedTextField(password, onPassword, Modifier.fillMaxWidth().padding(top = 22.dp), label = { Text("4-digit PIN") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), trailingIcon = { if (password.isNotEmpty()) Text("${password.length}/4", fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(end = 12.dp)) })
+        if (!configured) OutlinedTextField(confirmPassword, onConfirmPassword, Modifier.fillMaxWidth().padding(top = 10.dp), label = { Text("Confirm 4-digit PIN") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword))
         if (error != null) Text(error, color = Color(0xFFC94A4A), fontSize = 12.sp, modifier = Modifier.padding(top = 9.dp))
-        Button(onClick = onSubmit, enabled = !busy, modifier = Modifier.fillMaxWidth().padding(top = 18.dp).height(56.dp), shape = RoundedCornerShape(28.dp)) { if (busy) CircularProgressIndicator(Modifier.size(21.dp), strokeWidth = 2.dp) else Text(if (configured) "Unlock Vault" else "Create secure Vault", fontSize = 16.sp) }
+        Button(onClick = onSubmit, enabled = !busy && password.length == 4, modifier = Modifier.fillMaxWidth().padding(top = 18.dp).height(56.dp), shape = RoundedCornerShape(28.dp)) { if (busy) CircularProgressIndicator(Modifier.size(21.dp), strokeWidth = 2.dp) else Text(if (configured) "Unlock with PIN" else "Create secure Vault", fontSize = 16.sp) }
+        if (onBiometric != null) {
+            androidx.compose.material3.OutlinedButton(onClick = onBiometric, enabled = !busy, modifier = Modifier.fillMaxWidth().padding(top = 10.dp).height(54.dp), shape = RoundedCornerShape(27.dp)) {
+                Icon(Icons.Default.Security, null, modifier = Modifier.size(21.dp))
+                Text("Use fingerprint / biometric", modifier = Modifier.padding(start = 8.dp), fontSize = 15.sp)
+            }
+        }
     }
 }
 

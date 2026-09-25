@@ -120,7 +120,7 @@ fun Artwork(
     ) {
         if (bitmap != null) Image(bitmap!!, contentDescription, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
         else Icon(fallbackIcon, contentDescription, tint = fallbackIconTint, modifier = Modifier.size(fallbackIconSize))
-        if (isPlaying) PlayingWaveIndicator()
+        if (isPlaying && mediaType != MediaType.VIDEO) PlayingWaveIndicator()
     }
 }
 

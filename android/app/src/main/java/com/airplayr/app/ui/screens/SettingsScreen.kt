@@ -129,6 +129,7 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
             "history" -> container.preferences.setSavePlaybackHistory(value)
             "continue" -> container.preferences.setShowContinueWatching(value)
             "recent" -> container.preferences.setShowRecentlyPlayed(value)
+            "amoled" -> container.preferences.setAmoledMode(value)
         }
     }
     fun confirmAction(title: String, message: String, action: suspend () -> Unit) { confirm = ConfirmAction(title, message, action) }
@@ -145,6 +146,7 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
         settingSection("Appearance") {
             SettingRow("Theme", themeLabel(current.theme), onClick = { selector = SettingSelector("Theme", current.theme, listOf("system" to "System", "dark" to "Dark", "light" to "Light")) { set("theme", it) } })
             SettingRow("Accent colour", accentLabel(current.accentColor), onClick = { accentPickerOpen = true })
+            SettingSwitch("AMOLED display mode", "Pure-black app background in Dark theme; cards and controls keep their normal surfaces", current.amoledMode) { toggle("amoled", it) }
             SettingSwitch("High contrast", "Strengthens semantic text and controls", current.highContrast) { toggle("highContrast", it) }
             SettingSwitch("Reduce motion", "Reduces non-essential transitions", current.reduceMotion) { toggle("reduceMotion", it) }
             SettingSwitch("Haptic feedback", "Use haptics for meaningful control actions", current.hapticFeedback) { toggle("haptic", it) }

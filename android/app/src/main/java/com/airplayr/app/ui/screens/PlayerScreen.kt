@@ -10,6 +10,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.media.MediaMetadataRetriever
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -56,6 +57,8 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.VolumeDown
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -102,7 +105,6 @@ import com.airplayr.app.core.playback.REPEAT_ONE
 import com.airplayr.app.core.playback.dsp.DspRepository
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.components.AirPlayrSheetScaffold
-import com.airplayr.app.ui.components.AirPlayrSvgImage
 import com.airplayr.app.ui.components.Artwork
 import com.airplayr.app.ui.components.LyricsEditorSheet
 import com.airplayr.app.ui.components.MusicQueueSheet
@@ -119,6 +121,7 @@ import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
 
@@ -145,6 +148,11 @@ fun PlayerScreen(
     var queueOpen by remember { mutableStateOf(false) }
     var favorite by remember(state.currentId) { mutableStateOf(false) }
     var currentItem by remember(state.currentId) { mutableStateOf<MediaItem?>(null) }
+    var audioTechnical by remember(state.currentId) { mutableStateOf<AudioTechnicalMetadata?>(null) }
+    LaunchedEffect(currentItem?.id) {
+        val item = currentItem ?: return@LaunchedEffect
+        audioTechnical = withContext(kotlinx.coroutines.Dispatchers.IO) { readAudioTechnicalMetadata(appContext, item) }
+    }
     var slider by remember { mutableFloatStateOf(0f) }
     var seeking by remember { mutableStateOf(false) }
     var volume by remember { mutableFloatStateOf(controller.systemMusicVolumeFraction()) }
@@ -152,7 +160,7 @@ fun PlayerScreen(
         if (!seeking) {
             while (isActive) {
                 volume = controller.systemMusicVolumeFraction()
-                delay(300L)
+                delay(500L)
             }
         }
     }
@@ -321,8 +329,14 @@ fun PlayerScreen(
                 Icon(AirPlayrIcons.VolumeUp, null, tint = colors.primary, modifier = Modifier.size(25.dp))
             }
 
-            val mediaDetails = currentItem?.mimeType?.substringAfterLast('/', currentItem?.mimeType ?: "")?.uppercase().orEmpty()
-            if (mediaDetails.isNotBlank()) Text(mediaDetails, style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp), color = colors.textSecondary, modifier = Modifier.padding(top = 2.dp))
+            audioTechnical?.let { technical ->
+                Text(
+                    technical.display,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
+                    color = colors.textSecondary,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
 
             Surface(
                 modifier = Modifier
@@ -344,11 +358,12 @@ fun PlayerScreen(
                     PlayerAction(if (favorite) AirPlayrIcons.Favorite else AirPlayrIcons.FavoriteBorder, if (favorite) "Remove favorite" else "Add favorite", false, colors, onClick = ::setFav)
                     PlayerAction(AirPlayrIcons.Sleep, "Sleep timer", false, colors) { sheet = PlayerSheet.Sleep }
                     PlayerAction(AirPlayrIcons.Queue, "Queue", false, colors, onClick = { queueOpen = true })
-                    if (state.repeatMode == REPEAT_ONE) {
-                        PlayerActionSvg("ko/repeat_one_on.svg", repeatLabel, state.repeatMode != REPEAT_OFF, colors) { controller.cycleRepeat() }
-                    } else {
-                        PlayerActionSvg("ko/repeat_on.svg", repeatLabel, state.repeatMode != REPEAT_OFF, colors) { controller.cycleRepeat() }
-                    }
+                    PlayerAction(
+                        if (state.repeatMode == REPEAT_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                        repeatLabel,
+                        state.repeatMode != REPEAT_OFF,
+                        colors,
+                    ) { controller.cycleRepeat() }
                 }
             }
         }
@@ -541,15 +556,6 @@ private fun PlayerPlayControl(playing: Boolean, iconTint: androidx.compose.ui.gr
 }
 
 @Composable
-private fun PlayerActionSvg(assetPath: String, label: String, selected: Boolean, colors: com.airplayr.app.ui.theme.AirPlayrColors, onClick: () -> Unit) {
-    IconButton(onClick = onClick, modifier = Modifier.size(52.dp)) {
-        Box(Modifier.size(52.dp).background(if (selected) colors.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, CircleShape), contentAlignment = Alignment.Center) {
-            AirPlayrSvgImage(assetPath, Modifier.size(26.dp))
-        }
-    }
-}
-
-@Composable
 private fun PlayerAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, selected: Boolean, colors: com.airplayr.app.ui.theme.AirPlayrColors, onClick: () -> Unit) {
     IconButton(onClick = onClick, modifier = Modifier.size(52.dp)) {
         Box(Modifier.size(52.dp).background(if (selected) colors.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, CircleShape), contentAlignment = Alignment.Center) {
@@ -733,6 +739,30 @@ private fun DetailsSheetContent(item: MediaItem?, onClose: () -> Unit, onTags: (
 
 @Composable private fun DetailLine(label: String, value: String?) {
     if (!value.isNullOrBlank()) Row(Modifier.fillMaxWidth()) { Text(label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(84.dp)); Text(value, style = MaterialTheme.typography.bodyMedium) }
+}
+
+private data class AudioTechnicalMetadata(val display: String)
+
+private suspend fun readAudioTechnicalMetadata(context: Context, item: MediaItem): AudioTechnicalMetadata? {
+    val retriever = MediaMetadataRetriever()
+    return try {
+        retriever.setDataSource(context, Uri.parse(item.uri))
+        val bitrate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toLongOrNull()
+        val sampleRate = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_SAMPLERATE)?.toLongOrNull()
+        val format = item.mimeType?.substringAfterLast('/', "")?.takeIf { it.isNotBlank() }?.uppercase(Locale.getDefault())
+            ?: item.filename.substringAfterLast('.', "").takeIf { it.isNotBlank() }?.uppercase(Locale.getDefault())
+            ?: "AUDIO"
+        val parts = buildList {
+            add(format)
+            bitrate?.takeIf { it > 0 }?.let { add("${it / 1000} kb/s") }
+            sampleRate?.takeIf { it > 0 }?.let { hz -> add("${"%.1f".format(Locale.US, hz / 1000.0)} kHz") }
+        }
+        AudioTechnicalMetadata(parts.joinToString(" · "))
+    } catch (_: Throwable) {
+        null
+    } finally {
+        runCatching { retriever.release() }
+    }
 }
 
 private fun time(ms: Long): String { val s = ms.coerceAtLeast(0) / 1000; return "%02d:%02d".format(s / 60, s % 60) }

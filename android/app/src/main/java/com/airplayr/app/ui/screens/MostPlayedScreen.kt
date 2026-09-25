@@ -196,6 +196,7 @@ fun MostPlayedScreen(
                     topVideo = topVideoItem,
                     onTrack = { topTrackItem?.let { playSongs(listOf(it)) } },
                     onVideo = { topVideoItem?.let { onOpenVideo(it.id) } },
+                    isTrackPlaying = playbackState.isPlaying && playbackState.currentId == topTrackItem?.id,
                 )
             }
             if (topSongItems.isNotEmpty()) {
@@ -372,6 +373,7 @@ private fun MostPlayedHero(
     topVideo: MediaItem?,
     onTrack: () -> Unit,
     onVideo: () -> Unit,
+    isTrackPlaying: Boolean,
 ) {
     val colors = LocalAirPlayrColors.current
     val transition = rememberInfiniteTransition(label = "most-played-hero-gradient")
@@ -398,7 +400,7 @@ private fun MostPlayedHero(
     val lottieProgress by animateLottieCompositionAsState(
         composition = composition,
         iterations = LottieConstants.IterateForever,
-        isPlaying = slide == 0,
+        isPlaying = slide == 0 && isTrackPlaying,
     )
     val illustrationPalette = rememberAirPlayrIllustrationPalette(
         colors.primary, colors.secondary, colors.tertiary,

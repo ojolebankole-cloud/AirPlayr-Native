@@ -10,6 +10,7 @@ data class CastUiStatus(
             connected -> "Connected${deviceName.takeIf { it.isNotBlank() }?.let { " to $it" } ?: ""}"
             state == "no-devices" -> "No Cast devices available"
             state == "connecting" -> "Connecting to a Cast device…"
+            state == "unavailable" -> "Cast is unavailable on this device"
             else -> "No Cast device connected"
         }
 }

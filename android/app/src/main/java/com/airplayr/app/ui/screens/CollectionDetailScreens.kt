@@ -50,6 +50,8 @@ import com.airplayr.app.ui.components.AirPlayrCard
 import com.airplayr.app.ui.components.AirPlayrMediaRow
 import com.airplayr.app.ui.components.AirPlayrMediaMenuAction
 import com.airplayr.app.ui.components.AirPlayrPremiumMediaActionSheet
+import com.airplayr.app.ui.components.ActionButton
+import com.airplayr.app.ui.components.ActionGroup
 import com.airplayr.app.ui.components.AirPlayrScreenHeader
 import com.airplayr.app.ui.components.Artwork
 import com.airplayr.app.ui.theme.AirPlayrFonts
@@ -144,8 +146,7 @@ private fun CollectionTopActions(
             onClick = onBack,
             modifier = Modifier
                 .size(44.dp)
-                .clip(CircleShape)
-                .background(colors.surfaceContainer.copy(alpha = .86f)),
+                .clip(CircleShape),
         ) {
             Icon(Icons.Default.ArrowBack, "Back", tint = colors.primary, modifier = Modifier.size(26.dp))
         }
@@ -153,8 +154,7 @@ private fun CollectionTopActions(
             onClick = onMore,
             modifier = Modifier
                 .size(44.dp)
-                .clip(CircleShape)
-                .background(colors.surfaceContainer.copy(alpha = .86f)),
+                .clip(CircleShape),
         ) {
             Icon(Icons.Default.MoreVert, "More", tint = colors.primary, modifier = Modifier.size(26.dp))
         }
@@ -442,7 +442,7 @@ fun AlbumDetailScreen(
             representative = songs.first(),
             items = songs,
             playback = playback,
-            onOpen = {},
+            onOpen = null,
             onDismiss = { menuOpen = false },
         )
     }
@@ -630,7 +630,7 @@ fun ArtistDetailScreen(
             representative = songs.first(),
             items = songs,
             playback = playback,
-            onOpen = {},
+            onOpen = null,
             onDismiss = { menuOpen = false },
         )
     }
@@ -668,12 +668,6 @@ private fun AlbumGridCard(
                 modifier = Modifier.align(Alignment.BottomStart).padding(8.dp).size(36.dp).clip(CircleShape).background(colors.surfaceContainer.copy(alpha = .92f)),
             ) {
                 Icon(Icons.Default.PlayArrow, "Play $title", tint = colors.primary, modifier = Modifier.size(19.dp))
-            }
-            IconButton(
-                onClick = onOpen,
-                modifier = Modifier.align(Alignment.TopEnd).padding(3.dp).size(36.dp),
-            ) {
-                Icon(Icons.Default.MoreVert, "Open $title", tint = colors.onSurface)
             }
         }
         Text(title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 16.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
@@ -751,7 +745,37 @@ fun RecentCollectionsScreen(
     }
 
     val recentSongs = remember(snapshot.audio) { snapshot.audio.sortedWith(compareByDescending<MediaItem> { it.dateAdded }.thenByDescending { it.dateModified }) }
-    val repeatSongs = remember(repeated, lookup) { repeated.mapNotNull { lookup[it.mediaId] }.distinctBy { it.id } }
+    val repeatSongs = remember(repeated, lookup) {
+        repeated.map { row ->
+            lookup[row.mediaId] ?: MediaItem(
+                id = row.mediaId,
+                mediaStoreId = null,
+                uri = row.mediaId,
+                title = row.title,
+                filename = row.title,
+                artist = row.artist,
+                album = row.album,
+                albumArtist = row.artist,
+                durationMs = 0L,
+                width = 0,
+                height = 0,
+                sizeBytes = 0L,
+                dateModified = 0L,
+                dateAdded = row.playedAt,
+                mediaType = MediaType.AUDIO,
+                mimeType = null,
+                albumId = null,
+                artworkUri = row.artworkUri,
+                thumbnailUri = null,
+                genre = null,
+                sourceDirectoryUri = null,
+                folderId = null,
+                folder = null,
+                path = null,
+                relativePath = null,
+            )
+        }.distinctBy { it.id }
+    }
 
     val albumContinuousQueue = remember(recentAlbumGroups) { recentAlbumGroups.flatMap { it.second }.distinctBy { it.id } }
     val artistContinuousQueue = remember(recentArtistGroups) { recentArtistGroups.flatMap { it.second }.distinctBy { it.id } }
@@ -984,6 +1008,8 @@ fun GenreDetailScreen(
     val colors = LocalAirPlayrColors.current
     val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
     val playbackState by playback.stableState.collectAsStateWithLifecycle()
+    var genreMenuOpen by remember { mutableStateOf(false) }
+    var songMenu by remember { mutableStateOf<MediaItem?>(null) }
     val songs = remember(snapshot.audio, genreName) {
         snapshot.audio.filter { it.genre?.equals(genreName, true) == true }
     }
@@ -1042,16 +1068,14 @@ fun GenreDetailScreen(
                     IconButton(
                         onClick = onBack,
                         modifier = Modifier.statusBarsPadding().padding(start = 10.dp, top = 8.dp).size(46.dp)
-                            .clip(CircleShape).background(colors.surfaceContainerHighest.copy(alpha = .9f))
                     ) {
                         Icon(Icons.Default.ArrowBack, "Back", tint = colors.primary)
                     }
                     IconButton(
-                        onClick = {},
+                        onClick = { genreMenuOpen = true },
                         modifier = Modifier.statusBarsPadding().padding(end = 10.dp, top = 8.dp).align(Alignment.TopEnd).size(46.dp)
-                            .clip(CircleShape).background(colors.surfaceContainerHighest.copy(alpha = .9f))
                     ) {
-                        Icon(Icons.Default.MoreVert, "More", tint = colors.primary)
+                        Icon(Icons.Default.MoreVert, "Genre options", tint = colors.primary)
                     }
                     Column(
                         Modifier.align(Alignment.BottomStart).padding(horizontal = 22.dp, vertical = 18.dp)
@@ -1082,10 +1106,6 @@ fun GenreDetailScreen(
                         onClick = { playAll(true) },
                         modifier = Modifier.size(52.dp).background(colors.surfaceContainerHigh, CircleShape)
                     ) { Icon(Icons.Default.Shuffle, "Shuffle", tint = colors.primary) }
-                    IconButton(
-                        onClick = {},
-                        modifier = Modifier.size(52.dp).background(colors.surfaceContainerHigh, CircleShape)
-                    ) { Icon(Icons.Default.PinDrop, "Pin", tint = colors.primary) }
                 }
             }
             if (albums.isNotEmpty()) {
@@ -1128,9 +1148,40 @@ fun GenreDetailScreen(
                         Text(song.title.ifBlank { song.filename }, style = MaterialTheme.typography.titleMedium, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text("${song.artist ?: "Unknown Artist"}  ·  ${durationLabel(listOf(song))}", style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    Icon(Icons.Default.MoreVert, "More", tint = colors.textSecondary)
+                    IconButton(onClick = { songMenu = song }) {
+                        Icon(Icons.Default.MoreVert, "Song options", tint = colors.textSecondary)
+                    }
                 }
             }
+        }
+
+        if (genreMenuOpen) {
+            ModalBottomSheet(onDismissRequest = { genreMenuOpen = false }, containerColor = colors.surfaceContainerLow) {
+                Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(genreName, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 24.sp, color = colors.textPrimary, modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp))
+                    ActionGroup {
+                        ActionButton("Play all", Icons.Default.PlayArrow, { genreMenuOpen = false; playAll(false) })
+                        ActionButton("Shuffle", Icons.Default.Shuffle, { genreMenuOpen = false; playAll(true) })
+                        ActionButton("Add all to queue", Icons.Default.QueueMusic, { genreMenuOpen = false; songs.forEach(playback::addToQueue); if (songs.isNotEmpty()) AppFeedback.showSnackbar("Added ${songs.size} songs to the playing queue.") })
+                    }
+                }
+            }
+        }
+
+        songMenu?.let { song ->
+            AirPlayrPremiumMediaActionSheet(
+                item = song,
+                playing = playbackState.currentId == song.id && playbackState.isPlaying,
+                favorite = false,
+                groups = listOf(
+                    listOf(
+                        AirPlayrMediaMenuAction("Play now", Icons.Default.PlayArrow, { songMenu = null; playSequenceAt(playback, songs, song) }),
+                        AirPlayrMediaMenuAction("Play next", Icons.Default.SkipNext, { songMenu = null; playback.playNext(song) }),
+                        AirPlayrMediaMenuAction("Add to queue", Icons.Default.QueueMusic, { songMenu = null; playback.addToQueue(song) }),
+                    ),
+                ),
+                onDismiss = { songMenu = null },
+            )
         }
     }
 }

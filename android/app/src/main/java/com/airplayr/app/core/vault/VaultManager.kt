@@ -1,11 +1,16 @@
 package com.airplayr.app.core.vault
 
+import android.app.Activity
 import android.content.Context
+import android.hardware.biometrics.BiometricManager
+import android.hardware.biometrics.BiometricPrompt
+import android.hardware.fingerprint.FingerprintManager
+import android.os.CancellationSignal
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.provider.MediaStore
 import android.util.Base64
-import androidx.annotation.RequiresApi
 import com.airplayr.app.core.data.media.MediaItem
 import com.airplayr.app.core.data.media.MediaType
 import kotlinx.coroutines.Dispatchers
@@ -42,8 +47,10 @@ class VaultManager(private val context: Context) {
         private const val PASSWORD_WRAP = "password_wrap"
         private const val DEVICE_WRAP = "device_wrap"
         private const val DEVICE_FINGERPRINT = "device_fingerprint"
+        private const val PIN_MODE = "pin_mode"
+        private const val BIOMETRIC_WRAP = "biometric_wrap"
         private const val KEY_ALIAS = "airplayr_vault_device_key_v1"
-        private const val PBKDF2_ROUNDS = 210_000
+        private const val PBKDF2_ROUNDS = 120_000
         private const val KEY_BYTES = 32
         private const val GCM_IV_BYTES = 12
 
@@ -69,6 +76,7 @@ class VaultManager(private val context: Context) {
     private val thumbDir = File(context.filesDir, "vault/thumbs").apply { mkdirs() }
     private val cacheDir = File(context.cacheDir, "vault_playback").apply { mkdirs() }
     @Volatile private var unlockedMaster: ByteArray? = null
+    @Volatile private var entriesCache: List<Entry>? = null
 
     val configured: Boolean get() = prefs.contains(SALT) && prefs.contains(PASSWORD_WRAP) && prefs.contains(DEVICE_WRAP)
     val unlocked: Boolean get() = unlockedMaster != null
@@ -76,44 +84,102 @@ class VaultManager(private val context: Context) {
     fun lock() {
         unlockedMaster?.fill(0)
         unlockedMaster = null
+        entriesCache = null
+        clearPlaybackCache()
     }
 
     fun deviceFingerprint(): String = sha256Hex((Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: "unknown") + ":" + context.packageName).take(16).uppercase()
 
-    suspend fun setup(password: String): Boolean = withContext(Dispatchers.IO) {
-        if (configured || password.length < 6) return@withContext false
+    suspend fun setup(pin: String): Boolean = withContext(Dispatchers.IO) {
+        if (configured || !isValidPin(pin)) return@withContext false
         val deviceSecret = randomBytes(KEY_BYTES)
         val master = randomBytes(KEY_BYTES)
         val salt = randomBytes(16)
         val deviceWrapped = wrapWithDeviceKey(deviceSecret)
-        val passwordKey = derivePasswordKey(password, deviceSecret, salt)
+        val passwordKey = derivePasswordKey(pin, deviceSecret, salt)
         val passwordWrapped = encryptBytes(passwordKey, master)
         prefs.edit()
             .putString(SALT, b64(salt))
             .putString(DEVICE_WRAP, b64(deviceWrapped))
             .putString(PASSWORD_WRAP, b64(passwordWrapped))
             .putString(DEVICE_FINGERPRINT, deviceFingerprint())
+            .putString(PIN_MODE, "4-digit")
+            .putString(BIOMETRIC_WRAP, b64(wrapWithDeviceKey(master)))
             .putString(ENTRIES, "[]")
             .apply()
+        entriesCache = emptyList()
         unlockedMaster = master
         true
     }
 
-    suspend fun unlock(password: String): Boolean = withContext(Dispatchers.IO) {
-        if (!configured || password.length < 6) return@withContext false
+    suspend fun unlock(pin: String): Boolean = withContext(Dispatchers.IO) {
+        if (!configured || !isValidPin(pin)) return@withContext false
         if (prefs.getString(DEVICE_FINGERPRINT, null) != deviceFingerprint()) return@withContext false
         return@withContext runCatching {
             val salt = b64d(prefs.getString(SALT, "")!!)
             val deviceSecret = unwrapWithDeviceKey(b64d(prefs.getString(DEVICE_WRAP, "")!!))
-            val key = derivePasswordKey(password, deviceSecret, salt)
+            val key = derivePasswordKey(pin, deviceSecret, salt)
             val master = decryptBytes(key, b64d(prefs.getString(PASSWORD_WRAP, "")!!))
             if (master.size != KEY_BYTES) error("Invalid vault key")
+            unlockedMaster = master
+            if (!prefs.contains(BIOMETRIC_WRAP)) {
+                prefs.edit().putString(BIOMETRIC_WRAP, b64(wrapWithDeviceKey(master))).apply()
+            }
+            true
+        }.getOrDefault(false)
+    }
+
+    fun canUseBiometric(): Boolean {
+        if (Build.VERSION.SDK_INT < 28) return false
+        return runCatching {
+            if (Build.VERSION.SDK_INT >= 29) {
+                val manager = context.getSystemService(BiometricManager::class.java) ?: return@runCatching false
+                manager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
+            } else {
+                val manager = context.getSystemService(Context.FINGERPRINT_SERVICE) as? FingerprintManager
+                manager?.isHardwareDetected == true && manager.hasEnrolledFingerprints()
+            }
+        }.getOrDefault(false)
+    }
+
+    fun authenticateBiometric(activity: Activity, onSuccess: () -> Unit, onError: (String) -> Unit = {}) {
+        if (Build.VERSION.SDK_INT < 28) { onError("Biometric unlock requires Android 9 or newer."); return }
+        val executor = context.mainExecutor
+        val cancellation = CancellationSignal()
+        val prompt = BiometricPrompt.Builder(activity)
+            .setTitle("Unlock AirPlayr Vault")
+            .setSubtitle("Use your fingerprint or enrolled device biometric")
+            .setDescription("Your private videos stay encrypted on this device.")
+            .setNegativeButton("Use PIN", executor) { _, _ -> cancellation.cancel() }
+            .build()
+        prompt.authenticate(cancellation, executor, object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                executor.execute {
+                    val ok = unlockWithBiometric()
+                    if (ok) onSuccess() else onError("Biometric unlock is not available for this Vault.")
+                }
+            }
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                if (errorCode != BiometricPrompt.BIOMETRIC_ERROR_CANCELED && errorCode != BiometricPrompt.BIOMETRIC_ERROR_USER_CANCELED) onError(errString.toString())
+            }
+            override fun onAuthenticationFailed() { /* Android keeps the prompt open for another attempt. */ }
+        })
+    }
+
+    private fun unlockWithBiometric(): Boolean {
+        if (!configured) return false
+        return runCatching {
+            val wrapped = prefs.getString(BIOMETRIC_WRAP, null) ?: return false
+            val master = unwrapWithDeviceKey(b64d(wrapped))
+            if (master.size != KEY_BYTES) return false
             unlockedMaster = master
             true
         }.getOrDefault(false)
     }
 
-    fun entries(): List<Entry> = readEntries().sortedByDescending { it.addedAt }
+    private fun isValidPin(pin: String): Boolean = pin.length == 4 && pin.all(Char::isDigit)
+
+    fun entries(): List<Entry> = entriesCache ?: readEntries().sortedByDescending { it.addedAt }.also { entriesCache = it }
 
     suspend fun stageMove(item: MediaItem): Entry? = withContext(Dispatchers.IO) {
         if (!unlocked || item.mediaType != MediaType.VIDEO) return@withContext null
@@ -145,20 +211,90 @@ class VaultManager(private val context: Context) {
         val encrypted = File(mediaDir, entry.encryptedName)
         if (!encrypted.exists()) return@withContext null
         val extension = entry.filename.substringAfterLast('.', "mp4").replace(Regex("[^A-Za-z0-9]"), "")
-        val out = File(cacheDir, "${entry.id.hashCode().toUInt()}.$extension")
+        val key = entry.id.hashCode().toUInt().toString()
+        val out = File(cacheDir, "$key.$extension")
+        val meta = File(cacheDir, "$key.meta")
+        val signature = "${encrypted.length()}:${encrypted.lastModified()}"
+        if (out.exists() && out.length() > 0L && meta.exists() && meta.readText() == signature) {
+            master.fill(0)
+            return@withContext out to entry
+        }
         runCatching {
+            out.delete()
             decryptStream(encrypted, out, master)
+            meta.writeText(signature)
             master.fill(0)
             out to entry
         }.getOrElse {
             master.fill(0)
             out.delete()
+            meta.delete()
             null
         }
     }
 
+    private fun clearPlaybackCache() {
+        cacheDir.listFiles()?.forEach { it.delete() }
+    }
+
     fun thumbnailFile(entry: Entry): File? = entry.thumbnailName?.let { File(thumbDir, it).takeIf(File::exists) }
 
+
+    suspend fun restoreAllToMediaStore(): Int = withContext(Dispatchers.IO) {
+        if (!unlocked) return@withContext 0
+        val current = readEntries()
+        var restored = 0
+        current.forEach { entry ->
+            if (restoreEntry(entry)) restored++
+        }
+        if (restored > 0) {
+            val remaining = readEntries().filter { File(mediaDir, it.encryptedName).exists() }
+            saveEntries(remaining)
+        }
+        restored
+    }
+
+    private fun restoreEntry(entry: Entry): Boolean {
+        val encrypted = File(mediaDir, entry.encryptedName)
+        if (!encrypted.exists()) return false
+        val master = unlockedMaster?.clone() ?: return false
+        val extension = entry.filename.substringAfterLast('.', "mp4").replace(Regex("[^A-Za-z0-9]"), "")
+        val temp = File(cacheDir, "restore_${entry.id.hashCode().toUInt()}.$extension")
+        return runCatching {
+            decryptStream(encrypted, temp, master)
+            val values = android.content.ContentValues().apply {
+                put(MediaStore.Video.Media.DISPLAY_NAME, entry.filename.ifBlank { "AirPlayr_Restored_$extension" })
+                put(MediaStore.Video.Media.MIME_TYPE, entry.mimeType ?: "video/mp4")
+                if (Build.VERSION.SDK_INT >= 29) {
+                    put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/AirPlayr")
+                    put(MediaStore.Video.Media.IS_PENDING, 1)
+                }
+            }
+            val uri = context.contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values) ?: error("Could not create restored media")
+            try {
+                context.contentResolver.openOutputStream(uri)?.use { output ->
+                    FileInputStream(temp).use { input ->
+                        val buffer = ByteArray(64 * 1024)
+                        var read: Int
+                        while (input.read(buffer).also { read = it } >= 0) if (read > 0) output.write(buffer, 0, read)
+                    }
+                } ?: error("Could not write restored media")
+                if (Build.VERSION.SDK_INT >= 29) {
+                    val ready = android.content.ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }
+                    context.contentResolver.update(uri, ready, null, null)
+                }
+                File(mediaDir, entry.encryptedName).delete()
+                entry.thumbnailName?.let { File(thumbDir, it).delete() }
+                true
+            } catch (t: Throwable) {
+                context.contentResolver.delete(uri, null, null)
+                throw t
+            }
+        }.getOrDefault(false).also {
+            master.fill(0)
+            temp.delete()
+        }
+    }
     suspend fun deleteEntry(id: String): Boolean = withContext(Dispatchers.IO) {
         val old = readEntries().firstOrNull { it.id == id } ?: return@withContext false
         File(mediaDir, old.encryptedName).delete()
@@ -269,6 +405,7 @@ class VaultManager(private val context: Context) {
             put("id", e.id); put("title", e.title); put("artist", e.artist ?: ""); put("filename", e.filename); put("mimeType", e.mimeType ?: ""); put("durationMs", e.durationMs); put("sizeBytes", e.sizeBytes); put("addedAt", e.addedAt); put("encryptedName", e.encryptedName); put("thumbnailName", e.thumbnailName ?: "")
         }) }
         prefs.edit().putString(ENTRIES, array.toString()).apply()
+        entriesCache = entries.sortedByDescending { it.addedAt }
     }
 
     private fun randomBytes(size: Int): ByteArray = ByteArray(size).also(random::nextBytes)

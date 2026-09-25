@@ -1,5 +1,6 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.airplayr.app.ui.screens
+import androidx.compose.foundation.rememberScrollState
 
 import android.app.Activity
 import android.app.PictureInPictureParams
@@ -34,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -52,6 +54,8 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.PlayerView
 import com.airplayr.app.core.data.VIDEO_COMPLETION_FRACTION
@@ -95,6 +99,7 @@ fun VideoScreen(
     val autoHideMs = settings?.autoHideMs ?: 4000
     val defaultSpeed = (settings?.defaultSpeed?.toFloat() ?: 1f).coerceIn(0.25f, 4f)
     val defaultVolume = (settings?.defaultVolume?.toFloat() ?: 1f).coerceIn(0f, 1f)
+    val seekStepMs = ((settings?.seekStepSeconds ?: 10) * 1000L).coerceIn(5_000L, 30_000L)
     val muteOnStart = settings?.muteOnStart ?: false
     val defaultFitMode = when (settings?.defaultAspect) {
         "cover" -> VideoFitMode.ZOOM
@@ -107,6 +112,8 @@ fun VideoScreen(
     val bookmarks by remember(video?.id) { video?.id?.let(container.structured::bookmarks) ?: kotlinx.coroutines.flow.flowOf(emptyList()) }
         .collectAsStateWithLifecycle(initialValue = emptyList())
     val queue by VideoQueueStore.queue.collectAsStateWithLifecycle()
+    val shuffleQueue by VideoQueueStore.shuffleQueue.collectAsStateWithLifecycle()
+    val repeatQueue by VideoQueueStore.repeatQueue.collectAsStateWithLifecycle()
 
     var player by remember { mutableStateOf<Player?>(null) }
     var playerError by remember { mutableStateOf<String?>(null) }
@@ -115,8 +122,14 @@ fun VideoScreen(
     var locked by remember { mutableStateOf(false) }
     var muted by remember(video?.id, muteOnStart) { mutableStateOf(muteOnStart) }
     var speed by remember(video?.id, defaultSpeed) { mutableFloatStateOf(defaultSpeed) }
-    var subtitleOn by remember(video?.id, settings?.subtitlesEnabledDefault) { mutableStateOf(settings?.subtitlesEnabledDefault ?: true) }
+    var subtitleOn by remember(video?.id, settings?.subtitlesEnabledDefault, settings?.rememberSubtitleTrack) {
+        val defaultOn = settings?.subtitlesEnabledDefault ?: true
+        if (settings?.rememberSubtitleTrack == true && video?.id != null) {
+            context.getSharedPreferences("airplayr_video_subtitles", 0).getBoolean("enabled:${video!!.id}", defaultOn)
+        } else defaultOn
+    }
     var subtitleCues by remember { mutableStateOf<List<String>>(emptyList()) }
+    var pendingSubtitleCues by remember { mutableStateOf<List<String>?>(null) }
     var fitMode by remember(video?.id, defaultFitMode) { mutableStateOf(defaultFitMode) }
     var isFullscreen by remember { mutableStateOf(false) }
     var positionMs by remember { mutableLongStateOf(0L) }
@@ -133,6 +146,11 @@ fun VideoScreen(
     var seekFeedback by remember { mutableStateOf<String?>(null) }
     var resumePromptVisible by remember(video?.id) { mutableStateOf(false) }
     var playbackInitializedForId by remember { mutableStateOf<String?>(null) }
+    var decoderLabel by remember(video?.id) { mutableStateOf<String?>(null) }
+    var pinchZoom by remember(video?.id, settings?.gesturePinchZoom) { mutableFloatStateOf(1f) }
+    var longPressBoostActive by remember(video?.id) { mutableStateOf(false) }
+    val activity = context as? Activity
+    val originalRequestedOrientation = remember { activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
 
     fun touch() {
         controlsVisible = true
@@ -181,6 +199,9 @@ fun VideoScreen(
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, subtitleOn)
             .build()
         subtitleOn = !subtitleOn
+        if (settings?.rememberSubtitleTrack == true && video?.id != null) {
+            context.getSharedPreferences("airplayr_video_subtitles", 0).edit().putBoolean("enabled:${video!!.id}", subtitleOn).apply()
+        }
         touch()
     }
 
@@ -198,6 +219,9 @@ fun VideoScreen(
         } else ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         touch()
     }
+
+    fun toggleVideoShuffle() { VideoQueueStore.toggleShuffle(); touch() }
+    fun toggleVideoRepeat() { VideoQueueStore.toggleRepeat(); touch() }
 
     fun openQueueItem(item: AppMediaItem) {
         VideoQueueStore.setCurrent(item)
@@ -236,6 +260,11 @@ fun VideoScreen(
         val originalBrightness = activity?.window?.attributes?.screenBrightness ?: -1f
         onDispose { activity?.let { VideoGestureSupport.restoreWindowBrightness(it, originalBrightness) } }
     }
+    DisposableEffect(settings?.keepAwake) {
+        val window = (context as? Activity)?.window
+        if (settings?.keepAwake == true) window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose { if (settings?.keepAwake != true) return@onDispose; window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+    }
     LaunchedEffect(id) { playbackInitializedForId = null; vm.load(id) }
     LaunchedEffect(video?.id) {
         favorite = video?.id?.let { vm.isFavorite(it) } ?: false
@@ -259,7 +288,24 @@ fun VideoScreen(
                     controlsVisible = true
                 }
                 override fun onCues(cueGroup: CueGroup) {
-                    subtitleCues = cueGroup.cues.mapNotNull { it.text?.toString()?.trim()?.takeIf(String::isNotBlank) }
+                    val next = cueGroup.cues.mapNotNull { it.text?.toString()?.trim()?.takeIf(String::isNotBlank) }
+                    if ((settings?.subtitleDelayMs ?: 0) <= 0) {
+                        subtitleCues = next
+                    } else {
+                        subtitleCues = emptyList()
+                        pendingSubtitleCues = next
+                    }
+                }
+                override fun onTracksChanged(tracks: Tracks) {
+                    if (settings?.rememberAudioTrack != true || video?.id == null) return
+                    val savedIndex = context.getSharedPreferences("airplayr_video_audio", 0).getInt("track:${video!!.id}", -1)
+                    if (savedIndex < 0) return
+                    val group = tracks.groups.firstOrNull { it.type == C.TRACK_TYPE_AUDIO && it.isSupported } ?: return
+                    if (savedIndex < group.length && !group.isTrackSelected(savedIndex)) {
+                        ready.trackSelectionParameters = ready.trackSelectionParameters.buildUpon()
+                            .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, savedIndex))
+                            .build()
+                    }
                 }
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     if (playbackState == Player.STATE_ENDED) {
@@ -277,6 +323,22 @@ fun VideoScreen(
                     }
                 }
             })
+            ready.addAnalyticsListener(object : AnalyticsListener {
+                override fun onVideoDecoderInitialized(
+                    eventTime: AnalyticsListener.EventTime,
+                    decoderName: String,
+                    initializedTimestampMs: Long,
+                    initializationDurationMs: Long,
+                ) {
+                    val software = decoderName.contains("software", true) ||
+                        decoderName.contains("ffmpeg", true) ||
+                        decoderName.contains("google", true) ||
+                        decoderName.contains("c2.android", true) ||
+                        decoderName.contains(".sw", true) ||
+                        decoderName.contains("sw.", true)
+                    decoderLabel = if (software) "SW" else "HW"
+                }
+            })
             ready.volume = if (muted) 0f else defaultVolume
             ready.setPlaybackSpeed(speed)
             // Register the session before starting the native player so a very fast play/stop
@@ -285,6 +347,14 @@ fun VideoScreen(
             val startPosition = if (settings?.resumeMode == "start") 0L else resume
             container.videoController.playVideo(ready, item, startPosition)
         }
+    }
+
+    LaunchedEffect(pendingSubtitleCues, settings?.subtitleDelayMs) {
+        val pending = pendingSubtitleCues ?: return@LaunchedEffect
+        val delayMs = (settings?.subtitleDelayMs ?: 0).coerceAtLeast(0)
+        if (delayMs > 0) kotlinx.coroutines.delay(delayMs.toLong())
+        subtitleCues = pending
+        pendingSubtitleCues = null
     }
 
     LaunchedEffect(player, video?.id) {
@@ -296,7 +366,7 @@ fun VideoScreen(
             bufferedMs = p.bufferedPosition.coerceAtLeast(0L)
             vm.trackPlayback(item, positionMs, durationMs, p.isPlaying)
             if (durationMs > 0L && positionMs.toDouble() / durationMs.toDouble() >= VIDEO_COMPLETION_FRACTION) vm.completePlayback(item)
-            delay(400L)
+            delay(650L)
         }
     }
 
@@ -343,18 +413,22 @@ fun VideoScreen(
         }
     }
 
-    DisposableEffect(video?.id) {
+    DisposableEffect(Unit) {
         onDispose {
             val item = video
             val p = player
             if (item != null && p != null) vm.finishPlayback(item, p.currentPosition, p.duration.takeIf { it > 0 } ?: item.durationMs, p.isPlaying)
             p?.pause()
             container.videoController.release()
+            val leavingActivity = context as? Activity
+            runCatching {
+                leavingActivity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            }
         }
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        player?.let { p -> AndroidVideoSurface(p, fitMode, Modifier.fillMaxSize()) }
+        player?.let { p -> AndroidVideoSurface(p, fitMode, Modifier.fillMaxSize().graphicsLayer(scaleX = pinchZoom, scaleY = pinchZoom)) }
 
         if (subtitleOn && subtitleCues.isNotEmpty()) {
             VideoSubtitleOverlay(
@@ -370,13 +444,34 @@ fun VideoScreen(
         Box(
             Modifier
                 .fillMaxSize()
-                .pointerInput(player, locked, settings?.gestureDoubleTapSeek) {
+                .pointerInput(player, locked, settings?.gestureDoubleTapSeek, settings?.gestureLongPress2x) {
                     detectTapGestures(
-                        onTap = { if (!locked) controlsVisible = !controlsVisible else { locked = false; controlsVisible = true }; interactionTick++ },
-                        onDoubleTap = { offset ->
+                        onPress = {
+                            tryAwaitRelease()
+                            if (longPressBoostActive) {
+                                longPressBoostActive = false
+                                speed = defaultSpeed
+                                player?.setPlaybackSpeed(defaultSpeed)
+                            }
+                        },
+                        onTap = {
+                            if (!locked) {
+                                controlsVisible = !controlsVisible
+                                interactionTick++
+                            }
+                        },
+                        onDoubleTap = {
                             if (!locked && settings?.gestureDoubleTapSeek != false) {
-                                val width = size.width
-                                seekBy(if (offset.x < width / 2f) -10_000L else 10_000L)
+                                player?.let { if (it.isPlaying) it.pause() else it.play() }
+                                controlsVisible = true
+                                interactionTick++
+                            }
+                        },
+                        onLongPress = {
+                            if (!locked && settings?.gestureLongPress2x == true) {
+                                longPressBoostActive = true
+                                speed = 2f
+                                player?.setPlaybackSpeed(2f)
                             }
                         },
                     )
@@ -410,7 +505,6 @@ fun VideoScreen(
                                         val fraction = VideoGestureSupport.adjustMusicVolume(context, -dragAmount.y / size.height.toFloat())
                                         volumeOverlayValue = (fraction * 100f).roundToInt().coerceIn(0, 100)
                                         volumeOverlay = true
-                                        touch()
                                     } else if (!startOnLeft && settings?.gestureBrightness != false) {
                                         val activity = context as? Activity
                                         if (activity != null) {
@@ -418,14 +512,21 @@ fun VideoScreen(
                                             val next = (current - dragAmount.y / size.height.toFloat()).coerceIn(0.02f, 1f)
                                             VideoGestureSupport.setWindowBrightness(activity, next)
                                             brightnessFeedback = "${(next * 100f).roundToInt()}%"
-                                            touch()
                                         }
                                     }
                                 }
                             }
                         },
                     )
-                },
+                }
+                .pointerInput(player, locked, settings?.gesturePinchZoom) {
+                    if (settings?.gesturePinchZoom == true) {
+                        androidx.compose.foundation.gestures.detectTransformGestures { _, _, zoom, _ ->
+                            if (!locked) pinchZoom = (pinchZoom * zoom).coerceIn(1f, 3f)
+                        }
+                    }
+                }
+
         )
 
         VideoControlsOverlay(
@@ -438,10 +539,16 @@ fun VideoScreen(
             speed = speed,
             subtitleOn = subtitleOn,
             isFullscreen = isFullscreen,
+            isLandscape = (context.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE),
             positionMs = positionMs,
             durationMs = durationMs,
             bufferedMs = bufferedMs,
             queueCount = queue.count { it.id != id },
+            shuffleQueue = shuffleQueue,
+            repeatQueue = repeatQueue,
+            qualityLabel = player?.videoFormat?.let { videoQualityLabel(it.width, it.height, decoderLabel) }
+                ?: video?.let { videoQualityLabel(it.width, it.height, decoderLabel) }
+                ?: "",
             onBack = { if (isFullscreen) toggleFullscreen() else (context as? ComponentActivity)?.onBackPressedDispatcher?.onBackPressed() },
             onCast = onCast,
             onAudioTracks = { audioTracksOpen = true; touch() },
@@ -453,8 +560,8 @@ fun VideoScreen(
             onPrevious = { VideoQueueStore.previous(id)?.let(::openQueueItem) ?: player?.seekTo(0L); touch() },
             onNext = { VideoQueueStore.next(id)?.let(::openQueueItem) ?: touch() },
             onMute = ::toggleMute,
-            onBack10 = { seekBy(-10_000L) },
-            onForward10 = { seekBy(10_000L) },
+            onBack10 = { seekBy(-seekStepMs) },
+            onForward10 = { seekBy(seekStepMs) },
             onSubtitle = {
                 if (subtitleOn) toggleSubtitles() else subtitleLauncher.launch(arrayOf("text/vtt", "application/x-subrip", "text/plain"))
             },
@@ -463,7 +570,10 @@ fun VideoScreen(
             onRotate = ::rotate,
             onFullscreen = ::toggleFullscreen,
             onLock = { locked = true; controlsVisible = false; interactionTick++ },
-            onFit = { /* fit is intentionally kept in the more-options sheet to keep the reference chrome clean */ },
+            onFit = {
+                fitMode = VideoFitMode.entries[(fitMode.ordinal + 1) % VideoFitMode.entries.size]
+                touch()
+            },
             onSpeed = {
                 val speeds = listOf(.25f, .5f, .75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f, 4f)
                 speed = speeds[(speeds.indexOfFirst { it >= speed }.coerceAtLeast(0) + 1) % speeds.size]
@@ -537,7 +647,12 @@ fun VideoScreen(
         VideoSubtitleSettingsSheet(container) { subtitleSettingsOpen = false }
     }
     if (audioTracksOpen) {
-        VideoAudioTrackSheet(player = player, onDismiss = { audioTracksOpen = false })
+        VideoAudioTrackSheet(
+            player = player,
+            rememberSelection = settings?.rememberAudioTrack == true,
+            rememberKey = video?.id,
+            onDismiss = { audioTracksOpen = false },
+        )
     }
     if (moreOpen) {
         val item = video
@@ -550,6 +665,8 @@ fun VideoScreen(
                     listOf(
                         AirPlayrMediaMenuAction("Play / pause", if (player?.isPlaying == true) Icons.Default.Pause else Icons.Default.PlayArrow, { togglePlay(); moreOpen = false }),
                         AirPlayrMediaMenuAction("Video queue", Icons.Default.QueueMusic, { moreOpen = false; queueOpen = true }),
+                        AirPlayrMediaMenuAction(if (shuffleQueue) "Shuffle: On" else "Shuffle: Off", Icons.Default.Shuffle, { moreOpen = false; toggleVideoShuffle() }),
+                        AirPlayrMediaMenuAction(if (repeatQueue) "Repeat: On" else "Repeat: Off", Icons.Default.Repeat, { moreOpen = false; toggleVideoRepeat() }),
                         AirPlayrMediaMenuAction("Equalizer", Icons.Default.GraphicEq, { moreOpen = false; onNavigate("equalizer") }),
                     ),
                     listOf(
@@ -613,10 +730,14 @@ private fun VideoControlsOverlay(
     speed: Float,
     subtitleOn: Boolean,
     isFullscreen: Boolean,
+    isLandscape: Boolean,
     positionMs: Long,
     durationMs: Long,
     bufferedMs: Long,
     queueCount: Int,
+    shuffleQueue: Boolean,
+    repeatQueue: Boolean,
+    qualityLabel: String,
     onBack: () -> Unit,
     onCast: () -> Unit,
     onAudioTracks: () -> Unit,
@@ -652,7 +773,10 @@ private fun VideoControlsOverlay(
                     GlassIconButton(Icons.Default.ArrowBack, "Back", Modifier.size(54.dp), onBack)
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 2.dp)) {
                         Text(title.ifBlank { "Video" }, color = Color.White, fontFamily = AirPlayrFonts.SmoochSans, fontSize = if (compactHeader) 16.sp else 19.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(subtitle.ifBlank { "AIRPLAYR VIDEO" }, color = Color.White.copy(alpha = .65f), fontSize = 10.sp, letterSpacing = 1.1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(subtitle.ifBlank { "AIRPLAYR VIDEO" }, color = Color.White.copy(alpha = .65f), fontSize = 10.sp, letterSpacing = 1.1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (qualityLabel.isNotBlank()) Text(qualityLabel, color = Color.White.copy(alpha = .82f), fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                     if (compactHeader) {
                         GlassGroup {
@@ -706,15 +830,31 @@ private fun VideoControlsOverlay(
                 GlassIconButton(Icons.Default.SkipNext, "Next", Modifier.size(58.dp), onNext)
             }
 
-            GlassGroup(Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(start = 18.dp, bottom = 18.dp)) {
+            val portrait = !isLandscape
+            GlassGroup(
+                Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(start = 18.dp, bottom = if (portrait) 104.dp else 18.dp)
+            ) {
                 GlassAction(Icons.Default.Lock, "Lock controls", onLock)
                 GlassAction(if (muted) Icons.Default.VolumeOff else Icons.Default.Headphones, if (muted) "Unmute" else "Audio", onMute)
             }
 
-            GlassGroup(Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 18.dp, bottom = 18.dp)) {
+            GlassGroup(
+                Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 18.dp, bottom = if (portrait) 104.dp else 18.dp)
+            ) {
                 GlassAction(Icons.Default.PictureInPictureAlt, "Picture in picture", onPiP)
-                GlassAction(Icons.Default.ScreenRotation, "Rotate", onRotate)
-                GlassAction(if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, "Fullscreen", onFullscreen)
+                GlassAction(Icons.Default.ScreenRotation, "Portrait / landscape", onRotate)
+                GlassAction(if (isFullscreen) Icons.Default.ZoomOutMap else Icons.Default.ZoomInMap, "Zoom", onFit)
+            }
+
+            if (portrait) {
+                GlassGroup(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 104.dp)) {
+                    GlassAction(if (shuffleQueue) Icons.Default.Shuffle else Icons.Default.Shuffle, if (shuffleQueue) "Shuffle on" else "Shuffle off", {
+                        if (shuffleQueue) VideoQueueStore.setShuffle(false) else VideoQueueStore.setShuffle(true)
+                    })
+                    GlassAction(if (repeatQueue) Icons.Default.RepeatOne else Icons.Default.Repeat, if (repeatQueue) "Repeat on" else "Repeat off", {
+                        if (repeatQueue) VideoQueueStore.setRepeat(false) else VideoQueueStore.setRepeat(true)
+                    })
+                }
             }
 
             VideoProgressBar(
@@ -894,7 +1034,7 @@ internal fun VideoSubtitleOverlay(
     controlsVisible: Boolean,
 ) {
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 28.dp).then(if (top) Modifier.statusBarsPadding().padding(top = 92.dp) else Modifier.navigationBarsPadding().padding(bottom = if (controlsVisible) 150.dp else 48.dp)),
+        Modifier.fillMaxWidth().padding(horizontal = 28.dp).then(if (top) Modifier.statusBarsPadding().padding(top = 92.dp) else Modifier.navigationBarsPadding().padding(bottom = if (controlsVisible) 112.dp else 48.dp)),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = if (top) Arrangement.Top else Arrangement.Bottom,
     ) {
@@ -942,10 +1082,11 @@ internal fun VideoVolumeOverlay(value: Int, muted: Boolean, modifier: Modifier) 
 }
 
 @Composable
-private fun VideoAudioTrackSheet(player: Player?, onDismiss: () -> Unit) {
+private fun VideoAudioTrackSheet(player: Player?, rememberSelection: Boolean, rememberKey: String?, onDismiss: () -> Unit) {
+    val context = LocalContext.current
     val tracks = player?.currentTracks?.groups.orEmpty().filter { it.type == C.TRACK_TYPE_AUDIO && it.isSupported }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp).verticalScroll(rememberScrollState())) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Audio track", style = MaterialTheme.typography.headlineSmall)
@@ -969,6 +1110,11 @@ private fun VideoAudioTrackSheet(player: Player?, onDismiss: () -> Unit) {
                                 player?.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
                                     .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, trackIndex))
                                     .build()
+                                if (rememberSelection && rememberKey != null) {
+                                    context.getSharedPreferences("airplayr_video_audio", 0).edit()
+                                        .putInt("track:$rememberKey", trackIndex)
+                                        .apply()
+                                }
                                 onDismiss()
                             },
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -1005,6 +1151,18 @@ internal object WindowMode {
 }
 
 internal fun parseSubtitleColor(value: String?): Color = runCatching { Color(android.graphics.Color.parseColor(value ?: "#FFFFFF")) }.getOrDefault(Color.White)
+private fun videoQualityLabel(width: Int, height: Int, decoder: String?): String {
+    val quality = when {
+        height >= 2160 -> "4K"
+        height >= 1440 -> "2K"
+        height >= 1080 -> "FHD"
+        height >= 720 -> "HD"
+        height > 0 -> "SD"
+        else -> "AUTO"
+    }
+    return listOfNotNull(decoder, quality).joinToString(" · ")
+}
+
 internal fun trimSpeed(value: Float): String = "%.2f".format(Locale.US, value).trimEnd('0').trimEnd('.')
 
 internal fun formatVideoTime(ms: Long): String {

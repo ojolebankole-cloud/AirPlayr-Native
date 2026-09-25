@@ -52,6 +52,8 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
@@ -113,8 +115,11 @@ import com.airplayr.app.ui.airPlayrFloatingPlayBottomPadding
 import com.airplayr.app.ui.components.AirPlayrCard
 import com.airplayr.app.ui.components.AirPlayrMediaMenuAction
 import com.airplayr.app.ui.components.AirPlayrMoreButton
+import com.airplayr.app.ui.components.ActionButton
+import com.airplayr.app.ui.components.ActionGroup
 import com.airplayr.app.ui.components.AirPlayrPremiumMediaActionSheet
 import com.airplayr.app.ui.components.Artwork
+import com.airplayr.app.ui.components.HistoryFavoritePlaylistSheet
 import com.airplayr.app.ui.components.TagEditorSheet
 import com.airplayr.app.ui.navigation.LibraryViewModel
 import com.airplayr.app.ui.playback.PlaybackController
@@ -124,6 +129,9 @@ import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+
+private data class MusicCollectionMenuTarget(val name: String, val songs: List<MediaItem>, val route: String)
+private data class MusicPlaylistMenuTarget(val playlist: MusicPlaylistEntity, val items: List<MediaItem>)
 
 private val MUSIC_CATEGORIES = listOf(
     "songs" to "Songs",
@@ -180,7 +188,12 @@ fun MusicScreen(
     var grid by rememberSaveable(settings?.libraryLayout) { mutableStateOf(settings?.libraryLayout != "list") }
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
     var moreFor by remember { mutableStateOf<MediaItem?>(null) }
-    var playlistDialogFor by remember { mutableStateOf<MediaItem?>(null) }
+    var playlistTarget by remember { mutableStateOf<List<MediaItem>?>(null) }
+    var collectionMenu by remember { mutableStateOf<MusicCollectionMenuTarget?>(null) }
+    var playlistMenuFor by remember { mutableStateOf<MusicPlaylistMenuTarget?>(null) }
+    var renamePlaylistFor by remember { mutableStateOf<MusicPlaylistEntity?>(null) }
+    var renamePlaylistName by remember { mutableStateOf("") }
+    var deletePlaylistFor by remember { mutableStateOf<MusicPlaylistEntity?>(null) }
     var editFor by remember { mutableStateOf<MediaItem?>(null) }
     var sortSheetOpen by remember { mutableStateOf(false) }
     val playlistCounts = remember { mutableStateMapOf<String, Int>() }
@@ -340,7 +353,7 @@ fun MusicScreen(
                         if (chosen.isNotEmpty()) { play(chosen); selected = emptySet() }
                     },
                     onPlayNext = { filteredSongs.filter { it.id in selected }.forEach(playback::playNext); selected = emptySet() },
-                    onPlaylist = { filteredSongs.firstOrNull { it.id in selected }?.let { playlistDialogFor = it } },
+                    onPlaylist = { filteredSongs.filter { it.id in selected }.takeIf { it.isNotEmpty() }?.let { playlistTarget = it } },
                     onLike = { scope.launch { filteredSongs.filter { it.id in selected }.forEach { if (it.id !in favoriteIds) container.structured.toggleFavorite(it) }; selected = emptySet() } },
                     onEdit = { filteredSongs.firstOrNull { it.id in selected }?.let { editFor = it } },
                 )
@@ -404,6 +417,7 @@ fun MusicScreen(
                 data = albums.value,
                 circular = false,
                 onClick = { raw -> val name = rawName(raw); onNavigate("album/${encode(name)}") },
+                onMore = { name, group -> collectionMenu = MusicCollectionMenuTarget(name, group, "album/${encode(name)}") },
                 modifier = Modifier.weight(1f),
             )
             "artists" -> CollectionGrid(
@@ -411,6 +425,7 @@ fun MusicScreen(
                 data = artists.value,
                 circular = true,
                 onClick = { raw -> val name = rawName(raw); onNavigate("artist/${encode(name)}") },
+                onMore = { name, group -> collectionMenu = MusicCollectionMenuTarget(name, group, "artist/${encode(name)}") },
                 modifier = Modifier.weight(1f),
             )
             "genres" -> GenreGrid(genres.value, onNavigate, modifier = Modifier.weight(1f))
@@ -419,6 +434,7 @@ fun MusicScreen(
                 data = folders.value,
                 circular = false,
                 onClick = { raw -> val name = rawName(raw); onNavigate("music-folder/${encode(name)}") },
+                onMore = { name, group -> collectionMenu = MusicCollectionMenuTarget(name, group, "music-folder/${encode(name)}") },
                 modifier = Modifier.weight(1f),
             )
             "playlists" -> PlaylistGrid(
@@ -428,6 +444,7 @@ fun MusicScreen(
                 playlistItems = playlistItems,
                 songs = songs,
                 onNavigate = onNavigate,
+                onMore = { playlist -> playlistMenuFor = MusicPlaylistMenuTarget(playlist, playlistItems[playlist.id].orEmpty().mapNotNull { id -> songs.firstOrNull { it.id == id } }) },
                 onAdd = { scope.launch { val p = container.structured.createPlaylist("New playlist"); onNavigate("music-playlist/${p.id}") } },
                 modifier = Modifier.weight(1f),
             )
@@ -447,7 +464,7 @@ fun MusicScreen(
                     AirPlayrMediaMenuAction("Add to queue", Icons.Default.QueueMusic, { moreFor = null; playback.addToQueue(item) }),
                 ),
                 listOf(
-                    AirPlayrMediaMenuAction("Add to playlist", Icons.Default.PlaylistAdd, { moreFor = null; playlistDialogFor = item }),
+                    AirPlayrMediaMenuAction("Add to playlist", Icons.Default.PlaylistAdd, { moreFor = null; playlistTarget = listOf(item) }),
                     AirPlayrMediaMenuAction("Edit song", Icons.Default.Edit, { moreFor = null; editFor = item }),
                 ),
             ),
@@ -455,20 +472,86 @@ fun MusicScreen(
         )
     }
 
-    playlistDialogFor?.let { item ->
-        PlaylistPickerDialog(
-            playlists = playlists,
-            counts = playlistCounts,
-            item = item,
-            onDismiss = { playlistDialogFor = null },
-            onSelect = { playlistId ->
-                scope.launch {
-                    container.structured.addToPlaylist(playlistId, item.id)
-                    playlistDialogFor = null
+    collectionMenu?.let { target ->
+        val representative = target.songs.firstOrNull()
+        if (representative != null) {
+            AirPlayrPremiumMediaActionSheet(
+                item = representative.copy(title = target.name),
+                playing = false,
+                favorite = false,
+                groups = listOf(
+                    listOf(
+                        AirPlayrMediaMenuAction("Play all", Icons.Default.PlayArrow, { collectionMenu = null; play(target.songs) }, subtitle = "${target.songs.size} songs"),
+                        AirPlayrMediaMenuAction("Shuffle", Icons.Default.Shuffle, { collectionMenu = null; play(target.songs.shuffled()) }),
+                        AirPlayrMediaMenuAction("Add to queue", Icons.Default.QueueMusic, { collectionMenu = null; target.songs.forEach(playback::addToQueue) }),
+                    ),
+                    listOf(
+                        AirPlayrMediaMenuAction("Open ${target.name}", Icons.Default.ArrowForwardIos, { collectionMenu = null; onNavigate(target.route) }),
+                    ),
+                ),
+                onDismiss = { collectionMenu = null },
+            )
+        } else {
+            collectionMenu = null
+        }
+    }
+
+    playlistMenuFor?.let { target ->
+        ModalBottomSheet(onDismissRequest = { playlistMenuFor = null }, containerColor = colors.surfaceContainerLow) {
+            Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(target.playlist.name, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 24.sp, color = colors.textPrimary, modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp))
+                Text("${target.items.size} songs", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary, modifier = Modifier.padding(horizontal = 4.dp))
+                ActionGroup {
+                    ActionButton("Open playlist", Icons.Default.ArrowForwardIos, { playlistMenuFor = null; onNavigate("music-playlist/${target.playlist.id}") })
+                    ActionButton("Play playlist", Icons.Default.PlayArrow, { playlistMenuFor = null; play(target.items); if (target.items.isNotEmpty()) onNavigate("player") })
+                    ActionButton("Play next", Icons.Default.SkipNext, { playlistMenuFor = null; target.items.forEach(playback::playNext) })
+                    ActionButton("Add to queue", Icons.Default.QueueMusic, { playlistMenuFor = null; target.items.forEach(playback::addToQueue) })
+                    ActionButton("Share playlist", Icons.Default.Share, {
+                        val text = target.playlist.name + "\n\n" + target.items.joinToString("\n") { it.title + (it.artist?.let { a -> " · $a" } ?: "") }
+                        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, text); putExtra(android.content.Intent.EXTRA_TITLE, target.playlist.name) }
+                        runCatching { appContext.startActivity(android.content.Intent.createChooser(send, "Share ${target.playlist.name}").addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                        playlistMenuFor = null
+                    })
+                    ActionButton("Rename", Icons.Default.Edit, {
+                        renamePlaylistFor = target.playlist
+                        renamePlaylistName = target.playlist.name
+                        playlistMenuFor = null
+                    })
+                    ActionButton("Delete playlist", Icons.Default.Delete, { deletePlaylistFor = target.playlist; playlistMenuFor = null }, destructive = true)
                 }
-            },
+            }
+        }
+    }
+
+    renamePlaylistFor?.let { playlist ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { renamePlaylistFor = null },
+            title = { Text("Rename playlist") },
+            text = { OutlinedTextField(renamePlaylistName, { renamePlaylistName = it }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+            dismissButton = { TextButton(onClick = { renamePlaylistFor = null }) { Text("Cancel") } },
+            confirmButton = { TextButton(enabled = renamePlaylistName.trim().isNotEmpty(), onClick = {
+                val newName = renamePlaylistName.trim()
+                scope.launch { container.structured.renamePlaylist(playlist.id, newName); renamePlaylistFor = null }
+            }) { Text("Save") } },
         )
     }
+
+    deletePlaylistFor?.let { playlist ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { deletePlaylistFor = null },
+            title = { Text("Delete playlist?") },
+            text = { Text("“${playlist.name}” will be removed. Your songs remain on the device.") },
+            dismissButton = { TextButton(onClick = { deletePlaylistFor = null }) { Text("Cancel") } },
+            confirmButton = { TextButton(onClick = {
+                scope.launch { container.structured.deletePlaylist(playlist.id); deletePlaylistFor = null }
+            }) { Text("Delete", color = colors.error) } },
+        )
+    }
+
+    playlistTarget?.let { target ->
+        HistoryFavoritePlaylistSheet(container, target, onDismiss = { playlistTarget = null })
+    }
+
     editFor?.let { item ->
         TagEditorSheet(
             appContext,
@@ -671,10 +754,20 @@ private fun LazyListScope.musicSongItems(
 private fun AirPlayrFastScrollHandle(state: LazyListState) {
     val colors = LocalAirPlayrColors.current
     val scope = rememberCoroutineScope()
+    var fastScrollJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val total = state.layoutInfo.totalItemsCount
     val visible = state.layoutInfo.visibleItemsInfo.size.coerceAtLeast(1)
     val scrolling = state.isScrollInProgress
-    val show = total > visible + 4 && scrolling
+    var recentlyScrolled by remember { mutableStateOf(false) }
+    LaunchedEffect(scrolling) {
+        if (scrolling) {
+            recentlyScrolled = true
+        } else if (recentlyScrolled) {
+            kotlinx.coroutines.delay(900L)
+            recentlyScrolled = false
+        }
+    }
+    val show = total > visible + 4 && (scrolling || recentlyScrolled)
     if (total <= visible + 4) return
     val maxFirst = (total - visible).coerceAtLeast(1)
     val fraction = (state.firstVisibleItemIndex.toFloat() / maxFirst).coerceIn(0f, 1f)
@@ -697,13 +790,13 @@ private fun AirPlayrFastScrollHandle(state: LazyListState) {
                     .pointerInput(total, visible) {
                         var dragFraction = fraction
                         detectDragGestures(
-                            onDragStart = { dragFraction = fraction },
+                            onDragStart = { fastScrollJob?.cancel(); dragFraction = fraction },
                             onDrag = { change, dragAmount ->
                                 change.consume()
                                 dragFraction = (dragFraction + dragAmount.y / rangePx).coerceIn(0f, 1f)
-                                scope.launch {
-                                    state.scrollToItem((dragFraction * maxFirst).roundToInt().coerceIn(0, maxFirst))
-                                }
+                                val target = (dragFraction * maxFirst).roundToInt().coerceIn(0, maxFirst)
+                                fastScrollJob?.cancel()
+                                fastScrollJob = scope.launch { state.scrollToItem(target) }
                             },
                         )
                     },
@@ -726,10 +819,20 @@ private fun AirPlayrFastScrollHandle(state: LazyListState) {
 private fun AirPlayrFastScrollGridHandle(state: LazyGridState) {
     val colors = LocalAirPlayrColors.current
     val scope = rememberCoroutineScope()
+    var fastScrollJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val total = state.layoutInfo.totalItemsCount
     val visible = state.layoutInfo.visibleItemsInfo.size.coerceAtLeast(1)
     val scrolling = state.isScrollInProgress
-    val show = total > visible + 4 && scrolling
+    var recentlyScrolled by remember { mutableStateOf(false) }
+    LaunchedEffect(scrolling) {
+        if (scrolling) {
+            recentlyScrolled = true
+        } else if (recentlyScrolled) {
+            kotlinx.coroutines.delay(900L)
+            recentlyScrolled = false
+        }
+    }
+    val show = total > visible + 4 && (scrolling || recentlyScrolled)
     if (total <= visible + 4) return
     val maxFirst = (total - visible).coerceAtLeast(1)
     val fraction = (state.firstVisibleItemIndex.toFloat() / maxFirst).coerceIn(0f, 1f)
@@ -752,13 +855,13 @@ private fun AirPlayrFastScrollGridHandle(state: LazyGridState) {
                     .pointerInput(total, visible) {
                         var dragFraction = fraction
                         detectDragGestures(
-                            onDragStart = { dragFraction = fraction },
+                            onDragStart = { fastScrollJob?.cancel(); dragFraction = fraction },
                             onDrag = { change, dragAmount ->
                                 change.consume()
                                 dragFraction = (dragFraction + dragAmount.y / rangePx).coerceIn(0f, 1f)
-                                scope.launch {
-                                    state.scrollToItem((dragFraction * maxFirst).roundToInt().coerceIn(0, maxFirst))
-                                }
+                                val target = (dragFraction * maxFirst).roundToInt().coerceIn(0, maxFirst)
+                                fastScrollJob?.cancel()
+                                fastScrollJob = scope.launch { state.scrollToItem(target) }
                             },
                         )
                     },
@@ -880,6 +983,7 @@ private fun CollectionGrid(
     data: List<Any>,
     onClick: (Any) -> Unit,
     circular: Boolean = false,
+    onMore: ((String, List<MediaItem>) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = LocalAirPlayrColors.current
@@ -933,7 +1037,12 @@ private fun CollectionGrid(
                             Text(name, style = MaterialTheme.typography.titleMedium, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text("${groupSongs.size} songs", style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
                         }
-                        Icon(Icons.Default.MoreVert, "More", tint = colors.textSecondary, modifier = Modifier.size(22.dp))
+                        onMore?.let { more ->
+                            AirPlayrMoreButton(
+                                onClick = { more(name, groupSongs) },
+                                modifier = Modifier.size(40.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -1021,6 +1130,7 @@ private fun PlaylistGrid(
     playlistItems: Map<String, List<String>>,
     songs: List<MediaItem>,
     onNavigate: (String) -> Unit,
+    onMore: ((MusicPlaylistEntity) -> Unit)? = null,
     onAdd: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1087,7 +1197,12 @@ private fun PlaylistGrid(
                             Text(playlist.name, style = MaterialTheme.typography.titleMedium, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text("${counts[playlist.id] ?: 0} songs", style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
                         }
-                        Icon(Icons.Default.MoreVert, "More", tint = colors.textSecondary, modifier = Modifier.size(22.dp))
+                        onMore?.let { more ->
+                            AirPlayrMoreButton(
+                                onClick = { more(playlist) },
+                                modifier = Modifier.size(40.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -1190,31 +1305,6 @@ private fun EmptyMusic(title: String, message: String) {
         Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 10.dp))
         Text(message, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
     }
-}
-
-@Composable
-private fun PlaylistPickerDialog(
-    playlists: List<MusicPlaylistEntity>,
-    counts: Map<String, Int>,
-    item: MediaItem,
-    onDismiss: () -> Unit,
-    onSelect: (String) -> Unit,
-) {
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Add to playlist") },
-        text = {
-            Column(Modifier.height(320.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                playlists.forEach { playlist ->
-                    TextButton(onClick = { onSelect(playlist.id) }, modifier = Modifier.fillMaxWidth()) {
-                        Text("${playlist.name}  ·  ${counts[playlist.id] ?: 0} songs", modifier = Modifier.fillMaxWidth())
-                    }
-                }
-                if (playlists.isEmpty()) Text("Create a playlist first.")
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
-    )
 }
 
 private data class AlbumGroup(val name: String, val songs: List<MediaItem>) {

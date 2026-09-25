@@ -1,5 +1,6 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.airplayr.app.ui.components
+import androidx.compose.foundation.rememberScrollState
 
 import com.airplayr.app.ui.theme.AirPlayrIcons
 import android.content.Intent
@@ -157,7 +158,7 @@ fun HistoryFavoritePlaylistSheet(container: AppContainer, items: List<MediaItem>
         dragHandle = { Box(Modifier.padding(top = 8.dp).size(width = 62.dp, height = 5.dp).background(Color(0xFF77746C), RoundedCornerShape(50))) },
     ) {
         Column(
-            Modifier.fillMaxWidth().navigationBarsPadding(),
+            Modifier.fillMaxWidth().navigationBarsPadding().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Column(Modifier.padding(horizontal = 28.dp)) {
@@ -355,7 +356,7 @@ private fun AddedBadge() {
 fun HistoryFavoriteDetailsSheet(item: MediaItem, playing: Boolean = false, onDismiss: () -> Unit) {
     val colors = LocalAirPlayrColors.current
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.surfaceContainerLow) {
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(22.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Artwork(
                 item.artworkUri ?: item.thumbnailUri,
                 if (item.mediaType == MediaType.VIDEO) Modifier.width(140.dp).height(79.dp) else Modifier.size(110.dp),
@@ -384,7 +385,7 @@ fun HistoryFavoriteTagEditorSheet(container: AppContainer, item: MediaItem, onDi
     var album by remember(item.id) { mutableStateOf(item.album.orEmpty()) }
     var genre by remember(item.id) { mutableStateOf(item.genre.orEmpty()) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.surfaceContainerLow) {
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(22.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Tag editor", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 24.sp, color = colors.textPrimary)
             OutlinedTextField(title, { title = it }, Modifier.fillMaxWidth(), label = { Text("Title") }, singleLine = true)
             OutlinedTextField(artist, { artist = it }, Modifier.fillMaxWidth(), label = { Text("Artist") }, singleLine = true)
@@ -423,7 +424,7 @@ fun HistoryFavoriteLyricsSheet(container: AppContainer, item: MediaItem, onDismi
     var loading by remember(item.id) { mutableStateOf(false) }
     LaunchedEffect(item.id) { lyrics = withContext(Dispatchers.IO) { service.getCached(item.id)?.plainLyrics.orEmpty() } }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.surfaceContainerLow) {
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(22.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Edit lyrics", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 24.sp, color = colors.textPrimary)
             Text(item.title, color = colors.textPrimary)
             OutlinedTextField(lyrics, { lyrics = it }, Modifier.fillMaxWidth().height(260.dp), label = { Text("Lyrics") })

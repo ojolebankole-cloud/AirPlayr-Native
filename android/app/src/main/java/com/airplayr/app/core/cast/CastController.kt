@@ -15,7 +15,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class CastController(context: Context) : DefaultLifecycleObserver {
-    private val castContext = CastContext.getSharedInstance(context.applicationContext)
+    // Cast framework initialization can fail on devices/configurations where Google Play
+    // services is unavailable or the Cast provider has not initialized yet. Cast is optional
+    // to AirPlayr, so that failure must never be allowed to terminate the app process.
+    private val castContext: CastContext? = runCatching {
+        CastContext.getSharedInstance(context.applicationContext)
+    }.getOrNull()
     private val _status = MutableStateFlow(currentStatus())
     val status: StateFlow<CastUiStatus> = _status.asStateFlow()
     private val castStateListener = CastStateListener { emit() }
@@ -35,31 +40,41 @@ class CastController(context: Context) : DefaultLifecycleObserver {
     init { ProcessLifecycleOwner.get().lifecycle.addObserver(this) }
 
     fun start() {
-        if (started) return
+        if (started || castContext == null) return
         started = true
-        castContext.sessionManager.addSessionManagerListener(listener, CastSession::class.java)
-        castContext.addCastStateListener(castStateListener)
-        emit()
+        runCatching {
+            castContext.sessionManager.addSessionManagerListener(listener, CastSession::class.java)
+            castContext.addCastStateListener(castStateListener)
+            emit()
+        }.onFailure {
+            started = false
+            _status.value = CastUiStatus(state = "unavailable")
+        }
     }
 
     fun stop() {
-        if (!started) return
+        if (!started || castContext == null) return
         started = false
-        castContext.sessionManager.removeSessionManagerListener(listener, CastSession::class.java)
-        castContext.removeCastStateListener(castStateListener)
+        runCatching { castContext.sessionManager.removeSessionManagerListener(listener, CastSession::class.java) }
+        runCatching { castContext.removeCastStateListener(castStateListener) }
     }
 
-    fun endSession() { castContext.sessionManager.endCurrentSession(true); emit() }
+    fun endSession() {
+        castContext?.let { runCatching { it.sessionManager.endCurrentSession(true) } }
+        emit()
+    }
 
     private fun currentStatus(): CastUiStatus {
-        val session = castContext.sessionManager.currentCastSession
+        val context = castContext ?: return CastUiStatus(state = "unavailable")
+        val session = runCatching { context.sessionManager.currentCastSession }.getOrNull()
+        val state = runCatching { context.castState }.getOrDefault(CastState.NO_DEVICES_AVAILABLE)
         return CastUiStatus(
             connected = session != null,
             deviceName = session?.castDevice?.friendlyName.orEmpty(),
             state = when {
                 session != null -> "connected"
-                castContext.castState == CastState.NO_DEVICES_AVAILABLE -> "no-devices"
-                castContext.castState == CastState.CONNECTING -> "connecting"
+                state == CastState.NO_DEVICES_AVAILABLE -> "no-devices"
+                state == CastState.CONNECTING -> "connecting"
                 else -> "not-connected"
             },
         )

@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -52,6 +53,7 @@ fun ExternalVideoScreen(
     val settings by container.preferences.settings.collectAsStateWithLifecycle(initialValue = null)
     val autoHideMs = settings?.autoHideMs ?: 4000
     val defaultVolume = (settings?.defaultVolume?.toFloat() ?: 1f).coerceIn(0f, 1f)
+    val seekStepMs = ((settings?.seekStepSeconds ?: 10) * 1000L).coerceIn(5_000L, 30_000L)
     val muteOnStart = settings?.muteOnStart ?: false
     val defaultFitMode = when (settings?.defaultAspect) {
         "cover" -> VideoFitMode.ZOOM
@@ -66,12 +68,18 @@ fun ExternalVideoScreen(
     var position by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
     var interaction by remember { mutableIntStateOf(0) }
-    var subtitleOn by remember(uri, settings?.subtitlesEnabledDefault) { mutableStateOf(settings?.subtitlesEnabledDefault ?: true) }
+    var subtitleOn by remember(uri, settings?.subtitlesEnabledDefault, settings?.rememberSubtitleTrack) {
+        val defaultOn = settings?.subtitlesEnabledDefault ?: true
+        if (settings?.rememberSubtitleTrack == true) context.getSharedPreferences("airplayr_video_subtitles", 0).getBoolean("enabled:external:$uri", defaultOn) else defaultOn
+    }
     var cues by remember { mutableStateOf<List<String>>(emptyList()) }
+    var pendingCues by remember { mutableStateOf<List<String>?>(null) }
     var seekFeedback by remember { mutableStateOf<String?>(null) }
     var volumeOverlay by remember { mutableStateOf(false) }
     var volumeOverlayValue by remember { mutableIntStateOf((VideoGestureSupport.musicVolumeFraction(context) * 100f).roundToInt().coerceIn(0, 100)) }
     var brightnessFeedback by remember { mutableStateOf<String?>(null) }
+    var pinchZoom by remember(uri, settings?.gesturePinchZoom) { mutableFloatStateOf(1f) }
+    var longPressBoostActive by remember(uri) { mutableStateOf(false) }
 
     fun touch() { controlsVisible = true; interaction++ }
     fun seek(delta: Long) {
@@ -95,6 +103,7 @@ fun ExternalVideoScreen(
         val p = player ?: return
         p.trackSelectionParameters = p.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, subtitleOn).build()
         subtitleOn = !subtitleOn
+        if (settings?.rememberSubtitleTrack == true) context.getSharedPreferences("airplayr_video_subtitles", 0).edit().putBoolean("enabled:external:$uri", subtitleOn).apply()
         touch()
     }
 
@@ -103,12 +112,23 @@ fun ExternalVideoScreen(
         container.videoController.connectAsync { ready ->
             player = ready
             ready.addListener(object : Player.Listener {
-                override fun onCues(group: CueGroup) { cues = group.cues.mapNotNull { it.text?.toString()?.trim()?.takeIf(String::isNotBlank) } }
+                override fun onCues(group: CueGroup) {
+                    val next = group.cues.mapNotNull { it.text?.toString()?.trim()?.takeIf(String::isNotBlank) }
+                    if ((settings?.subtitleDelayMs ?: 0) <= 0) cues = next else { cues = emptyList(); pendingCues = next }
+                }
             })
             ready.volume = if (muted) 0f else defaultVolume
             container.videoController.playExternal(ready, uri, mimeType, title)
         }
     }
+    LaunchedEffect(pendingCues, settings?.subtitleDelayMs) {
+        val pending = pendingCues ?: return@LaunchedEffect
+        val delayMs = (settings?.subtitleDelayMs ?: 0).coerceAtLeast(0)
+        if (delayMs > 0) kotlinx.coroutines.delay(delayMs.toLong())
+        cues = pending
+        pendingCues = null
+    }
+
     LaunchedEffect(player) {
         while (player != null) {
             val p = player ?: break
@@ -130,6 +150,7 @@ fun ExternalVideoScreen(
         onDispose {
             player?.pause()
             container.videoController.release()
+            (context as? Activity)?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
             com.airplayr.app.core.playback.service.AirPlayrPlaybackService.exitVideoMode()
         }
     }
@@ -138,15 +159,27 @@ fun ExternalVideoScreen(
         val originalBrightness = activity?.window?.attributes?.screenBrightness ?: -1f
         onDispose { activity?.let { VideoGestureSupport.restoreWindowBrightness(it, originalBrightness) } }
     }
+    DisposableEffect(settings?.keepAwake) {
+        val window = (context as? Activity)?.window
+        if (settings?.keepAwake == true) window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose { if (settings?.keepAwake == true) window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+    }
     if (Build.VERSION.SDK_INT >= 26) SideEffect {
         runCatching { (context as? Activity)?.setPictureInPictureParams(PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(16, 9)).build()) }
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)
-        .pointerInput(player, settings?.gestureDoubleTapSeek) {
+        .pointerInput(player, settings?.gestureDoubleTapSeek, settings?.gestureLongPress2x) {
             detectTapGestures(
+                onPress = {
+                    tryAwaitRelease()
+                    if (longPressBoostActive) { longPressBoostActive = false; player?.setPlaybackSpeed(settings?.defaultSpeed?.toFloat()?.coerceIn(.25f, 4f) ?: 1f) }
+                },
                 onTap = { controlsVisible = !controlsVisible; interaction++ },
-                onDoubleTap = { point -> if (settings?.gestureDoubleTapSeek != false) { if (point.x < size.width / 2f) seek(-10_000L) else seek(10_000L) } },
+                onDoubleTap = { if (settings?.gestureDoubleTapSeek != false) { player?.let { if (it.isPlaying) it.pause() else it.play() }; controlsVisible = true; interaction++ } },
+                onLongPress = {
+                    if (settings?.gestureLongPress2x == true) { longPressBoostActive = true; player?.setPlaybackSpeed(2f) }
+                },
             )
         }
         .pointerInput(player, settings?.gestureVolume, settings?.gestureBrightness, settings?.gestureHorizontalSeek, duration) {
@@ -175,7 +208,6 @@ fun ExternalVideoScreen(
                                 val fraction = VideoGestureSupport.adjustMusicVolume(context, -dragAmount.y / size.height.toFloat())
                                 volumeOverlayValue = (fraction * 100f).roundToInt().coerceIn(0, 100)
                                 volumeOverlay = true
-                                touch()
                             } else if (!left && settings?.gestureBrightness != false) {
                                 val activity = context as? Activity
                                 if (activity != null) {
@@ -183,15 +215,22 @@ fun ExternalVideoScreen(
                                     val next = (current - dragAmount.y / size.height.toFloat()).coerceIn(0.02f, 1f)
                                     VideoGestureSupport.setWindowBrightness(activity, next)
                                     brightnessFeedback = "${(next * 100f).roundToInt()}%"
-                                    touch()
                                 }
                             }
                         }
                     }
                 },
             )
-        }) {
-        player?.let { AndroidVideoSurface(it, fitMode, Modifier.fillMaxSize()) }
+        }
+        .pointerInput(player, settings?.gesturePinchZoom) {
+            if (settings?.gesturePinchZoom == true) {
+                androidx.compose.foundation.gestures.detectTransformGestures { _, _, zoom, _ ->
+                    pinchZoom = (pinchZoom * zoom).coerceIn(1f, 3f)
+                }
+            }
+        }
+        ) {
+        player?.let { AndroidVideoSurface(it, fitMode, Modifier.fillMaxSize().graphicsLayer(scaleX = pinchZoom, scaleY = pinchZoom)) }
         if (subtitleOn && cues.isNotEmpty()) {
             VideoSubtitleOverlay(cues, settings?.subtitleSize ?: 1.0, parseSubtitleColor(settings?.subtitleColor), settings?.subtitleBg ?: true, settings?.subtitlePosition == "top", controlsVisible)
         }
@@ -213,7 +252,7 @@ fun ExternalVideoScreen(
                     Spacer(Modifier.width(6.dp))
                     GlassIconButton(if (muted) Icons.Default.VolumeOff else Icons.Default.VolumeUp, "Mute", Modifier.size(48.dp), ::toggleMute)
                     Spacer(Modifier.width(6.dp))
-                    GlassIconButton(Icons.Default.MoreHoriz, "More", Modifier.size(48.dp), onClick = { fitMode = VideoFitMode.entries[(fitMode.ordinal + 1) % VideoFitMode.entries.size]; touch() })
+                    GlassIconButton(Icons.Default.AspectRatio, "Fit: ${fitMode.label}", Modifier.size(48.dp), onClick = { fitMode = VideoFitMode.entries[(fitMode.ordinal + 1) % VideoFitMode.entries.size]; touch() })
                 }
                 Row(Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.spacedBy(30.dp), verticalAlignment = Alignment.CenterVertically) {
                     GlassIconButton(if (player?.isPlaying == true) Icons.Default.Pause else Icons.Default.PlayArrow, if (player?.isPlaying == true) "Pause" else "Play", Modifier.size(82.dp), onClick = { player?.let { if (it.isPlaying) it.pause() else it.play(); touch() } }, primary = true, iconSize = 38.dp)

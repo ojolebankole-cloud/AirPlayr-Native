@@ -18,6 +18,7 @@ private val Context.airPlayrDataStore by preferencesDataStore(name = "airplayr_p
 
 private val THEME = stringPreferencesKey("theme")
 private val ACCENT_COLOR = stringPreferencesKey("accent_color")
+private val AMOLED_MODE = booleanPreferencesKey("amoled_mode")
 private val NOW_PLAYING_THEME = stringPreferencesKey("now_playing_theme")
 private val HIGH_CONTRAST = booleanPreferencesKey("high_contrast")
 private val REDUCE_MOTION = booleanPreferencesKey("reduce_motion")
@@ -118,6 +119,7 @@ class PreferencesRepository(private val context: Context) {
         AirPlayrSettings(
             theme = p[THEME] ?: "light",
             accentColor = p[ACCENT_COLOR] ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) "dynamic" else "blue",
+            amoledMode = p[AMOLED_MODE] ?: false,
             nowPlayingTheme = p[NOW_PLAYING_THEME] ?: "default",
             highContrast = p[HIGH_CONTRAST] ?: false,
             reduceMotion = p[REDUCE_MOTION] ?: false,
@@ -181,6 +183,7 @@ class PreferencesRepository(private val context: Context) {
             .commit()
         context.airPlayrDataStore.edit { it[THEME] = theme }
     }
+    suspend fun setAmoledMode(v: Boolean) = editBool(AMOLED_MODE, v)
     suspend fun setAccentColor(v: String) {
         context.airPlayrDataStore.edit { it[ACCENT_COLOR] = v.coerceAccent() }
     }
@@ -318,6 +321,7 @@ class PreferencesRepository(private val context: Context) {
 data class AirPlayrSettings(
     val theme: String,
     val accentColor: String,
+    val amoledMode: Boolean = false,
     val nowPlayingTheme: String,
     val highContrast: Boolean,
     val reduceMotion: Boolean,

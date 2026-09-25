@@ -13,6 +13,10 @@ import com.google.android.gms.cast.framework.CastButtonFactory
 fun CastButton(modifier: Modifier = Modifier) {
     AndroidView(
         modifier = modifier.size(48.dp),
-        factory = { context: Context -> MediaRouteButton(context).also { CastButtonFactory.setUpMediaRouteButton(context, it) } },
+        factory = { context: Context ->
+            MediaRouteButton(context).also { button ->
+                runCatching { CastButtonFactory.setUpMediaRouteButton(context, button) }
+            }
+        },
     )
 }

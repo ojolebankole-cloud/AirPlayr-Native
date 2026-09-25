@@ -56,6 +56,8 @@ class AirPlayrPlaybackService : MediaLibraryService() {
         const val MEDIA_NOTIFICATION_CHANNEL_ID = "airplayr_music_playback"
         const val MEDIA_NOTIFICATION_ID = 24071
         private const val COMMAND_FORCE_NEXT = "airplayr.notification.NEXT"
+        private const val COMMAND_NOTIFICATION_PREVIOUS = "airplayr.notification.PREVIOUS"
+        private const val COMMAND_NOTIFICATION_NEXT = "airplayr.notification.NEXT_ITEM"
 
         @Volatile
         private var activeInstance: AirPlayrPlaybackService? = null
@@ -115,6 +117,8 @@ class AirPlayrPlaybackService : MediaLibraryService() {
             val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
                 .buildUpon()
                 .add(SessionCommand(COMMAND_FORCE_NEXT, Bundle.EMPTY))
+                .add(SessionCommand(COMMAND_NOTIFICATION_PREVIOUS, Bundle.EMPTY))
+                .add(SessionCommand(COMMAND_NOTIFICATION_NEXT, Bundle.EMPTY))
                 .build()
             return MediaSession.ConnectionResult.accept(
                 sessionCommands,
@@ -127,11 +131,25 @@ class AirPlayrPlaybackService : MediaLibraryService() {
             controller: MediaSession.ControllerInfo,
             customCommand: SessionCommand,
             args: Bundle,
-        ) = if (customCommand.customAction == COMMAND_FORCE_NEXT) {
-            if (player.hasNextMediaItem()) player.seekToNextMediaItem()
-            Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
-        } else {
-            Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED))
+        ) = when (customCommand.customAction) {
+            COMMAND_FORCE_NEXT, COMMAND_NOTIFICATION_NEXT -> {
+                if (player.hasNextMediaItem()) {
+                    player.seekToNextMediaItem()
+                } else if (player.mediaItemCount > 0 && player.repeatMode == Player.REPEAT_MODE_ALL) {
+                    player.seekToDefaultPosition(0)
+                    player.play()
+                }
+                Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+            }
+            COMMAND_NOTIFICATION_PREVIOUS -> {
+                if (player.hasPreviousMediaItem()) {
+                    player.seekToPreviousMediaItem()
+                } else if (player.mediaItemCount > 0) {
+                    player.seekTo(0)
+                }
+                Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+            }
+            else -> Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED))
         }
         override fun onGetLibraryRoot(
             session: MediaLibrarySession,
@@ -291,7 +309,10 @@ class AirPlayrPlaybackService : MediaLibraryService() {
             if (events.contains(Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED) ||
                 events.contains(Player.EVENT_REPEAT_MODE_CHANGED) ||
                 events.contains(Player.EVENT_TIMELINE_CHANGED) ||
-                events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) {
+                events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION) ||
+                events.contains(Player.EVENT_PLAY_WHEN_READY_CHANGED) ||
+                events.contains(Player.EVENT_IS_PLAYING_CHANGED) ||
+                events.contains(Player.EVENT_PLAYBACK_STATE_CHANGED)) {
                 mediaLibrarySession?.setMediaButtonPreferences(notificationMediaButtons(player))
             }
             if (events.containsAny(
@@ -332,33 +353,85 @@ class AirPlayrPlaybackService : MediaLibraryService() {
                             }
                         }
                     }
+                } else if (events.contains(Player.EVENT_PLAY_WHEN_READY_CHANGED) && player.playWhenReady) {
+                    // A replay of the same media item does not emit MEDIA_ITEM_TRANSITION.
+                    // Count a genuine play/resume event too, so the On repeat collection can
+                    // become populated when the listener starts the same song again.
+                    player.currentMediaItem?.let { current ->
+                        toDomain(current)?.let { domain ->
+                            serviceScope.launch(Dispatchers.IO) {
+                                if (preferences.settings.first().savePlaybackHistory) {
+                                    runCatching { structured.recordPlay(domain) }
+                                }
+                            }
+                        }
+                    }
                 }
                 persistSnapshot()
             }
         }
     }
 
-    private fun notificationMediaButtons(source: Player): List<CommandButton> = buildList {
-        add(
+    /**
+     * Android 13+ media controls expose five playback slots. Media3's secondary slots let us
+     * deliberately build the requested notification order instead of relying on the system's
+     * default action ordering:
+     *
+     *     Shuffle · Previous · Play/Pause · Next · Repeat
+     *
+     * Shuffle and repeat use Media3's native player commands, while previous/next use session
+     * commands so their buttons remain present even when the current timeline has no adjacent
+     * item.
+     */
+    private fun notificationMediaButtons(source: Player): List<CommandButton> {
+        val nextRepeatMode = when (source.repeatMode) {
+            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+            else -> Player.REPEAT_MODE_OFF
+        }
+        return listOf(
             CommandButton.Builder(
                 if (source.shuffleModeEnabled) CommandButton.ICON_SHUFFLE_ON else CommandButton.ICON_SHUFFLE_OFF,
             )
                 .setDisplayName("Shuffle")
                 .setPlayerCommand(Player.COMMAND_SET_SHUFFLE_MODE)
-                .build()
-        )
-        // Media3 normally hides Next when a one-item timeline has no next item. Keep a
-        // reference-style Next button visible in that exact case and route it through a
-        // session command. Multi-item queues keep Media3's native Next button.
-        if (!source.hasNextMediaItem()) {
-            add(
-                CommandButton.Builder(CommandButton.ICON_NEXT)
-                    .setDisplayName("Next")
-                    .setSessionCommand(SessionCommand(COMMAND_FORCE_NEXT, Bundle.EMPTY))
-                    .setEnabled(true)
-                    .build()
+                .setSlots(intArrayOf(CommandButton.SLOT_BACK_SECONDARY))
+                .build(),
+            CommandButton.Builder(CommandButton.ICON_PREVIOUS)
+                .setDisplayName("Previous")
+                .setSessionCommand(SessionCommand(COMMAND_NOTIFICATION_PREVIOUS, Bundle.EMPTY))
+                .setSlots(intArrayOf(CommandButton.SLOT_BACK))
+                .build(),
+            CommandButton.Builder(
+                if (source.isPlaying || source.playWhenReady) CommandButton.ICON_PAUSE else CommandButton.ICON_PLAY,
             )
-        }
+                .setDisplayName(if (source.isPlaying || source.playWhenReady) "Pause" else "Play")
+                .setPlayerCommand(Player.COMMAND_PLAY_PAUSE)
+                .setSlots(intArrayOf(CommandButton.SLOT_CENTRAL))
+                .build(),
+            CommandButton.Builder(CommandButton.ICON_NEXT)
+                .setDisplayName("Next")
+                .setSessionCommand(SessionCommand(COMMAND_NOTIFICATION_NEXT, Bundle.EMPTY))
+                .setSlots(intArrayOf(CommandButton.SLOT_FORWARD))
+                .build(),
+            CommandButton.Builder(
+                when (source.repeatMode) {
+                    Player.REPEAT_MODE_ONE -> CommandButton.ICON_REPEAT_ONE
+                    Player.REPEAT_MODE_ALL -> CommandButton.ICON_REPEAT_ALL
+                    else -> CommandButton.ICON_REPEAT_OFF
+                },
+            )
+                .setDisplayName(
+                    when (source.repeatMode) {
+                        Player.REPEAT_MODE_ONE -> "Repeat one"
+                        Player.REPEAT_MODE_ALL -> "Repeat all"
+                        else -> "Repeat off"
+                    },
+                )
+                .setPlayerCommand(Player.COMMAND_SET_REPEAT_MODE, nextRepeatMode)
+                .setSlots(intArrayOf(CommandButton.SLOT_FORWARD_SECONDARY))
+                .build(),
+        )
     }
 
     override fun onCreate() {

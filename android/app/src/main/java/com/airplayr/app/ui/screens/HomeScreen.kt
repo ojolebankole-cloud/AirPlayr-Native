@@ -539,6 +539,10 @@ private fun QuickActions(colors: AirPlayrColors, onHistory: () -> Unit, onFavori
     }
 }
 
+
+private fun homeLightCardColor(colors: AirPlayrColors): Color =
+    if (colors.background.luminance() > 0.5f) Color.White else colors.surface
+
 @Composable
 private fun ListeningWatchingStatsCard(
     listeningSeconds: Long,
@@ -557,7 +561,7 @@ private fun ListeningWatchingStatsCard(
         onClick = { onNavigate("listening-watching-stats") },
         modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
         shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = colors.surface),
+        colors = CardDefaults.cardColors(containerColor = homeLightCardColor(colors)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Column(Modifier.padding(22.dp)) {
@@ -700,7 +704,7 @@ private fun formatExpoListeningTime(totalSeconds: Long): String {
     Card(
         modifier = modifier.heightIn(min = 72.dp),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = c.surface),
+        colors = CardDefaults.cardColors(containerColor = homeLightCardColor(c)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         onClick = onClick,
     ) {
@@ -795,7 +799,7 @@ private fun RepeatRailCard(item: MediaItem, modifier: Modifier = Modifier, playi
     Card(
         modifier = modifier.height(72.dp),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = colors.surface),
+        colors = CardDefaults.cardColors(containerColor = homeLightCardColor(colors)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         onClick = onClick,
     ) {
@@ -869,7 +873,7 @@ private fun CurrentPlaybackHost(playback: PlaybackController) {
 
 @Composable private fun CurrentPlaybackCard(title: String, artist: String, art: String?, position: Long, duration: Long, isPlaying: Boolean) {
     val c = LocalAirPlayrColors.current
-    AirPlayrCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(22.dp), containerColor = c.surfaceSolid, elevation = 5.dp) {
+    AirPlayrCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(22.dp), containerColor = homeLightCardColor(c), elevation = 5.dp) {
         Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Artwork(art, Modifier.size(46.dp), 14.dp, mediaType = MediaType.AUDIO, isPlaying = isPlaying)
