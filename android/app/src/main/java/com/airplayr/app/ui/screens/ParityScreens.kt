@@ -1,10 +1,9 @@
 package com.airplayr.app.ui.screens
-import androidx.compose.foundation.rememberScrollState
 
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.animateFloat
 import com.airplayr.app.ui.theme.AirPlayrIcons
-
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.components.AirPlayrCard
@@ -15,7 +14,6 @@ import com.airplayr.app.ui.components.rememberAirPlayrLottieTheme
 import com.airplayr.app.ui.components.airPlayrShadow
 import com.airplayr.app.ui.airPlayrBottomContentPadding
 import com.airplayr.app.ui.airPlayrFloatingPlayBottomPadding
-
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.clip
@@ -120,12 +118,12 @@ import com.airplayr.app.core.playback.VideoQueueStore
 import com.airplayr.app.ui.theme.AirPlayrColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
 import androidx.compose.foundation.verticalScroll
 import com.airplayr.app.ui.components.Artwork
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.PlaylistRemove
+
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun FeatureCollectionScreen(
@@ -545,7 +543,6 @@ private fun FeatureMediaRow(
         )
     }
 }
-
 
 private enum class FolderTab { ALL, MUSIC, VIDEO }
 
@@ -1534,7 +1531,6 @@ fun BrowseFilterScreen(
     }
 }
 
-
 @Composable
 private fun ViewModeButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
     val colors = LocalAirPlayrColors.current
@@ -1568,7 +1564,6 @@ private fun VideoMediaRow(item: MediaItem, big: Boolean, onOpen: () -> Unit, onP
     }
 }
 
-
 @Composable
 private fun VideoGridCard(item: MediaItem, onOpen: () -> Unit, onMore: () -> Unit) {
     val colors = LocalAirPlayrColors.current
@@ -1593,7 +1588,6 @@ private fun VideoGridCard(item: MediaItem, onOpen: () -> Unit, onMore: () -> Uni
         }
     }
 }
-
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -1635,7 +1629,6 @@ private fun VideoActionSheet(
         onDismiss = onDismiss,
     )
 }
-
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -2257,7 +2250,6 @@ fun BrowseIndexScreen(
         }
     }
 }
-
 
 @Composable
 private fun PlaylistTypeHeroCard(

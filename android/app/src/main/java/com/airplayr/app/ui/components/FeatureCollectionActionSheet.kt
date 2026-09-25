@@ -1,9 +1,9 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 
-import androidx.compose.foundation.verticalScroll
 package com.airplayr.app.ui.components
-import androidx.compose.foundation.rememberScrollState
 
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth

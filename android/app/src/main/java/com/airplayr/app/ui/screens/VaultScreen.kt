@@ -204,7 +204,6 @@ fun VaultScreen(
         }
     }
 
-
     Box(Modifier.fillMaxSize().background(colors.background)) {
         if (!unlocked) {
             VaultGate(

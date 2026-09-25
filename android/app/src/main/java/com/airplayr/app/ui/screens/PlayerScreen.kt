@@ -2,7 +2,6 @@ package com.airplayr.app.ui.screens
 
 import com.airplayr.app.core.data.media.MediaType
 import androidx.compose.foundation.layout.statusBarsPadding
-
 import com.airplayr.app.core.data.preferences.PreferencesRepository
 import com.airplayr.app.core.lyrics.LyricsRepository
 import android.content.Context
@@ -124,8 +123,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
-
 import java.util.Locale
+
 private enum class PlayerSheet { More, Lyrics, Sleep, Speed, Details, Tags, LyricsEdit, Playlist, QueueSaved }
 
 @Composable
@@ -675,7 +674,6 @@ private fun MoreGroup(items: List<Pair<String, () -> Unit>>, colors: com.airplay
         }
     }
 }
-
 
 @Composable
 private fun PlayerPlaylistSheet(container: AppContainer?, item: MediaItem, onClose: () -> Unit) {

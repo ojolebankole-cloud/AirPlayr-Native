@@ -1,7 +1,6 @@
 package com.airplayr.app.ui.screens
 
 import com.airplayr.app.ui.airPlayrBottomContentPadding
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -59,9 +58,9 @@ import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.animateLottieCompositionAsState
 import com.airbnb.lottie.compose.rememberLottieComposition
 import kotlinx.coroutines.launch
-
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+
 @Composable
 fun HomeScreen(
     container: AppContainer,
@@ -540,7 +539,6 @@ private fun QuickActions(colors: AirPlayrColors, onHistory: () -> Unit, onFavori
         }
     }
 }
-
 
 private fun homeLightCardColor(colors: AirPlayrColors): Color =
     if (colors.background.luminance() > 0.5f) Color.White else colors.surface

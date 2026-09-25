@@ -1,6 +1,6 @@
 package com.airplayr.app.ui.components
-import androidx.compose.foundation.rememberScrollState
 
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -52,8 +52,8 @@ import com.airplayr.app.ui.theme.AirPlayrArtworkTokens
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
-
 import androidx.compose.foundation.verticalScroll
+
 /** Shared screen header. The content owns the status-bar inset while the application shell stays edge-to-edge. */
 @Composable
 fun AirPlayrScreenHeader(

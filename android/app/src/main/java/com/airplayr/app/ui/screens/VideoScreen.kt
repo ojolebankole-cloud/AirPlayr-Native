@@ -1,11 +1,11 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+package com.airplayr.app.ui.screens
+
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
-package com.airplayr.app.ui.screens
 import androidx.compose.foundation.rememberScrollState
-
 import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.Intent
