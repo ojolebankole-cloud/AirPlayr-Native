@@ -1,5 +1,11 @@
 package com.airplayr.app.ui.screens
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -25,8 +32,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,6 +60,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import android.graphics.BitmapFactory
+import kotlin.math.ceil
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.Image
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airplayr.app.core.data.media.MediaItem
@@ -57,7 +73,13 @@ import com.airplayr.app.core.intelligence.MusicMixConfig
 import com.airplayr.app.core.intelligence.MusicMixGenerator
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.airPlayrBottomContentPadding
+import com.airplayr.app.ui.airPlayrFloatingPlayBottomPadding
 import com.airplayr.app.ui.components.AirPlayrWaveAnimation
+import com.airplayr.app.ui.components.AirPlayrFeatureCollectionActionSheet
+import com.airplayr.app.ui.components.AirPlayrPremiumMediaActionSheet
+import com.airplayr.app.ui.components.AirPlayrMediaMenuAction
+import com.airplayr.app.ui.components.HistoryFavoritePlaylistSheet
+import com.airplayr.app.ui.components.AirPlayrMediaArtwork
 import com.airplayr.app.ui.components.Artwork
 import com.airplayr.app.ui.components.displayArtworkUri
 import com.airplayr.app.ui.navigation.LibraryViewModel
@@ -67,7 +89,6 @@ import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.isActive
 import java.time.Duration
 import java.time.LocalDate
@@ -83,6 +104,7 @@ fun MusicMixScreen(
     mode: MusicMixMode,
     libraryViewModel: LibraryViewModel,
     playback: PlaybackController,
+    container: AppContainer,
     onBack: () -> Unit,
 ) {
     val colors = LocalAirPlayrColors.current
@@ -93,54 +115,84 @@ fun MusicMixScreen(
     val hour by rememberCurrentHour()
     var cycle by remember(mode, today, selectedGenre, hour) { mutableStateOf(0) }
     var mixPlaybackActive by remember(mode, today, selectedGenre, hour) { mutableStateOf(false) }
+    var headerMenu by remember { mutableStateOf(false) }
+    var selectedSong by remember { mutableStateOf<MediaItem?>(null) }
+    var selectedSongFavorite by remember { mutableStateOf(false) }
+    var playlistTarget by remember { mutableStateOf<List<MediaItem>?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     val config = remember(mode, hour) {
         when (mode) {
             MusicMixMode.FOR_YOU -> MusicMixConfig(MusicMixGenerator.FOR_YOU_ID, FOR_YOU_HERO_TITLE)
             MusicMixMode.TIME_OF_DAY -> MusicMixGenerator.configForHour(hour)
+            MusicMixMode.ROCK_YOUR_WORLD -> MusicMixConfig(MusicMixGenerator.ROCK_YOUR_WORLD_ID, "Rock Your World")
         }
     }
     val genres = remember(snapshot.audio) { MusicMixGenerator.availableGenres(snapshot.audio) }
 
-    var mix by remember(config.id, selectedGenre, today, snapshot.audio, snapshot.history, snapshot.favorites) {
+    var mix by remember(config.id, selectedGenre, today, snapshot.audio, snapshot.favorites) {
         mutableStateOf<List<MediaItem>>(emptyList())
     }
-    LaunchedEffect(config.id, selectedGenre, today, snapshot.audio, snapshot.history, snapshot.favorites) {
+    LaunchedEffect(config.id, selectedGenre, today, snapshot.audio, snapshot.favorites) {
         mix = withContext(Dispatchers.Default) {
-            MusicMixGenerator.dailyMix(
-                config = config,
-                library = snapshot.audio,
-                history = snapshot.history,
-                favorites = snapshot.favorites,
-                selectedGenre = selectedGenre,
-                date = today,
-                cycle = cycle,
-            )
+            if (mode == MusicMixMode.ROCK_YOUR_WORLD) {
+                MusicMixGenerator.rockYourWorldMix(
+                    library = snapshot.audio,
+                    history = snapshot.history,
+                    favorites = snapshot.favorites,
+                    selectedGenre = selectedGenre,
+                    date = today,
+                    cycle = cycle,
+                )
+            } else {
+                MusicMixGenerator.dailyMix(
+                    config = config,
+                    library = snapshot.audio,
+                    history = snapshot.history,
+                    favorites = snapshot.favorites,
+                    selectedGenre = selectedGenre,
+                    date = today,
+                    cycle = cycle,
+                )
+            }
         }
     }
 
     LaunchedEffect(config.id, selectedGenre, today, mixPlaybackActive) {
         if (!mixPlaybackActive || mix.isEmpty()) return@LaunchedEffect
+        var activeMix = mix
+        var activeCycle = cycle
         while (isActive) {
             val state = playback.stableState.value
             val atNaturalEnd = !state.isPlaying &&
-                state.queueSize == mix.size &&
-                state.currentQueueIndex >= mix.lastIndex &&
+                state.queueSize == activeMix.size &&
+                state.currentQueueIndex >= activeMix.lastIndex &&
                 state.durationMs > 0L &&
                 state.positionMs >= (state.durationMs - 750L).coerceAtLeast(0L)
             if (atNaturalEnd) {
-                val previousLastId = mix.lastOrNull()?.id
-                cycle += 1
+                val previousLastId = activeMix.lastOrNull()?.id
+                activeCycle += 1
                 val nextMix = withContext(Dispatchers.Default) {
-                    MusicMixGenerator.dailyMix(
-                        config = config,
-                        library = snapshot.audio,
-                        history = snapshot.history,
-                        favorites = snapshot.favorites,
-                        selectedGenre = selectedGenre,
-                        date = today,
-                        cycle = cycle,
-                    ).toMutableList().also { next ->
+                    (if (mode == MusicMixMode.ROCK_YOUR_WORLD) {
+                        MusicMixGenerator.rockYourWorldMix(
+                            library = snapshot.audio,
+                            history = snapshot.history,
+                            favorites = snapshot.favorites,
+                            selectedGenre = selectedGenre,
+                            date = today,
+                            cycle = activeCycle,
+                        )
+                    } else {
+                        MusicMixGenerator.dailyMix(
+                            config = config,
+                            library = snapshot.audio,
+                            history = snapshot.history,
+                            favorites = snapshot.favorites,
+                            selectedGenre = selectedGenre,
+                            date = today,
+                            cycle = activeCycle,
+                        )
+                    }).toMutableList().also { next ->
                         if (next.size > 1 && previousLastId != null && next.first().id == previousLastId) {
                             val swapIndex = next.indexOfFirst { it.id != previousLastId }
                             if (swapIndex > 0) {
@@ -151,9 +203,11 @@ fun MusicMixScreen(
                         }
                     }
                 }
+                if (nextMix.isEmpty()) break
+                activeMix = nextMix
                 mix = nextMix
-                if (nextMix.isNotEmpty()) playback.playLoopingQueue(nextMix, repeatAll = false)
-                break
+                cycle = activeCycle
+                playback.playLoopingQueue(nextMix, repeatAll = false)
             }
             delay(250L)
         }
@@ -169,10 +223,12 @@ fun MusicMixScreen(
     }
     val playingId = playbackState.currentId
 
+    val gridState = rememberLazyGridState()
+
     Box(Modifier.fillMaxSize().background(colors.background)) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
-            state = rememberLazyGridState(),
+            state = gridState,
             contentPadding = PaddingValues(
                 start = 16.dp,
                 end = 16.dp,
@@ -184,7 +240,7 @@ fun MusicMixScreen(
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                    Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 2.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = onBack) {
@@ -197,23 +253,30 @@ fun MusicMixScreen(
                         color = colors.textPrimary,
                         modifier = Modifier.weight(1f),
                     )
-                    IconButton(
-                        onClick = { if (mix.isNotEmpty()) { mixPlaybackActive = true; playback.playLoopingQueue(mix, repeatAll = false) } },
-                        enabled = mix.isNotEmpty(),
-                    ) {
-                        Icon(Icons.Default.Shuffle, "Shuffle mix", tint = colors.primary)
+                    IconButton(onClick = { headerMenu = true }) {
+                        Icon(Icons.Default.MoreVert, "${config.title} options", tint = colors.primary, modifier = Modifier.size(25.dp))
                     }
                 }
             }
 
             item(span = { GridItemSpan(maxLineSpan) }) {
-                MixHero(
-                    item = heroItem,
-                    config = config,
-                    colors = colors,
-                    playing = heroItem?.id == playingId,
-                    onPlay = { if (mix.isNotEmpty()) { mixPlaybackActive = true; playback.playLoopingQueue(mix, repeatAll = false) } },
-                )
+                if (mode == MusicMixMode.ROCK_YOUR_WORLD) {
+                    RockYourWorldHero(
+                        hour = hour,
+                        colors = colors,
+                        onPlay = { if (mix.isNotEmpty()) { mixPlaybackActive = true; playback.playLoopingQueue(mix, repeatAll = false) } },
+                        onShuffle = { if (mix.isNotEmpty()) { mixPlaybackActive = true; playback.playLoopingQueue(mix, repeatAll = false) } },
+                    )
+                } else {
+                    MixHero(
+                        item = heroItem,
+                        config = config,
+                        colors = colors,
+                        playing = heroItem?.id == playingId,
+                        onPlay = { if (mix.isNotEmpty()) { mixPlaybackActive = true; playback.playLoopingQueue(mix, repeatAll = false) } },
+                        onShuffle = { if (mix.isNotEmpty()) { mixPlaybackActive = true; playback.playLoopingQueue(mix, repeatAll = false) } },
+                    )
+                }
             }
 
             item(span = { GridItemSpan(maxLineSpan) }) {
@@ -270,15 +333,210 @@ fun MusicMixScreen(
                     MusicMixGridCell(
                         item = item,
                         playing = item.id == playingId,
-                        onClick = { mixPlaybackActive = true; playback.playLoopingQueue(mix, mix.indexOfFirst { it.id == item.id }.coerceAtLeast(0), repeatAll = false) },
+                        onClick = {
+                            mixPlaybackActive = true
+                            val index = mix.indexOfFirst { it.id == item.id }.coerceAtLeast(0)
+                            playback.playLoopingQueue(mix, index, repeatAll = false)
+                        },
+                        onMore = {
+                            selectedSong = item
+                            scope.launch { selectedSongFavorite = container.structured.isFavorite(item.id) }
+                        },
                     )
                 }
+            }
+        }
+
+        if (mix.isNotEmpty()) {
+            FloatingActionButton(
+                onClick = {
+                    mixPlaybackActive = true
+                    playback.playLoopingQueue(mix, repeatAll = false)
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 22.dp, bottom = airPlayrFloatingPlayBottomPadding())
+                    .size(68.dp),
+                containerColor = colors.primary,
+                contentColor = colors.onPrimary,
+                shape = RoundedCornerShape(22.dp),
+                elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 10.dp),
+            ) {
+                Icon(Icons.Default.PlayArrow, "Play mix", modifier = Modifier.size(31.dp))
+            }
+        }
+
+        if (headerMenu) {
+            AirPlayrFeatureCollectionActionSheet(
+                title = config.title,
+                onDismiss = { headerMenu = false },
+                onShuffle = {
+                    if (mix.isNotEmpty()) {
+                        mixPlaybackActive = true
+                        playback.playLoopingQueue(mix, repeatAll = false)
+                    }
+                    headerMenu = false
+                },
+                onPlayNext = {
+                    mix.forEach(playback::playNext)
+                    headerMenu = false
+                },
+                onAddToQueue = {
+                    mix.forEach(playback::addToQueue)
+                    headerMenu = false
+                },
+                onAddToPlaylist = {
+                    if (mix.isNotEmpty()) playlistTarget = mix
+                    headerMenu = false
+                },
+            )
+        }
+    }
+
+    selectedSong?.let { item ->
+        AirPlayrPremiumMediaActionSheet(
+            item = item,
+            playing = playbackState.isPlaying && playbackState.currentId == item.id,
+            favorite = selectedSongFavorite,
+            groups = listOf(
+                listOf(
+                    AirPlayrMediaMenuAction("Play now", Icons.Default.PlayArrow, {
+                        mixPlaybackActive = true
+                        val index = mix.indexOfFirst { it.id == item.id }.coerceAtLeast(0)
+                        playback.playLoopingQueue(mix, index, repeatAll = false)
+                        selectedSong = null
+                    }),
+                    AirPlayrMediaMenuAction("Play next", Icons.Default.SkipNext, { playback.playNext(item); selectedSong = null }),
+                    AirPlayrMediaMenuAction("Add to queue", Icons.Default.QueueMusic, { playback.addToQueue(item); selectedSong = null }),
+                ),
+            ),
+            onFavorite = { scope.launch { selectedSongFavorite = container.structured.toggleFavorite(item) } },
+            onDismiss = { selectedSong = null },
+        )
+    }
+
+    playlistTarget?.let { items ->
+        HistoryFavoritePlaylistSheet(container = container, items = items, onDismiss = { playlistTarget = null })
+    }
+}
+
+enum class MusicMixMode { FOR_YOU, TIME_OF_DAY, ROCK_YOUR_WORLD }
+
+private data class RockWorldSlide(val key: String, val asset: String)
+
+private fun rockWorldSlideForHour(hour: Int): RockWorldSlide = when (hour.coerceIn(0, 23)) {
+    in 5..8 -> RockWorldSlide("morning", "rock-your-world/morning.jpg")
+    in 9..11 -> RockWorldSlide("late-morning", "rock-your-world/late-morning.jpg")
+    in 12..16 -> RockWorldSlide("afternoon", "rock-your-world/afternoon.jpg")
+    in 17..19 -> RockWorldSlide("evening", "rock-your-world/evening.jpg")
+    in 20..22 -> RockWorldSlide("late-evening", "rock-your-world/late-evening.jpg")
+    in 23..23, in 0..1 -> RockWorldSlide("night", "rock-your-world/night.jpg")
+    else -> RockWorldSlide("late-night", "rock-your-world/late-night.jpg")
+}
+
+@Composable
+private fun RockYourWorldHero(
+    hour: Int,
+    colors: com.airplayr.app.ui.theme.AirPlayrColors,
+    onPlay: () -> Unit,
+    onShuffle: () -> Unit,
+) {
+    val shape = RoundedCornerShape(30.dp)
+    val slide = rockWorldSlideForHour(hour)
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(390.dp)
+            .shadow(12.dp, shape)
+            .clip(shape)
+    ) {
+        AnimatedContent(
+            targetState = slide.key,
+            transitionSpec = {
+                if (targetState > initialState) {
+                    (slideInHorizontally { it } + fadeIn()) togetherWith
+                        (slideOutHorizontally { -it / 3 } + fadeOut())
+                } else {
+                    (slideInHorizontally { -it } + fadeIn()) togetherWith
+                        (slideOutHorizontally { it / 3 } + fadeOut())
+                }
+            },
+            label = "rock-world-time-slide",
+            modifier = Modifier.fillMaxSize(),
+        ) { key ->
+            RockWorldPhoto(
+                assetPath = rockWorldSlideForKey(key).asset,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .12f)))))
+        IconButton(
+            onClick = onShuffle,
+            modifier = Modifier.align(Alignment.TopEnd).padding(18.dp).size(50.dp),
+        ) {
+            androidx.compose.material3.Surface(
+                Modifier.fillMaxSize(),
+                shape = androidx.compose.foundation.shape.CircleShape,
+                color = colors.primary,
+            ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Shuffle, "Shuffle mix", tint = colors.onPrimary, modifier = Modifier.size(23.dp))
+                }
+            }
+        }
+        Box(
+            Modifier.align(Alignment.BottomEnd).padding(18.dp).size(58.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape).background(colors.primary),
+            contentAlignment = Alignment.Center,
+        ) {
+            IconButton(onClick = onPlay, modifier = Modifier.fillMaxSize()) {
+                Icon(Icons.Default.PlayArrow, "Play mix", tint = colors.onPrimary, modifier = Modifier.size(28.dp))
             }
         }
     }
 }
 
-enum class MusicMixMode { FOR_YOU, TIME_OF_DAY }
+private fun rockWorldSlideForKey(key: String): RockWorldSlide = when (key) {
+    "morning" -> RockWorldSlide("morning", "rock-your-world/morning.jpg")
+    "late-morning" -> RockWorldSlide("late-morning", "rock-your-world/late-morning.jpg")
+    "afternoon" -> RockWorldSlide("afternoon", "rock-your-world/afternoon.jpg")
+    "evening" -> RockWorldSlide("evening", "rock-your-world/evening.jpg")
+    "late-evening" -> RockWorldSlide("late-evening", "rock-your-world/late-evening.jpg")
+    "night" -> RockWorldSlide("night", "rock-your-world/night.jpg")
+    else -> RockWorldSlide("late-night", "rock-your-world/late-night.jpg")
+}
+
+@Composable
+private fun RockWorldPhoto(assetPath: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val bitmap by androidx.compose.runtime.produceState<android.graphics.Bitmap?>(null, assetPath) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                context.assets.open(assetPath).use { input ->
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeStream(input, null, bounds)
+                    val sample = ceil(maxOf(bounds.outWidth / 1200f, bounds.outHeight / 900f)).toInt().coerceAtLeast(1)
+                    val options = BitmapFactory.Options().apply {
+                        inSampleSize = sample
+                        inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
+                        inScaled = false
+                    }
+                    context.assets.open(assetPath).use { data -> BitmapFactory.decodeStream(data, null, options) }
+                }
+            }.getOrNull()
+        }
+    }
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap!!.asImageBitmap(),
+            contentDescription = null,
+            modifier = modifier,
+            contentScale = ContentScale.Crop,
+        )
+    } else {
+        Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant))
+    }
+}
 
 @Composable
 private fun MixHero(
@@ -287,6 +545,7 @@ private fun MixHero(
     colors: com.airplayr.app.ui.theme.AirPlayrColors,
     playing: Boolean,
     onPlay: () -> Unit,
+    onShuffle: () -> Unit,
 ) {
     val shape = RoundedCornerShape(30.dp)
     Box(
@@ -312,6 +571,22 @@ private fun MixHero(
             Box(Modifier.fillMaxSize().background(colors.primaryContainer))
         }
 
+        IconButton(
+            onClick = onShuffle,
+            modifier = Modifier.align(Alignment.TopEnd).padding(18.dp).size(50.dp),
+            enabled = item != null,
+        ) {
+            androidx.compose.material3.Surface(
+                Modifier.fillMaxSize(),
+                shape = androidx.compose.foundation.shape.CircleShape,
+                color = colors.primary,
+            ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Shuffle, "Shuffle mix", tint = colors.onPrimary, modifier = Modifier.size(23.dp))
+                }
+            }
+        }
+
         Column(
             Modifier.fillMaxSize().padding(22.dp),
             verticalArrangement = Arrangement.Bottom,
@@ -334,7 +609,7 @@ private fun MixHero(
             )
             Spacer(Modifier.height(4.dp))
             AirPlayrWaveAnimation(
-                modifier = Modifier.fillMaxWidth().height(72.dp),
+                modifier = Modifier.fillMaxWidth().height(124.dp),
             )
             Row(
                 Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -360,36 +635,48 @@ private fun MixHero(
 }
 
 @Composable
-private fun MusicMixGridCell(item: MediaItem, playing: Boolean, onClick: () -> Unit) {
+private fun MusicMixGridCell(
+    item: MediaItem,
+    playing: Boolean,
+    onClick: () -> Unit,
+    onMore: () -> Unit,
+) {
     val colors = LocalAirPlayrColors.current
     Column(
-        Modifier.fillMaxWidth().clickable(onClick = onClick),
+        Modifier.fillMaxWidth(),
     ) {
-        Artwork(
-            uri = item.displayArtworkUri(),
-            modifier = Modifier.fillMaxWidth().height(170.dp),
+        AirPlayrMediaArtwork(
+            artworkUri = item.displayArtworkUri(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(170.dp)
+                .clip(RoundedCornerShape(18.dp)),
             radius = 18.dp,
-            contentDescription = item.title,
+            title = item.title,
             mediaType = MediaType.AUDIO,
             fallbackIcon = AirPlayrIcons.Music,
-            isPlaying = playing,
+            playing = playing,
+            onPlay = onClick,
+            onMore = onMore,
         )
-        Text(
-            item.title.ifBlank { item.filename },
-            fontFamily = AirPlayrFonts.OpenSans,
-            fontSize = 13.sp,
-            color = colors.textPrimary,
-            maxLines = 1,
-            modifier = Modifier.padding(top = 7.dp),
-        )
-        Text(
-            item.artist.orEmpty().ifBlank { "Unknown artist" },
-            fontFamily = AirPlayrFonts.OpenSans,
-            fontSize = 11.sp,
-            color = colors.textSecondary,
-            maxLines = 1,
-            modifier = Modifier.padding(top = 2.dp),
-        )
+        Column(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+            Text(
+                item.title.ifBlank { item.filename },
+                fontFamily = AirPlayrFonts.OpenSans,
+                fontSize = 13.sp,
+                color = colors.textPrimary,
+                maxLines = 1,
+                modifier = Modifier.padding(top = 7.dp),
+            )
+            Text(
+                item.artist.orEmpty().ifBlank { "Unknown artist" },
+                fontFamily = AirPlayrFonts.OpenSans,
+                fontSize = 11.sp,
+                color = colors.textSecondary,
+                maxLines = 1,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
     }
 }
 

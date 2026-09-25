@@ -2,6 +2,8 @@
 
 package com.airplayr.app.ui.screens
 
+import com.airplayr.app.ui.airPlayrFloatingPlayBottomPadding
+
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.LinearEasing
@@ -78,6 +80,7 @@ import com.airplayr.app.ui.components.AirPlayrFeatureCollectionActionSheet
 import com.airplayr.app.ui.components.AirPlayrMediaRow
 import com.airplayr.app.ui.components.AirPlayrSectionEmpty
 import com.airplayr.app.ui.components.Artwork
+import com.airplayr.app.ui.components.rememberAirPlayrIllustrationPalette
 import com.airplayr.app.ui.components.rememberAirPlayrLottieTheme
 import com.airplayr.app.ui.components.displayArtworkUri
 import com.airplayr.app.ui.feedback.AppFeedback
@@ -246,6 +249,29 @@ fun MostPlayedScreen(
                 item { AirPlayrSectionEmpty("Not enough play data yet", "Play some music or videos and your leaderboard will start to fill in.") }
             }
         }
+
+        val fabTarget = topTrackItem ?: topVideoItem
+        if (fabTarget != null) {
+            FloatingActionButton(
+                onClick = {
+                    if (fabTarget.mediaType == MediaType.AUDIO) {
+                        playSongs(listOf(fabTarget))
+                    } else {
+                        onOpenVideo(fabTarget.id)
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 22.dp, bottom = airPlayrFloatingPlayBottomPadding())
+                    .size(68.dp),
+                containerColor = colors.primary,
+                contentColor = colors.onPrimary,
+                shape = RoundedCornerShape(22.dp),
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 10.dp),
+            ) {
+                Icon(Icons.Default.PlayArrow, "Play most played", modifier = Modifier.size(31.dp))
+            }
+        }
     }
 
     if (menuOpen) {
@@ -367,14 +393,38 @@ private fun MostPlayedHero(
         iterations = LottieConstants.IterateForever,
         isPlaying = slide == 0,
     )
+    val illustrationPalette = rememberAirPlayrIllustrationPalette(
+        colors.primary, colors.secondary, colors.tertiary,
+    )
     val lottieDynamicProperties = rememberAirPlayrLottieTheme(
-        colors = remember(colors.primary, colors.secondary, colors.tertiary) {
-            listOf(colors.primary, colors.secondary, colors.tertiary)
-        },
+        colors = illustrationPalette,
         keyPaths = listOf(
-            arrayOf("Layer 6 Outlines 15", "**"),
-            arrayOf("Layer 6 Outlines 14", "**"),
-            arrayOf("Layer 6 Outlines 13", "**"),
+            arrayOf("Layer 4 Outlines 3", "**"),
+            arrayOf("Layer 4 Outlines 2", "**"),
+            arrayOf("Layer 4 Outlines", "**"),
+            arrayOf("Layer 8 Outlines 3", "**"),
+            arrayOf("Layer 8 Outlines 2", "**"),
+            arrayOf("Layer 8 Outlines", "**"),
+            arrayOf("Layer 9 Outlines 3", "**"),
+            arrayOf("Layer 9 Outlines 2", "**"),
+            arrayOf("Layer 9 Outlines", "**"),
+            arrayOf("Layer 5 Outlines 3", "**"),
+            arrayOf("Layer 5 Outlines 2", "**"),
+            arrayOf("Layer 5 Outlines", "**"),
+            arrayOf("Layer 11 Outlines", "Group 2", "**"),
+            arrayOf("Layer 11 Outlines", "Group 3", "**"),
+            arrayOf("Layer 13 Outlines 2", "**"),
+            arrayOf("Layer 13 Outlines", "Group 2", "**"),
+            arrayOf("Layer 13 Outlines", "Group 3", "**"),
+            arrayOf("Layer 13 Outlines", "Group 4", "**"),
+            arrayOf("Layer 13 Outlines", "Group 5", "**"),
+            arrayOf("Layer 13 Outlines", "Group 6", "**"),
+            arrayOf("Layer 13 Outlines", "Group 7", "**"),
+            arrayOf("Layer 13 Outlines", "Group 8", "**"),
+            arrayOf("Layer 15 Outlines", "Group 1", "**"),
+            arrayOf("Layer 15 Outlines", "Group 2", "**"),
+            arrayOf("Layer 15 Outlines", "Group 3", "**"),
+            arrayOf("Layer 3 Outlines", "**"),
         ),
     )
     val shape = RoundedCornerShape(32.dp)

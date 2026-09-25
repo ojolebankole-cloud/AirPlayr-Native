@@ -1,54 +1,61 @@
 package com.airplayr.app.ui.components
 
+import android.graphics.Picture
 import android.graphics.RectF
-import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.platform.LocalContext
 import com.caverock.androidsvg.SVG
+import kotlin.math.roundToInt
 
 /**
  * Renders the supplied AirPlayr SVG directly from assets as vector artwork.
  *
- * The SVG is parsed once per asset key; it is never converted to a bitmap.
+ * AndroidSVG records the SVG into a Picture at the actual Compose viewport size and
+ * the recorded vector drawing is then replayed into the Compose canvas. This avoids
+ * the previous full-canvas SrcIn compositing pass, which could turn the illustration
+ * viewport into an opaque rectangle on hardware renderers.
+ *
+ * The source SVG is never converted to PNG/bitmap. Parsing and Picture creation are
+ * cached and only repeated when the asset or measured viewport changes.
  */
 @Composable
 fun AirPlayrSvgImage(
     assetPath: String,
     modifier: Modifier = Modifier,
-    tint: Brush? = null,
-    tintAlpha: Float = 0.16f,
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val svg = remember(assetPath, context) {
         runCatching {
             SVG.getFromAsset(context.assets, assetPath)
         }.getOrNull()
     }
 
-    Canvas(
-        modifier = modifier.drawWithContent {
-            drawContent()
-            if (tint != null) {
-                drawRect(
-                    brush = tint,
-                    alpha = tintAlpha.coerceIn(0f, 1f),
-                    blendMode = androidx.compose.ui.graphics.BlendMode.SrcIn,
-                )
+    if (svg == null) return
+
+    androidx.compose.foundation.Canvas(
+        modifier = modifier.drawWithCache {
+            val widthPx = size.width.roundToInt().coerceAtLeast(1)
+            val heightPx = size.height.roundToInt().coerceAtLeast(1)
+            val picture: Picture? = runCatching {
+                svg.renderToPicture(widthPx, heightPx)
+            }.getOrNull()
+
+            onDrawWithContent {
+                drawContent()
+                picture?.let { recorded ->
+                    drawIntoCanvas { canvas ->
+                        canvas.nativeCanvas.drawPicture(
+                            recorded,
+                            RectF(0f, 0f, size.width, size.height),
+                        )
+                    }
+                }
             }
         },
-    ) {
-        svg ?: return@Canvas
-        drawIntoCanvas { canvas ->
-            svg.renderToCanvas(
-                canvas.nativeCanvas,
-                RectF(0f, 0f, size.width, size.height),
-            )
-        }
-    }
+    ) {}
 }

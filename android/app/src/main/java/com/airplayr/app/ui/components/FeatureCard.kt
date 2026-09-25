@@ -137,8 +137,6 @@ fun AirPlayrFeatureCard(
                 .height(height * .66f)
                 .padding(8.dp)
                 .align(Alignment.TopCenter),
-            tint = Brush.linearGradient(p.gradient),
-            tintAlpha = .16f,
         )
         if (kind in setOf("morning","afternoon","night")) Text(digitalTime(now), color=p.ink.copy(alpha=.78f), fontSize=12.sp, lineHeight=16.sp, fontWeight=FontWeight.Medium, modifier=Modifier.align(Alignment.TopEnd).padding(top=16.dp,end=17.dp))
         Column(Modifier.align(Alignment.BottomStart).padding(start=17.dp,end=16.dp,bottom=17.dp)) {

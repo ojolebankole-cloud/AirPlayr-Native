@@ -7,6 +7,7 @@ import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.components.AirPlayrCard
+import com.airplayr.app.ui.components.rememberAirPlayrIllustrationPalette
 import com.airplayr.app.ui.components.rememberAirPlayrLottieTheme
 import com.airplayr.app.ui.components.airPlayrShadow
 import com.airplayr.app.ui.airPlayrBottomContentPadding
@@ -398,14 +399,20 @@ private fun RediscoverHero(
         iterations = com.airbnb.lottie.compose.LottieConstants.IterateForever,
         isPlaying = slide == 0,
     )
+    val illustrationPalette = rememberAirPlayrIllustrationPalette(
+        colors.primary, colors.secondary, colors.tertiary,
+    )
     val lottieDynamicProperties = rememberAirPlayrLottieTheme(
-        colors = remember(colors.primary, colors.secondary, colors.tertiary) {
-            listOf(colors.primary, colors.secondary, colors.tertiary)
-        },
+        colors = illustrationPalette,
         keyPaths = listOf(
             arrayOf("checkmark", "**"),
             arrayOf("TV-outline", "**"),
             arrayOf("headband", "**"),
+            arrayOf("Star", "**"),
+            arrayOf("ant-r", "**"),
+            arrayOf("ant-L", "**"),
+            arrayOf("SHOE-R", "**"),
+            arrayOf("SHOE-L", "**"),
         ),
     )
     LaunchedEffect(videos.map { it.id }.joinToString("|")) {
@@ -2031,15 +2038,18 @@ private fun PlaylistTypeHeroCard(
         colors = themedPalette,
         keyPaths = if (asset.contains("music_playlist")) {
             listOf(
-                arrayOf("Icon", "Screen_03", "**"),
-                arrayOf("Icon", "Screen_02", "**"),
-                arrayOf("Icon", "ScreenContent", "**"),
+                arrayOf("Icon", "Icon", "Screen_03", "ScreenContent", "**"),
+                arrayOf("Icon", "Icon", "Screen_02", "ScreenContent", "**"),
+                arrayOf("Icon", "Icon", "Screen_01", "ScreenBackground", "**"),
             )
         } else {
             listOf(
-                arrayOf("TV Center", "volume", "**"),
-                arrayOf("TV Center", "on", "**"),
-                arrayOf("TV Center", "chanel", "**"),
+                arrayOf("tv02, no effect", "volume", "**"),
+                arrayOf("tv02, no effect", "on", "**"),
+                arrayOf("tv02, no effect", "chanel", "**"),
+                arrayOf("tv02, no effect", "Speakers", "**"),
+                arrayOf("tv02, no effect", "dashboar", "**"),
+                arrayOf("tv02, no effect", "Body 2", "**"),
             )
         },
     )

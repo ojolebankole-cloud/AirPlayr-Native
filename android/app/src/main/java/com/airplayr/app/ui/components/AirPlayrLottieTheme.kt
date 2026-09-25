@@ -1,7 +1,11 @@
 package com.airplayr.app.ui.components
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.graphics.BlendModeColorFilterCompat
@@ -12,36 +16,57 @@ import com.airbnb.lottie.compose.rememberLottieDynamicProperties
 import com.airbnb.lottie.compose.rememberLottieDynamicProperty
 
 /**
- * Shared, low-frequency Lottie colour treatment.
- *
- * The existing animations have different layer structures, so callers provide
- * three exact key paths. Animation timing and geometry are untouched.
+ * Applies a small, stable set of colour filters to exact Lottie key paths.
+ * The animation composition, geometry and timing are never rebuilt.
  */
 @Composable
 fun rememberAirPlayrLottieTheme(
     colors: List<Color>,
     keyPaths: List<Array<String>>,
 ): LottieDynamicProperties {
-    require(keyPaths.size == 3) { "AirPlayr Lottie themes require three key paths." }
+    require(colors.isNotEmpty()) { "AirPlayr Lottie themes require at least one colour." }
+    require(keyPaths.isNotEmpty()) { "AirPlayr Lottie themes require at least one key path." }
 
     val stableColors = remember(colors) { colors.toList() }
-    val color1 = stableColors[0]
-    val color2 = stableColors[1 % stableColors.size]
-    val color3 = stableColors[2 % stableColors.size]
-
-    val filter1 = remember(color1) {
-        BlendModeColorFilterCompat.createBlendModeColorFilterCompat(color1.toArgb(), BlendModeCompat.SRC_ATOP)
+    val properties = keyPaths.mapIndexed { index, keyPath ->
+        val color = stableColors[index % stableColors.size]
+        val keyPathId = remember(keyPath.contentToString()) { keyPath.contentToString() }
+        val filter = remember(color, keyPathId) {
+            BlendModeColorFilterCompat.createBlendModeColorFilterCompat(
+                color.toArgb(),
+                BlendModeCompat.SRC_ATOP,
+            )
+        }
+        rememberLottieDynamicProperty(
+            LottieProperty.COLOR_FILTER,
+            filter,
+            *keyPath,
+        )
     }
-    val filter2 = remember(color2) {
-        BlendModeColorFilterCompat.createBlendModeColorFilterCompat(color2.toArgb(), BlendModeCompat.SRC_ATOP)
-    }
-    val filter3 = remember(color3) {
-        BlendModeColorFilterCompat.createBlendModeColorFilterCompat(color3.toArgb(), BlendModeCompat.SRC_ATOP)
-    }
 
-    val property1 = rememberLottieDynamicProperty(LottieProperty.COLOR_FILTER, filter1, *keyPaths[0])
-    val property2 = rememberLottieDynamicProperty(LottieProperty.COLOR_FILTER, filter2, *keyPaths[1])
-    val property3 = rememberLottieDynamicProperty(LottieProperty.COLOR_FILTER, filter3, *keyPaths[2])
+    return rememberLottieDynamicProperties(*properties.toTypedArray())
+}
 
-    return rememberLottieDynamicProperties(property1, property2, property3)
+/**
+ * Stable, low-frequency palette rotation for non-header AirPlayr illustrations.
+ * It changes the colour mapping occasionally without recreating the Lottie composition.
+ */
+@Composable
+fun rememberAirPlayrIllustrationPalette(
+    primary: Color,
+    secondary: Color,
+    tertiary: Color,
+    intervalMs: Long = 15_000L,
+): List<Color> {
+    var cycle by remember(primary, secondary, tertiary) { mutableIntStateOf(0) }
+    LaunchedEffect(primary, secondary, tertiary) {
+        while (true) {
+            kotlinx.coroutines.delay(intervalMs)
+            cycle = (cycle + 1) % 3
+        }
+    }
+    val base = remember(primary, secondary, tertiary) { listOf(primary, secondary, tertiary) }
+    return remember(base, cycle) {
+        List(base.size) { index -> base[(index + cycle) % base.size] }
+    }
 }

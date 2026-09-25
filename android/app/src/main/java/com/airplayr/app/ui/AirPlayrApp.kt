@@ -392,11 +392,11 @@ fun AirPlayrApp(
                 composable("playlist/{id}") { entry -> PlaylistDetailScreen(container, libraryViewModel, entry.arguments?.getString("id").orEmpty(), playbackController, onOpenPlayer = { navigate("player") }) }
                 composable("recent/{type}") { entry -> RecentScreen(entry.arguments?.getString("type").orEmpty(), libraryViewModel, playbackController, { navigate("video/$it") }, container, { navigate("player") }) }
                 composable("most-played") { MostPlayedScreen(container, libraryViewModel, playbackController, { id -> navigate("video/$id") }, { navigate("player") }, { route -> navigate(route) }, { navController.popBackStack() }) }
-                composable("for-you") { MusicMixScreen(MusicMixMode.FOR_YOU, libraryViewModel, playbackController, { navController.popBackStack() }) }
+                composable("for-you") { MusicMixScreen(MusicMixMode.FOR_YOU, libraryViewModel, playbackController, container, { navController.popBackStack() }) }
                 composable("rediscover") { FeatureCollectionScreen("Rediscover", "From your previous plays", { container.collections.rediscoverVideos() }, libraryViewModel, playbackController, container, { navController.popBackStack() }, { navigate("video/$it") }, onOpenPlayer = { navigate("player") }) }
                 composable("rediscover/rewind") { FeatureCollectionScreen("Rediscover", "From your previous plays", { container.collections.rediscoverVideos() }, libraryViewModel, playbackController, container, { navController.popBackStack() }, { navigate("video/$it") }, onOpenPlayer = { navigate("player") }) }
-                composable("tuned-in") { MusicMixScreen(MusicMixMode.TIME_OF_DAY, libraryViewModel, playbackController, { navController.popBackStack() }) }
-                composable("rock-your-world") { FeatureCollectionScreen("Rock your world", "Turn it up", { container.collections.rockYourWorld() }, libraryViewModel, playbackController, container, { navController.popBackStack() }, onOpenPlayer = { navigate("player") }) }
+                composable("tuned-in") { MusicMixScreen(MusicMixMode.TIME_OF_DAY, libraryViewModel, playbackController, container, { navController.popBackStack() }) }
+                composable("rock-your-world") { MusicMixScreen(MusicMixMode.ROCK_YOUR_WORLD, libraryViewModel, playbackController, container, { navController.popBackStack() }) }
                 composable("smart-collections") { CollectionsScreen(container, libraryViewModel, { route -> navigate(route) }, playbackController) }
                 composable("video-collections") { FeatureCollectionScreen(
                     title = "Video collections",

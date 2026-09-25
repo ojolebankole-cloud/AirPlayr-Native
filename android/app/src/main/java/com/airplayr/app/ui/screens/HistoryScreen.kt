@@ -5,6 +5,7 @@ import com.airplayr.app.ui.theme.AirPlayrIcons
 
 import android.net.Uri
 import com.airplayr.app.ui.airPlayrBottomContentPadding
+import com.airplayr.app.ui.airPlayrFloatingPlayBottomPadding
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ScrollState
@@ -225,6 +226,22 @@ fun HistoryScreen(
                 videoSection("Recently played videos", recentVideos)
                 videoSection("Completed videos", completedVideos)
             }
+
+        if (songs.isNotEmpty()) {
+            FloatingActionButton(
+                onClick = { playSong(songs.first()) },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 22.dp, bottom = airPlayrFloatingPlayBottomPadding())
+                    .size(68.dp),
+                containerColor = colors.primary,
+                contentColor = colors.onPrimary,
+                shape = RoundedCornerShape(22.dp),
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 10.dp),
+            ) {
+                Icon(Icons.Default.PlayArrow, "Play history", modifier = Modifier.size(31.dp))
+            }
+        }
     }
 
     if (headerMenu) {
