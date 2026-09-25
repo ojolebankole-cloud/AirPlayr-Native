@@ -18,6 +18,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -89,7 +91,7 @@ fun ExternalVideoScreen(
         touch()
     }
     fun toggleFullscreen() {
-        fullscreen = !fullscreen
+        fullscreen = if (fullscreen) false else true
         WindowMode.setFullscreen(context as? Activity ?: return, fullscreen)
         touch()
     }
@@ -225,7 +227,7 @@ fun ExternalVideoScreen(
         }
         .pointerInput(player, settings?.gesturePinchZoom) {
             if (settings?.gesturePinchZoom == true) {
-                androidx.compose.foundation.gestures.detectTransformGestures { _, _, zoom, _ ->
+                detectTransformGestures { _, _, zoom, _ ->
                     pinchZoom = (pinchZoom * zoom).coerceIn(1f, 3f)
                 }
             }

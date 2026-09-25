@@ -32,6 +32,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -523,7 +525,7 @@ fun VideoScreen(
                 }
                 .pointerInput(player, locked, settings?.gesturePinchZoom) {
                     if (settings?.gesturePinchZoom == true) {
-                        androidx.compose.foundation.gestures.detectTransformGestures { _, _, zoom, _ ->
+                        detectTransformGestures { _, _, zoom, _ ->
                             if (!locked) pinchZoom = (pinchZoom * zoom).coerceIn(1f, 3f)
                         }
                     }
