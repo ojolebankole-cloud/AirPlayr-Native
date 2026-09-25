@@ -17,6 +17,7 @@ import androidx.core.content.FileProvider
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -101,8 +102,8 @@ import com.airplayr.app.core.playback.REPEAT_ONE
 import com.airplayr.app.core.playback.dsp.DspRepository
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.components.AirPlayrSheetScaffold
+import com.airplayr.app.ui.components.AirPlayrSvgImage
 import com.airplayr.app.ui.components.Artwork
-import com.airplayr.app.ui.components.PlaybackBackground
 import com.airplayr.app.ui.components.LyricsEditorSheet
 import com.airplayr.app.ui.components.MusicQueueSheet
 import com.airplayr.app.ui.components.LyricsSheet
@@ -124,7 +125,14 @@ import kotlin.math.min
 private enum class PlayerSheet { More, Lyrics, Sleep, Speed, Details, Tags, LyricsEdit, Playlist, QueueSaved }
 
 @Composable
-fun PlayerScreen(appContext: Context, controller: PlaybackController, onBack: () -> Unit, onEqualizer: () -> Unit, onNavigate: (String) -> Unit) {
+fun PlayerScreen(
+    appContext: Context,
+    controller: PlaybackController,
+    onBack: () -> Unit,
+    onEqualizer: () -> Unit,
+    onNavigate: (String) -> Unit,
+    inSheet: Boolean = false,
+) {
     val colors = LocalAirPlayrColors.current
     val config = LocalConfiguration.current
     val state by controller.state.collectAsStateWithLifecycle()
@@ -200,20 +208,14 @@ fun PlayerScreen(appContext: Context, controller: PlaybackController, onBack: ()
     val repeatLabel = when (state.repeatMode) { REPEAT_ONE -> "Repeat one"; REPEAT_ALL -> "Repeat all"; else -> "Repeat off" }
 
     Box(Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER).fillMaxSize().background(colors.background)) {
-        PlaybackBackground(
-            theme = settings.nowPlayingTheme,
-            artworkUri = state.artworkUri,
-            modifier = Modifier.matchParentSize(),
-            reduceMotion = settings.reduceMotion,
-        )
         Column(
-            Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 20.dp),
+            Modifier.fillMaxSize().then(if (inSheet) Modifier else Modifier.navigationBarsPadding()).padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // Header: back chevron pinned left, Lyrics pill + more menu pinned right.
             // and the right-hand cluster is now wrap-content (not a fixed 142.dp width) so it
             // can never get pushed past the screen edge on narrow devices or larger font scales.
-            Row(Modifier.fillMaxWidth().statusBarsPadding().height(54.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().then(if (inSheet) Modifier else Modifier.statusBarsPadding()).height(54.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_BACK).size(54.dp)) {
                     Surface(
                         modifier = Modifier.size(44.dp),
@@ -230,14 +232,14 @@ fun PlayerScreen(appContext: Context, controller: PlaybackController, onBack: ()
                 Spacer(Modifier.weight(1f))
                 Card(
                     onClick = { sheet = PlayerSheet.Lyrics },
-                    modifier = Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_LYRICS).height(54.dp),
-                    shape = RoundedCornerShape(27.dp),
+                    modifier = Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_LYRICS).height(46.dp),
+                    shape = RoundedCornerShape(23.dp),
                     colors = CardDefaults.cardColors(containerColor = colors.surfaceContainerHighest),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                 ) {
-                    Row(Modifier.fillMaxHeight().padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                        Icon(AirPlayrIcons.Lyrics, null, tint = colors.primary, modifier = Modifier.size(26.dp))
-                        Text("Lyrics", style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 8.dp))
+                    Row(Modifier.fillMaxHeight().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                        Icon(AirPlayrIcons.Lyrics, null, tint = colors.primary, modifier = Modifier.size(22.dp))
+                        Text("Lyrics", style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
                     }
                 }
                 IconButton(onClick = { sheet = PlayerSheet.More }, modifier = Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_MORE).padding(start = 6.dp).size(48.dp)) {
@@ -267,7 +269,19 @@ fun PlayerScreen(appContext: Context, controller: PlaybackController, onBack: ()
             )
 
             Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(state.currentTitle ?: "Nothing playing", style = MaterialTheme.typography.displayLarge.copy(fontFamily = AirPlayrFonts.SmoochSans), textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(
+                    state.currentTitle ?: "Nothing playing",
+                    modifier = Modifier.fillMaxWidth().basicMarquee(
+                        iterations = Int.MAX_VALUE,
+                        initialDelayMillis = 900,
+                        repeatDelayMillis = 1200,
+                    ),
+                    style = MaterialTheme.typography.displayLarge.copy(fontFamily = AirPlayrFonts.SmoochSans),
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Clip,
+                )
                 Text(state.currentArtist ?: "Unknown Artist", style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp, lineHeight = 23.sp), color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
 
@@ -330,7 +344,11 @@ fun PlayerScreen(appContext: Context, controller: PlaybackController, onBack: ()
                     PlayerAction(if (favorite) AirPlayrIcons.Favorite else AirPlayrIcons.FavoriteBorder, if (favorite) "Remove favorite" else "Add favorite", false, colors, onClick = ::setFav)
                     PlayerAction(AirPlayrIcons.Sleep, "Sleep timer", false, colors) { sheet = PlayerSheet.Sleep }
                     PlayerAction(AirPlayrIcons.Queue, "Queue", false, colors, onClick = { queueOpen = true })
-                    PlayerAction(if (state.repeatMode == REPEAT_ONE) AirPlayrIcons.RepeatOne else AirPlayrIcons.Repeat, repeatLabel, state.repeatMode != REPEAT_OFF, colors) { controller.cycleRepeat() }
+                    if (state.repeatMode == REPEAT_ONE) {
+                        PlayerActionSvg("ko/repeat_one_on.svg", repeatLabel, state.repeatMode != REPEAT_OFF, colors) { controller.cycleRepeat() }
+                    } else {
+                        PlayerActionSvg("ko/repeat_on.svg", repeatLabel, state.repeatMode != REPEAT_OFF, colors) { controller.cycleRepeat() }
+                    }
                 }
             }
         }
@@ -370,8 +388,6 @@ fun PlayerScreen(appContext: Context, controller: PlaybackController, onBack: ()
                 appContext,
                 lyricsRepository,
                 state,
-                settings.nowPlayingTheme,
-                settings.reduceMotion,
                 { sheet = null },
                 { controller.seekTo((it * 1000.0).toLong()) },
                 { sheet = PlayerSheet.LyricsEdit },
@@ -520,6 +536,15 @@ private fun PlayerPlayControl(playing: Boolean, iconTint: androidx.compose.ui.gr
             Box(contentAlignment = Alignment.Center) {
                 Icon(if (playing) AirPlayrIcons.Pause else AirPlayrIcons.Play, if (playing) "Pause" else "Play", tint = iconTint, modifier = Modifier.size(38.dp))
             }
+        }
+    }
+}
+
+@Composable
+private fun PlayerActionSvg(assetPath: String, label: String, selected: Boolean, colors: com.airplayr.app.ui.theme.AirPlayrColors, onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.size(52.dp)) {
+        Box(Modifier.size(52.dp).background(if (selected) colors.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, CircleShape), contentAlignment = Alignment.Center) {
+            AirPlayrSvgImage(assetPath, Modifier.size(26.dp))
         }
     }
 }

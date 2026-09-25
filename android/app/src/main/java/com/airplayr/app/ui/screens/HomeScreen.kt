@@ -188,7 +188,7 @@ fun HomeScreen(
             }
             if (onRepeat.isNotEmpty()) {
                 item {
-                    HomeSection("On repeat", { onNavigate("most-played") }) {
+                    HomeSection("On repeat", { onNavigate("recent/on-repeat") }) {
                         OnRepeatRail(onRepeat, playback, onNavigate)
                     }
                 }
@@ -681,7 +681,14 @@ private fun formatExpoListeningTime(totalSeconds: Long): String {
         columns.forEach { pair ->
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.width(300.dp)) {
                 pair.forEach { item ->
-                    SongRailCard(item, Modifier.fillMaxWidth(), playing = playbackState.isPlaying && playbackState.currentId == item.id) { playback.play(item) }
+                    SongRailCard(
+                        item,
+                        Modifier.fillMaxWidth(),
+                        playing = playbackState.isPlaying && playbackState.currentId == item.id,
+                    ) {
+                        val index = items.indexOfFirst { it.id == item.id }.coerceAtLeast(0)
+                        playback.playCollection(items, index)
+                    }
                 }
             }
         }
@@ -728,7 +735,7 @@ private fun HorizontalAlbumRail(
                 albumTitle = name,
                 artist = songs.firstOrNull()?.artist,
                 onOpen = { onNavigate(albumRoute) },
-                onPlay = { if (songs.isNotEmpty()) playback.playQueue(songs) },
+                onPlay = { songs.firstOrNull()?.let(playback::play) },
                 onMore = { menuOpen = true },
                 playing = playing,
             )
@@ -768,8 +775,12 @@ private fun OnRepeatRail(
                         modifier = Modifier.fillMaxWidth(),
                         playing = playbackState.isPlaying && playbackState.currentId == item.id,
                         onClick = {
-                            if (item.mediaType == MediaType.AUDIO) playback.play(item)
-                            else onNavigate("video/${item.id}")
+                            if (item.mediaType == MediaType.AUDIO) {
+                                val index = items.indexOfFirst { it.id == item.id }.coerceAtLeast(0)
+                                playback.playCollection(items, index)
+                            } else {
+                                onNavigate("video/${item.id}")
+                            }
                         },
                     )
                 }

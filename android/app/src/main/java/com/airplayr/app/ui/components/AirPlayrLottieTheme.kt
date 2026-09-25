@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.core.graphics.ColorUtils
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.graphics.BlendModeColorFilterCompat
 import androidx.core.graphics.BlendModeCompat
@@ -47,9 +48,11 @@ fun rememberAirPlayrLottieTheme(
     return rememberLottieDynamicProperties(*properties.toTypedArray())
 }
 
+
 /**
- * Stable, low-frequency palette rotation for non-header AirPlayr illustrations.
- * It changes the colour mapping occasionally without recreating the Lottie composition.
+ * Illustration-only palette. It deliberately shifts the wallpaper/app accent into a separate hue
+ * family so a Lottie illustration does not disappear into the hero background using the same RGB
+ * values. The input accents still influence the result, so Dynamic Color remains respected.
  */
 @Composable
 fun rememberAirPlayrIllustrationPalette(
@@ -66,7 +69,21 @@ fun rememberAirPlayrIllustrationPalette(
         }
     }
     val base = remember(primary, secondary, tertiary) { listOf(primary, secondary, tertiary) }
+    fun shifted(color: Color, degrees: Float, lightness: Float): Color {
+        val hsl = FloatArray(3)
+        ColorUtils.RGBToHSL(
+            (color.red * 255f).toInt().coerceIn(0, 255),
+            (color.green * 255f).toInt().coerceIn(0, 255),
+            (color.blue * 255f).toInt().coerceIn(0, 255),
+            hsl,
+        )
+        hsl[0] = (hsl[0] + degrees + 360f) % 360f
+        hsl[1] = (hsl[1] * 0.90f + 0.10f).coerceIn(0.28f, 0.88f)
+        hsl[2] = (hsl[2] + lightness).coerceIn(0.30f, 0.72f)
+        return Color(ColorUtils.HSLToColor(hsl))
+    }
+    val offsets = listOf(128f, 188f, 248f)
     return remember(base, cycle) {
-        List(base.size) { index -> base[(index + cycle) % base.size] }
+        List(base.size) { index -> shifted(base[(index + cycle) % base.size], offsets[index], if (index == 1) 0.04f else 0f) }
     }
 }

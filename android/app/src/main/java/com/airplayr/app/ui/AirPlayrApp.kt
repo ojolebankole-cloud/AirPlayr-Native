@@ -2,8 +2,6 @@ package com.airplayr.app.ui
 
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -51,6 +49,9 @@ import com.airplayr.app.ui.screens.SearchScreen
 import com.airplayr.app.ui.screens.HistoryScreen
 import com.airplayr.app.ui.screens.CollectionsScreen
 import com.airplayr.app.ui.screens.VideoScreen
+import com.airplayr.app.ui.screens.VideoLibraryScreen
+import com.airplayr.app.ui.screens.VaultScreen
+import com.airplayr.app.ui.screens.VaultVideoScreen
 import com.airplayr.app.ui.screens.ExternalVideoScreen
 import com.airplayr.app.ui.screens.FavoritesScreen
 import com.airplayr.app.ui.screens.PlaylistsScreen
@@ -100,9 +101,11 @@ fun AirPlayrApp(
     val navController = rememberNavController()
     var initialShellFrame by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
     androidx.compose.runtime.LaunchedEffect(Unit) { initialShellFrame = false }
-    val playbackController: PlaybackController = viewModel(factory = PlaybackControllerFactory(container.appContext))
+    val playbackController: PlaybackController = viewModel(
+        factory = PlaybackControllerFactory(container.appContext, container.lyricsPrefetchCoordinator),
+    )
     val libraryViewModel: LibraryViewModel = viewModel(
-        factory = LibraryViewModelFactory(container.mediaLibrary, container.structured),
+        factory = LibraryViewModelFactory(container.mediaLibrary, container.structured, container.libraryWarmCache),
     )
     var castOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var videoQueueOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
@@ -112,6 +115,7 @@ fun AirPlayrApp(
     var startupContentReady by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var menuOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var donateOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var musicPlayerSheetOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val syncState by container.syncState.collectAsStateWithLifecycle()
     val safScanState by container.safScanState.collectAsStateWithLifecycle()
     val rootScope = androidx.compose.runtime.rememberCoroutineScope()
@@ -162,6 +166,10 @@ fun AirPlayrApp(
     val externalMedia by initialViewModel.externalMedia.collectAsStateWithLifecycle()
     val primaryRoutes = remember { setOf("home", "music", "videos", "settings") }
     fun navigate(route: String) {
+        if (route == "player") {
+            musicPlayerSheetOpen = true
+            return
+        }
         val isPrimary = route in primaryRoutes
         navController.navigate(route) {
             if (isPrimary) {
@@ -234,10 +242,14 @@ fun AirPlayrApp(
         val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
         val shellPlaybackState by playbackController.stableState.collectAsStateWithLifecycle()
         val isPrimaryDockScreen = currentRoute in primaryRoutes
-        val isVideoScreen = currentRoute == "video/{id}" || currentRoute == "external-video"
+        val isVideoScreen = currentRoute == "video/{id}" || currentRoute == "external-video" || currentRoute == "vault-video/{id}"
+        val isVaultScreen = currentRoute == "vault"
+        androidx.compose.runtime.LaunchedEffect(currentRoute) {
+            if (currentRoute != "vault" && currentRoute != "vault-video/{id}") container.vaultManager.lock()
+        }
         val isFullMusicPlayer = currentRoute == "player"
-        val showDock = isPrimaryDockScreen
-        val showMiniPlayer = !isPrimaryDockScreen && !isVideoScreen && !isFullMusicPlayer
+        val showDock = isPrimaryDockScreen && !isVaultScreen
+        val showMiniPlayer = !isPrimaryDockScreen && !isVideoScreen && !isFullMusicPlayer && !isVaultScreen
         val miniPlayerVisible = showMiniPlayer &&
             shellPlaybackState.currentId != null &&
             shellPlaybackState.currentMediaType == com.airplayr.app.core.data.media.MediaType.AUDIO
@@ -269,19 +281,19 @@ fun AirPlayrApp(
                 modifier = contentModifier,
                 enterTransition = {
                     if (initialShellFrame || settings?.reduceMotion == true) fadeIn(tween(1))
-                    else fadeIn(tween(95)) + slideInHorizontally(initialOffsetX = { it / 18 }, animationSpec = tween(110))
+                    else fadeIn(tween(180))
                 },
                 exitTransition = {
                     if (initialShellFrame || settings?.reduceMotion == true) fadeOut(tween(1))
-                    else fadeOut(tween(75)) + slideOutHorizontally(targetOffsetX = { -it / 24 }, animationSpec = tween(75))
+                    else fadeOut(tween(140))
                 },
                 popEnterTransition = {
-                    if (initialShellFrame || settings?.reduceMotion == true) fadeIn(tween(1))
-                    else fadeIn(tween(95)) + slideInHorizontally(initialOffsetX = { -it / 18 }, animationSpec = tween(110))
+                    if (initialShellFrame || settings?.reduceMotion == true) fadeIn(tween(180))
+                    else fadeIn(tween(180))
                 },
                 popExitTransition = {
-                    if (initialShellFrame || settings?.reduceMotion == true) fadeOut(tween(1))
-                    else fadeOut(tween(75)) + slideOutHorizontally(targetOffsetX = { it / 24 }, animationSpec = tween(75))
+                    if (initialShellFrame || settings?.reduceMotion == true) fadeOut(tween(140))
+                    else fadeOut(tween(140))
                 },
             ) {
                 composable("home") {
@@ -303,18 +315,33 @@ fun AirPlayrApp(
                     )
                 }
                 composable("videos") {
-                    LibraryScreen(
-                        title = "Videos",
-                        type = com.airplayr.app.core.data.media.MediaType.VIDEO,
-                        viewModel = libraryViewModel,
-                        playback = playbackController,
-                        onOpen = { navigate("video/${it.id}") },
+                    VideoLibraryScreen(
                         container = container,
+                        libraryViewModel = libraryViewModel,
+                        onOpenVideo = { navigate("video/$it") },
+                        onSearch = { navigate("video-search") },
+                        onCast = { castOpen = true },
+                        onNavigate = { route -> navigate(route) },
                     )
                 }
                 composable("about") { AboutScreen(onBack = { navController.popBackStack() }, appVersion = appVersion) }
                 composable("settings") {
                     SettingsScreen(container = container, onDiagnostics = { navigate("diagnostics") }, onMetadata = { navigate("metadata") }, onNavigate = { route -> navigate(route) })
+                }
+                composable("vault") {
+                    VaultScreen(
+                        container = container,
+                        onBack = { navController.popBackStack() },
+                        onOpenVideo = { navigate("vault-video/$it") },
+                    )
+                }
+                composable("vault-video/{id}") { entry ->
+                    VaultVideoScreen(
+                        container = container,
+                        id = entry.arguments?.getString("id").orEmpty(),
+                        onCast = { castOpen = true },
+                        onNavigate = { route -> navigate(route) },
+                    )
                 }
                 composable("player") { PlayerScreen(container.appContext, playbackController, onBack = { navController.popBackStack() }, onEqualizer = { navigate("equalizer") }, onNavigate = { route -> navigate(route) }) }
                 composable("equalizer") { EqualizerScreen(container, onBack = { navController.popBackStack() }) }
@@ -328,6 +355,28 @@ fun AirPlayrApp(
                             } else {
                                 navigate("player")
                             }
+                        },
+                        onNavigate = { route -> navigate(route) },
+                        onBack = { navController.popBackStack() },
+                    )
+                }
+                composable("video-search") {
+                    SearchScreen(
+                        container = container,
+                        initialFilter = "videos",
+                        videoOnly = true,
+                        onOpen = { item -> if (item.mediaType == MediaType.VIDEO) navigate("video/${item.id}") },
+                        onNavigate = { route -> navigate(route) },
+                        onBack = { navController.popBackStack() },
+                    )
+                }
+                composable("music-search") {
+                    SearchScreen(
+                        container = container,
+                        initialFilter = "all",
+                        musicOnly = true,
+                        onOpen = { item ->
+                            if (item.mediaType == com.airplayr.app.core.data.media.MediaType.AUDIO) navigate("player")
                         },
                         onNavigate = { route -> navigate(route) },
                         onBack = { navController.popBackStack() },
@@ -365,6 +414,7 @@ fun AirPlayrApp(
                             navigate(if (type == MediaType.VIDEO) "video-playlists" else "music-playlists")
                         },
                         onBack = { navController.popBackStack() },
+                        onOpenVideo = { id -> navigate("video/$id") },
                     )
                 }
                 composable("music-playlists") {
@@ -390,7 +440,31 @@ fun AirPlayrApp(
                 composable("music-playlist/{id}") { entry -> PlaylistDetailScreen(container, libraryViewModel, entry.arguments?.getString("id").orEmpty(), playbackController, mediaType = MediaType.AUDIO, onOpenPlayer = { navigate("player") }) }
                 composable("video-playlist/{id}") { entry -> PlaylistDetailScreen(container, libraryViewModel, entry.arguments?.getString("id").orEmpty(), playbackController, mediaType = MediaType.VIDEO, onOpenPlayer = { navigate("player") }, onOpenVideo = { navigate("video/$it") }) }
                 composable("playlist/{id}") { entry -> PlaylistDetailScreen(container, libraryViewModel, entry.arguments?.getString("id").orEmpty(), playbackController, onOpenPlayer = { navigate("player") }) }
-                composable("recent/{type}") { entry -> RecentScreen(entry.arguments?.getString("type").orEmpty(), libraryViewModel, playbackController, { navigate("video/$it") }, container, { navigate("player") }) }
+                composable("recent/{type}") { entry ->
+                    val recentType = entry.arguments?.getString("type").orEmpty()
+                    if (recentType == "songs" || recentType == "albums" || recentType == "artists" || recentType == "on-repeat") {
+                        RecentCollectionsScreen(
+                            type = recentType,
+                            container = container,
+                            libraryViewModel = libraryViewModel,
+                            playback = playbackController,
+                            onBack = { navController.popBackStack() },
+                            onOpenAlbum = { navigate("album/${java.net.URLEncoder.encode(it, "UTF-8")}") },
+                            onOpenArtist = { navigate("artist/${java.net.URLEncoder.encode(it, "UTF-8")}") },
+                            onOpenPlayer = { navigate("player") },
+                        )
+                    } else {
+                        RecentScreen(
+                            type = recentType,
+                            viewModel = libraryViewModel,
+                            playback = playbackController,
+                            onOpen = { navigate("video/$it") },
+                            container = container,
+                            onOpenPlayer = { navigate("player") },
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                }
                 composable("most-played") { MostPlayedScreen(container, libraryViewModel, playbackController, { id -> navigate("video/$id") }, { navigate("player") }, { route -> navigate(route) }, { navController.popBackStack() }) }
                 composable("for-you") { MusicMixScreen(MusicMixMode.FOR_YOU, libraryViewModel, playbackController, container, { navController.popBackStack() }) }
                 composable("rediscover") { FeatureCollectionScreen("Rediscover", "From your previous plays", { container.collections.rediscoverVideos() }, libraryViewModel, playbackController, container, { navController.popBackStack() }, { navigate("video/$it") }, onOpenPlayer = { navigate("player") }) }
@@ -398,6 +472,15 @@ fun AirPlayrApp(
                 composable("tuned-in") { MusicMixScreen(MusicMixMode.TIME_OF_DAY, libraryViewModel, playbackController, container, { navController.popBackStack() }) }
                 composable("rock-your-world") { MusicMixScreen(MusicMixMode.ROCK_YOUR_WORLD, libraryViewModel, playbackController, container, { navController.popBackStack() }) }
                 composable("smart-collections") { CollectionsScreen(container, libraryViewModel, { route -> navigate(route) }, playbackController) }
+                composable("continue-watching") { FeatureCollectionScreen(
+                    title = "Continue watching",
+                    subtitle = "Pick up where you left off",
+                    loader = { container.collections.continueWatching() },
+                    libraryViewModel = libraryViewModel,
+                    playback = playbackController,
+                    onVideoOpen = { id -> navigate("video/$id") },
+                    onOpenPlayer = { navigate("player") },
+                ) }
                 composable("video-collections") { FeatureCollectionScreen(
                     title = "Video collections",
                     subtitle = "Continue watching and unwatched videos",
@@ -410,12 +493,53 @@ fun AirPlayrApp(
                 composable("album") { BrowseIndexScreen("Albums", com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController) { navigate("album/${it}") } }
                 composable("artist") { BrowseIndexScreen("Artists", com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController) { navigate("artist/${it}") } }
                 composable("genre") { BrowseIndexScreen("Genres", com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController) { navigate("genre/${it}") } }
-                composable("music-folder/{id}") { entry -> BrowseFilterScreen("Folders", java.net.URLDecoder.decode(entry.arguments?.getString("id").orEmpty(), "UTF-8"), com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController, onOpenPlayer = { navigate("player") }, onOpenVideo = { navigate("video/$it") }, onBack = { navController.popBackStack() }, container = container) }
+                composable("music-folder/{id}") { entry ->
+                    val folder = java.net.URLDecoder.decode(entry.arguments?.getString("id").orEmpty(), "UTF-8")
+                    BrowseFilterScreen(
+                        title = "Folders",
+                        value = folder,
+                        type = MediaType.AUDIO,
+                        libraryViewModel = libraryViewModel,
+                        playback = playbackController,
+                        onOpenPlayer = { navigate("player") },
+                        onOpenVideo = { navigate("video/$it") },
+                        onBack = { navController.popBackStack() },
+                        folderMode = "music",
+                        folderName = folder.substringAfterLast('/').ifBlank { folder },
+                        container = container,
+                    )
+                }
                 composable("folder/{kind}/{id}/{name}") { entry -> BrowseFilterScreen("Folders", java.net.URLDecoder.decode(entry.arguments?.getString("id").orEmpty(), "UTF-8"), com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController, onOpenPlayer = { navigate("player") }, onOpenVideo = { navigate("video/$it") }, onBack = { navController.popBackStack() }, folderMode = entry.arguments?.getString("kind"), folderName = java.net.URLDecoder.decode(entry.arguments?.getString("name").orEmpty(), "UTF-8"), container = container) }
                 composable("folder/{id}") { entry -> BrowseFilterScreen("Folders", java.net.URLDecoder.decode(entry.arguments?.getString("id").orEmpty(), "UTF-8"), com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController, onOpenPlayer = { navigate("player") }, onOpenVideo = { navigate("video/$it") }, onBack = { navController.popBackStack() }) }
-                composable("album/{id}") { entry -> BrowseFilterScreen("Albums", java.net.URLDecoder.decode(entry.arguments?.getString("id").orEmpty(), "UTF-8"), com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController, onOpenPlayer = { navigate("player") }) }
-                composable("artist/{id}") { entry -> BrowseFilterScreen("Artists", java.net.URLDecoder.decode(entry.arguments?.getString("id").orEmpty(), "UTF-8"), com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController, onOpenPlayer = { navigate("player") }) }
-                composable("genre/{id}") { entry -> BrowseFilterScreen("Genres", java.net.URLDecoder.decode(entry.arguments?.getString("id").orEmpty(), "UTF-8"), com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController, onOpenPlayer = { navigate("player") }) }
+                composable("album/{id}") { entry ->
+                    AlbumDetailScreen(
+                        albumName = java.net.URLDecoder.decode(entry.arguments?.getString("id").orEmpty(), "UTF-8"),
+                        libraryViewModel = libraryViewModel,
+                        playback = playbackController,
+                        onBack = { navController.popBackStack() },
+                        onOpenArtist = { navigate("artist/${java.net.URLEncoder.encode(it, "UTF-8")}") },
+                        onOpenAlbum = { navigate("album/${java.net.URLEncoder.encode(it, "UTF-8")}") },
+                    )
+                }
+                composable("artist/{id}") { entry ->
+                    ArtistDetailScreen(
+                        artistName = java.net.URLDecoder.decode(entry.arguments?.getString("id").orEmpty(), "UTF-8"),
+                        libraryViewModel = libraryViewModel,
+                        playback = playbackController,
+                        onBack = { navController.popBackStack() },
+                        onOpenAlbum = { navigate("album/${java.net.URLEncoder.encode(it, "UTF-8")}") },
+                    )
+                }
+                composable("genre/{id}") { entry ->
+                    GenreDetailScreen(
+                        genreName = java.net.URLDecoder.decode(entry.arguments?.getString("id").orEmpty(), "UTF-8"),
+                        libraryViewModel = libraryViewModel,
+                        playback = playbackController,
+                        onBack = { navController.popBackStack() },
+                        onOpenAlbum = { navigate("album/${java.net.URLEncoder.encode(it, "UTF-8")}") },
+                        onOpenArtist = { navigate("artist/${java.net.URLEncoder.encode(it, "UTF-8")}") },
+                    )
+                }
                 composable("open") { LibraryScreen("Open media", com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController, onOpen = { playbackController.play(it); navigate("player") }, container = container) }
                 composable("video/{id}") { entry -> VideoScreen(
                     container = container,
@@ -476,6 +600,30 @@ fun AirPlayrApp(
                         .align(androidx.compose.ui.Alignment.BottomCenter)
                         .onSizeChanged { bottomOverlayHeightPx = it.height },
                 )
+            }
+
+            if (musicPlayerSheetOpen) {
+                ModalBottomSheet(
+                    onDismissRequest = { musicPlayerSheetOpen = false },
+                    sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    containerColor = MaterialTheme.colorScheme.background,
+                    tonalElevation = 0.dp,
+                ) {
+                    PlayerScreen(
+                        container.appContext,
+                        playbackController,
+                        onBack = { musicPlayerSheetOpen = false },
+                        onEqualizer = {
+                            musicPlayerSheetOpen = false
+                            navigate("equalizer")
+                        },
+                        onNavigate = { route ->
+                            musicPlayerSheetOpen = false
+                            navigate(route)
+                        },
+                        inSheet = true,
+                    )
+                }
             }
 
             // Draw the drawer after the persistent bottom system so the drawer is the top

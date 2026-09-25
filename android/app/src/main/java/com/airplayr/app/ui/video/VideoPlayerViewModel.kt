@@ -37,8 +37,13 @@ class VideoPlayerViewModel(
 
     fun load(id: String) {
         viewModelScope.launch {
-            _video.value = library.get(id)
-            _resume.value = structured.videoProgress(id).first()?.positionMs ?: 0L
+            // Publish the video only after its persisted resume point is loaded. This prevents
+            // the UI from initializing the native player at 0ms and then discovering the resume
+            // position one frame later.
+            val item = library.get(id)
+            val savedPosition = structured.videoProgress(id).first()?.positionMs ?: 0L
+            _resume.value = savedPosition
+            _video.value = item
         }
     }
 
@@ -95,6 +100,13 @@ class VideoPlayerViewModel(
                     completedSessionId = item.id
                 }
             }
+        }
+    }
+
+    fun startOver(id: String) {
+        viewModelScope.launch {
+            structured.clearVideoProgress(id)
+            if (_video.value?.id == id) _resume.value = 0L
         }
     }
 

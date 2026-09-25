@@ -2,6 +2,13 @@ package com.airplayr.app.core.lyrics
 
 import android.content.Context
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import java.util.concurrent.ConcurrentHashMap
 import com.airplayr.app.BuildConfig
 import com.airplayr.app.core.data.db.LyricsCacheDao
 import com.airplayr.app.core.data.db.LyricsCacheEntity
@@ -24,6 +31,8 @@ class LyricsRepository(
 
     private val prefs = context.getSharedPreferences("lyrics_cache", Context.MODE_PRIVATE)
     private val http = LyricsHttpClient()
+    private val requestScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val inFlight = ConcurrentHashMap<String, Deferred<LyricsService.Result?>>()
     private val providers: List<LyricsProvider> = listOf(
         YouLyPlusProvider(),
         BetterLyricsProvider(),
@@ -36,6 +45,29 @@ class LyricsRepository(
         QqMusicProvider(),
         LyricsOvhProvider(),
     )
+
+    /**
+     * Returns a shared request for this song id. A second caller awaiting the same id joins
+     * the existing network operation instead of starting another provider search. Cache lookup
+     * still happens inside the shared operation, so background prefetch and the Lyrics sheet
+     * converge on the same result.
+     */
+    fun fetchShared(id: String, track: LyricsTrack, force: Boolean = false): Deferred<LyricsService.Result?> {
+        if (id.isBlank() || track.title.isBlank() || track.artist.isBlank()) {
+            return kotlinx.coroutines.CompletableDeferred(null)
+        }
+        inFlight[id]?.let { return it }
+        val created = requestScope.async(start = CoroutineStart.LAZY) {
+            fetch(id, track, force)
+        }
+        val existing = inFlight.putIfAbsent(id, created)
+        val actual = existing ?: created
+        if (existing == null) {
+            actual.invokeOnCompletion { inFlight.remove(id, actual) }
+            actual.start()
+        }
+        return actual
+    }
 
     fun fetch(id: String, track: LyricsTrack, force: Boolean = false): LyricsService.Result? {
         if (id.isBlank() || track.title.isBlank() || track.artist.isBlank()) {

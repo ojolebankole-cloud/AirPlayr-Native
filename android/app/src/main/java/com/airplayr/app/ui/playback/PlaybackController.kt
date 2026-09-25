@@ -15,6 +15,7 @@ import androidx.media3.session.SessionToken
 import com.airplayr.app.core.data.media.MediaItem
 import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.core.data.preferences.PreferencesRepository
+import com.airplayr.app.core.lyrics.LyricsPrefetchCoordinator
 import com.airplayr.app.core.playback.REPEAT_ALL
 import com.airplayr.app.core.playback.REPEAT_OFF
 import com.airplayr.app.core.playback.REPEAT_ONE
@@ -38,7 +39,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-class PlaybackController(private val appContext: Context) : ViewModel() {
+class PlaybackController(
+    private val appContext: Context,
+    private val lyricsPrefetchCoordinator: LyricsPrefetchCoordinator,
+) : ViewModel() {
     private val _state = MutableStateFlow(PlaybackUiState())
     val state: StateFlow<PlaybackUiState> = _state.asStateFlow()
 
@@ -59,6 +63,7 @@ class PlaybackController(private val appContext: Context) : ViewModel() {
     private val queueStore = QueueStore(appContext)
     private val preferences = PreferencesRepository(appContext)
     private var connection: ListenableFuture<MediaController>? = null
+    private var prefetchedLyricsId: String? = null
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
@@ -182,6 +187,27 @@ class PlaybackController(private val appContext: Context) : ViewModel() {
         }
     }
 
+    /** Plays a finite collection in order, preserving the user's shuffle setting but never
+     * forcing collection playback into repeat-one/repeat-all. */
+    fun playCollection(items: List<MediaItem>, startIndex: Int = 0) {
+        val c = controller ?: return
+        val audioItems = items.filter { it.mediaType == MediaType.AUDIO }
+        if (audioItems.isEmpty()) return
+        val requestedIndex = startIndex.coerceIn(0, items.lastIndex)
+        val requestedId = items[requestedIndex].id
+        val audioStartIndex = audioItems.indexOfFirst { it.id == requestedId }.takeIf { it >= 0 } ?: 0
+        c.setMediaItems(audioItems.map(MediaItemMapper::toExo), audioStartIndex, 0L)
+        c.repeatMode = Player.REPEAT_MODE_OFF
+        c.prepare()
+        viewModelScope.launch {
+            val settings = preferences.settings.first()
+            c.setPlaybackSpeed(settings.defaultSpeed.toFloat().coerceIn(0.25f, 4f))
+            c.volume = if (settings.muteOnStart) 0f else settings.defaultVolume.toFloat().coerceIn(0f, 1f)
+            if (settings.resumeMode == "start") c.seekTo(0L)
+            c.play()
+        }
+    }
+
     fun addToQueue(media: MediaItem) { if (media.mediaType == MediaType.AUDIO) controller?.addMediaItem(MediaItemMapper.toExo(media)) }
     fun playNext(media: MediaItem) { if (media.mediaType == MediaType.AUDIO) controller?.addMediaItem((controller?.currentMediaItemIndex ?: -1) + 1, MediaItemMapper.toExo(media)) }
     fun playLast(media: MediaItem) { if (media.mediaType == MediaType.AUDIO) controller?.addMediaItem(MediaItemMapper.toExo(media)) }
@@ -295,6 +321,24 @@ class PlaybackController(private val appContext: Context) : ViewModel() {
                 sourceDirectoryUri = null, folderId = null, folder = null, path = null, relativePath = null,
             )
         }
+        val currentId = item?.mediaId
+        if (currentId != null && currentId != prefetchedLyricsId && item?.mediaMetadata?.mediaType != MediaMetadata.MEDIA_TYPE_VIDEO) {
+            val title = item.mediaMetadata.title?.toString().orEmpty().trim()
+            val artist = item.mediaMetadata.artist?.toString().orEmpty().trim()
+            if (title.isNotBlank() && artist.isNotBlank()) {
+                prefetchedLyricsId = currentId
+                lyricsPrefetchCoordinator.prefetch(
+                    currentId,
+                    com.airplayr.app.core.lyrics.LyricsTrack(
+                        title = title,
+                        artist = artist,
+                        album = item.mediaMetadata.albumTitle?.toString().orEmpty().trim(),
+                        duration = (item.mediaMetadata.durationMs ?: player.duration).coerceAtLeast(0L) / 1000.0,
+                    ),
+                )
+            }
+        }
+
         _state.value = PlaybackUiState(
             connected = true,
             isPlaying = player.isPlaying,
@@ -337,7 +381,11 @@ data class PlaybackUiState(
     val error: String? = null,
 )
 
-class PlaybackControllerFactory(private val context: Context) : ViewModelProvider.Factory {
+class PlaybackControllerFactory(
+    private val context: Context,
+    private val lyricsPrefetchCoordinator: LyricsPrefetchCoordinator,
+) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T = PlaybackController(context.applicationContext) as T
+    override fun <T : ViewModel> create(modelClass: Class<T>): T =
+        PlaybackController(context.applicationContext, lyricsPrefetchCoordinator) as T
 }

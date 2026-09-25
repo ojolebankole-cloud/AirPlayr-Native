@@ -325,13 +325,21 @@ private fun buildHomeState(inputs: HomeInputs, lookup: Map<String, MediaItem>): 
         inputs.history.forEach { h -> if (!containsKey(h.mediaId)) put(h.mediaId, historicalItem(h)) }
     }
     val recentPlayedAlbums = audioHistory.mapNotNull { historyLookup[it.mediaId] }
-        .groupBy { (it.album ?: "Unknown album") to (it.albumArtist ?: it.artist ?: "") }
-        .map { (key, songs) -> key.first to songs }
+        .mapNotNull { item ->
+            val album = item.album?.trim().takeUnless { it.isNullOrBlank() } ?: return@mapNotNull null
+            album to item.copy(album = album)
+        }
+        .groupBy { it.first to (it.second.albumArtist ?: it.second.artist ?: "") }
+        .map { (key, rows) -> key.first to rows.map { it.second } }
         .take(10)
     val onRepeat = inputs.repeated.mapNotNull { historyLookup[it.mediaId] }.distinctBy { it.id }.take(10)
     val recentArtists = audioHistory.mapNotNull { historyLookup[it.mediaId] }
-        .groupBy { it.artist?.trim().takeUnless { it.isNullOrBlank() } ?: "Unknown artist" }
-        .map { it.key to it.value }
+        .mapNotNull { item ->
+            val artist = item.artist?.trim().takeUnless { it.isNullOrBlank() } ?: return@mapNotNull null
+            artist to item.copy(artist = artist)
+        }
+        .groupBy { it.first }
+        .map { it.key to it.value.map { row -> row.second } }
         .take(10)
     return HomeUiState(
         recentSongs = inputs.audio.take(10),

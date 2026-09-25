@@ -39,6 +39,7 @@ class PlaybackStatsRepository(private val databaseProvider: () -> AirPlayrDataba
         val streak: Int,
         val topArtist: String?,
         val topSongs: List<TopItem>,
+        val topAlbums: List<TopItem>,
         val topVideos: List<TopItem>,
         val genres: List<GenreStat>,
         val activityMusic: List<List<Long>>,
@@ -132,10 +133,40 @@ class PlaybackStatsRepository(private val databaseProvider: () -> AirPlayrDataba
         val topArtist = artistCounts.maxByOrNull { it.value }?.key
         data class GenreCounts(var music: Int = 0, var video: Int = 0)
         val genreMap = mutableMapOf<String, GenreCounts>()
-        musicEvents.forEach { e -> itemMap[e.mediaId]?.genre?.trim()?.takeIf(String::isNotBlank)?.let { g -> genreMap.getOrPut(g) { GenreCounts() }.music++ } }
-        videoEvents.forEach { e -> itemMap[e.mediaId]?.genre?.trim()?.takeIf(String::isNotBlank)?.let { g -> genreMap.getOrPut(g) { GenreCounts() }.video++ } }
-        val genreTotal = max(1, genreMap.values.sumOf { it.music + it.video })
-        val genres = genreMap.map { (name, counts) -> val total = counts.music + counts.video; GenreStat(name, total, counts.music, counts.video, total.toDouble() / genreTotal) }.sortedByDescending { it.plays }.take(12)
+        musicEvents.forEach { e ->
+            itemMap[e.mediaId]?.genre?.trim()?.takeIf(String::isNotBlank)?.let { g ->
+                genreMap.getOrPut(g) { GenreCounts() }.music++
+            }
+        }
+        val genreTotal = max(1, genreMap.values.sumOf { it.music })
+        val genres = genreMap
+            .map { (name, counts) -> GenreStat(name, counts.music, counts.music, 0, counts.music.toDouble() / genreTotal) }
+            .sortedByDescending { it.musicPlays }
+            .take(12)
+
+        val albumCounts = musicEvents.mapNotNull { event ->
+            itemMap[event.mediaId]?.album?.trim()?.takeIf(String::isNotBlank)
+        }.groupingBy { it }.eachCount()
+        val topAlbums = albumCounts
+            .mapNotNull { (albumName, count) ->
+                val item = musicEvents.asSequence()
+                    .mapNotNull { itemMap[it.mediaId] }
+                    .firstOrNull { it.album?.trim().equals(albumName, true) }
+                item?.let {
+                    TopItem(
+                        id = it.id,
+                        title = albumName,
+                        artist = it.albumArtist ?: it.artist,
+                        album = albumName,
+                        artworkUri = it.artworkUri,
+                        mediaType = MediaType.AUDIO.value,
+                        periodPlays = count,
+                        allTimePlays = count,
+                    )
+                }
+            }
+            .sortedWith(compareByDescending<TopItem> { it.periodPlays }.thenBy { it.title.lowercase(Locale.ROOT) })
+            .take(8)
         val sessions = db.userDataDao().playbackSessions(from, Long.MAX_VALUE)
         val activity = db.userDataDao().playbackActivity(dayKey(from), dayKey(now))
         val completionEvents = db.userDataDao().playbackEventsByType(VIDEO_COMPLETION_EVENT).filter { it.playedAt in from..now }
@@ -164,6 +195,7 @@ class PlaybackStatsRepository(private val databaseProvider: () -> AirPlayrDataba
             streak = calculateStreak(activity, MediaType.AUDIO.value),
             topArtist = topArtist,
             topSongs = top("audio"),
+            topAlbums = topAlbums,
             topVideos = top("video"),
             genres = genres,
             activityMusic = activityGrid(activity.filter { it.mediaType == MediaType.AUDIO.value }, from, now),

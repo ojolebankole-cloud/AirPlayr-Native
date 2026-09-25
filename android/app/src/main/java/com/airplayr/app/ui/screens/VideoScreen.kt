@@ -20,6 +20,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -130,6 +131,8 @@ fun VideoScreen(
     var volumeOverlayValue by remember { mutableIntStateOf((VideoGestureSupport.musicVolumeFraction(context) * 100f).roundToInt().coerceIn(0, 100)) }
     var brightnessFeedback by remember { mutableStateOf<String?>(null) }
     var seekFeedback by remember { mutableStateOf<String?>(null) }
+    var resumePromptVisible by remember(video?.id) { mutableStateOf(false) }
+    var playbackInitializedForId by remember { mutableStateOf<String?>(null) }
 
     fun touch() {
         controlsVisible = true
@@ -138,6 +141,14 @@ fun VideoScreen(
 
     fun showSeekFeedback(text: String) {
         seekFeedback = text
+        touch()
+    }
+
+    fun startOver() {
+        val item = video ?: return
+        player?.seekTo(0L)
+        vm.startOver(item.id)
+        resumePromptVisible = false
         touch()
     }
 
@@ -225,7 +236,7 @@ fun VideoScreen(
         val originalBrightness = activity?.window?.attributes?.screenBrightness ?: -1f
         onDispose { activity?.let { VideoGestureSupport.restoreWindowBrightness(it, originalBrightness) } }
     }
-    LaunchedEffect(id) { vm.load(id) }
+    LaunchedEffect(id) { playbackInitializedForId = null; vm.load(id) }
     LaunchedEffect(video?.id) {
         favorite = video?.id?.let { vm.isFavorite(it) } ?: false
         video?.let { VideoQueueStore.setCurrent(it) }
@@ -233,7 +244,12 @@ fun VideoScreen(
 
     LaunchedEffect(video?.id, resume) {
         val item = video ?: return@LaunchedEffect
+        if (playbackInitializedForId == item.id) return@LaunchedEffect
+        // Wait for the persisted resume position to arrive before initializing the native player.
+        // Once initialized, later progress writes must never recreate/reset the player.
         playerError = null
+        resumePromptVisible = resume > 5_000L && resume.toDouble() < (item.durationMs.coerceAtLeast(1L) * VIDEO_COMPLETION_FRACTION)
+        playbackInitializedForId = item.id
         container.videoController.connectAsync { ready ->
             if (item.id != video?.id) return@connectAsync
             player = ready
@@ -263,8 +279,11 @@ fun VideoScreen(
             })
             ready.volume = if (muted) 0f else defaultVolume
             ready.setPlaybackSpeed(speed)
-            container.videoController.playVideo(ready, item, resume)
+            // Register the session before starting the native player so a very fast play/stop
+            // interaction cannot lose the initial playback-history event.
             vm.beginPlayback(item, savePlaybackHistory)
+            val startPosition = if (settings?.resumeMode == "start") 0L else resume
+            container.videoController.playVideo(ready, item, startPosition)
         }
     }
 
@@ -467,6 +486,18 @@ fun VideoScreen(
             )
         }
 
+        if (resumePromptVisible && resume > 5_000L) {
+            ResumeVideoPrompt(
+                positionMs = resume,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 132.dp, start = 20.dp, end = 20.dp),
+                onResume = { resumePromptVisible = false; touch() },
+                onStartOver = ::startOver,
+            )
+        }
+
         seekFeedback?.let { text ->
             GlassPill(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 8.dp)) {
                 Icon(Icons.Default.PlayArrow, null, tint = Color.White, modifier = Modifier.size(16.dp))
@@ -479,7 +510,7 @@ fun VideoScreen(
             VideoVolumeOverlay(
                 value = volumeOverlayValue,
                 muted = muted,
-                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 22.dp),
+                modifier = Modifier.align(Alignment.CenterStart).padding(start = 22.dp),
             )
         }
 
@@ -610,83 +641,187 @@ private fun VideoControlsOverlay(
     onSeek: (Float) -> Unit,
 ) {
     if (!controlsVisible || locked) return
-    val progress = if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
     AnimatedVisibility(visible = true, modifier = Modifier.fillMaxSize(), enter = fadeIn(tween(120)), exit = fadeOut(tween(90))) {
         Box(Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxWidth().height(145.dp).align(Alignment.TopCenter).background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .62f), Color.Transparent))))
             Box(Modifier.fillMaxWidth().height(180.dp).align(Alignment.BottomCenter).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .72f)))))
 
-            Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.Top) {
-                GlassIconButton(Icons.Default.ArrowBack, "Back", Modifier.size(54.dp), onBack)
-                Column(Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 2.dp)) {
-                    Text(title.ifBlank { "Video" }, color = Color.White, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(subtitle.ifBlank { "AIRPLAYR VIDEO" }, color = Color.White.copy(alpha = .65f), fontSize = 10.sp, letterSpacing = 1.1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            BoxWithConstraints(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 18.dp, vertical = 12.dp)) {
+                val compactHeader = maxWidth < 600.dp
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                    GlassIconButton(Icons.Default.ArrowBack, "Back", Modifier.size(54.dp), onBack)
+                    Column(Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 2.dp)) {
+                        Text(title.ifBlank { "Video" }, color = Color.White, fontFamily = AirPlayrFonts.SmoochSans, fontSize = if (compactHeader) 16.sp else 19.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(subtitle.ifBlank { "AIRPLAYR VIDEO" }, color = Color.White.copy(alpha = .65f), fontSize = 10.sp, letterSpacing = 1.1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (compactHeader) {
+                        GlassGroup {
+                            GlassAction(Icons.Default.Cast, "Cast", onCast)
+                            GlassAction(Icons.Default.Headphones, "Audio", onAudioTracks)
+                            GlassPill { Text("${trimSpeed(speed)}×", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
+                            GlassAction(Icons.Default.MoreHoriz, "More", onMore)
+                        }
+                    } else {
+                        GlassGroup {
+                            GlassAction(Icons.Default.Cast, "Cast", onCast)
+                            GlassAction(Icons.Default.Audiotrack, "Audio tracks", onAudioTracks)
+                            GlassAction(if (subtitleOn) Icons.Default.ClosedCaption else Icons.Default.SubtitlesOff, "Subtitles", onSubtitle)
+                        }
+                        Spacer(Modifier.width(6.dp))
+                        GlassIconButton(Icons.Default.GraphicEq, "Equalizer", Modifier.size(48.dp), onEqualizer)
+                        Spacer(Modifier.width(6.dp))
+                        GlassPill {
+                            Text("${trimSpeed(speed)}×", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(Modifier.width(6.dp))
+                        GlassIconButton(Icons.Default.BookmarkBorder, "Bookmark", Modifier.size(48.dp), onBookmark)
+                        Spacer(Modifier.width(6.dp))
+                        GlassIconButton(Icons.Default.QueueMusic, if (queueCount > 0) "Queue, $queueCount next" else "Queue", Modifier.size(48.dp), onQueue)
+                        Spacer(Modifier.width(6.dp))
+                        GlassIconButton(Icons.Default.MoreHoriz, "More", Modifier.size(48.dp), onMore)
+                    }
                 }
-                GlassGroup {
-                    GlassAction(Icons.Default.Cast, "Cast", onCast)
-                    GlassAction(Icons.Default.Audiotrack, "Audio tracks", onAudioTracks)
-                    GlassAction(if (subtitleOn) Icons.Default.ClosedCaption else Icons.Default.SubtitlesOff, "Subtitles", onSubtitle)
-                }
-                Spacer(Modifier.width(6.dp))
-                GlassIconButton(Icons.Default.GraphicEq, "Equalizer", Modifier.size(48.dp), onEqualizer)
-                Spacer(Modifier.width(6.dp))
-                GlassPill {
-                    Text("${trimSpeed(speed)}×", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                }
-                Spacer(Modifier.width(6.dp))
-                GlassIconButton(Icons.Default.BookmarkBorder, "Bookmark", Modifier.size(48.dp), onBookmark)
-                Spacer(Modifier.width(6.dp))
-                GlassIconButton(Icons.Default.QueueMusic, if (queueCount > 0) "Queue, $queueCount next" else "Queue", Modifier.size(48.dp), onQueue)
-                Spacer(Modifier.width(6.dp))
-                GlassIconButton(Icons.Default.MoreHoriz, "More", Modifier.size(48.dp), onMore)
             }
 
-            Row(Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.spacedBy(30.dp), verticalAlignment = Alignment.CenterVertically) {
-                GlassIconButton(Icons.Default.SkipPrevious, "Previous", Modifier.size(62.dp), onPrevious)
-                GlassIconButton(if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, if (isPlaying) "Pause" else "Play", Modifier.size(82.dp), onPlayPause, primary = true, iconSize = 38.dp)
-                GlassIconButton(Icons.Default.SkipNext, "Next", Modifier.size(62.dp), onNext)
+            // Reference layout: transport controls live in the lower playback rail,
+            // never in the visual centre of the video frame. This keeps the source aspect
+            // ratio untouched while making the play button easy to reach with one hand.
+            Row(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 18.dp),
+                horizontalArrangement = Arrangement.spacedBy(30.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                GlassIconButton(Icons.Default.SkipPrevious, "Previous", Modifier.size(58.dp), onPrevious)
+                GlassIconButton(
+                    if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    if (isPlaying) "Pause" else "Play",
+                    Modifier.size(76.dp),
+                    onPlayPause,
+                    primary = false,
+                    iconSize = 36.dp,
+                )
+                GlassIconButton(Icons.Default.SkipNext, "Next", Modifier.size(58.dp), onNext)
             }
 
-            GlassGroup(Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(start = 18.dp, bottom = 76.dp)) {
-                GlassAction(Icons.Default.Replay10, "Back 10 seconds", onBack10)
-                GlassAction(if (muted) Icons.Default.VolumeOff else Icons.Default.VolumeUp, if (muted) "Unmute" else "Volume", onMute)
+            GlassGroup(Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(start = 18.dp, bottom = 18.dp)) {
                 GlassAction(Icons.Default.Lock, "Lock controls", onLock)
+                GlassAction(if (muted) Icons.Default.VolumeOff else Icons.Default.Headphones, if (muted) "Unmute" else "Audio", onMute)
             }
 
-            GlassGroup(Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 18.dp, bottom = 76.dp)) {
-                GlassAction(Icons.Default.Forward10, "Forward 10 seconds", onForward10)
+            GlassGroup(Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 18.dp, bottom = 18.dp)) {
                 GlassAction(Icons.Default.PictureInPictureAlt, "Picture in picture", onPiP)
                 GlassAction(Icons.Default.ScreenRotation, "Rotate", onRotate)
                 GlassAction(if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, "Fullscreen", onFullscreen)
             }
 
-            Column(Modifier.fillMaxWidth().align(Alignment.BottomCenter).navigationBarsPadding().padding(horizontal = 18.dp, vertical = 12.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(formatVideoTime(positionMs), color = Color.White, fontSize = 11.sp, modifier = Modifier.width(54.dp))
-                    Box(Modifier.weight(1f).height(28.dp), contentAlignment = Alignment.Center) {
-                        Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = .26f)))
-                        Box(Modifier.fillMaxWidth(progress).height(4.dp).clip(RoundedCornerShape(4.dp)).background(Color.White))
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .height(28.dp)
-                                .pointerInput(durationMs) {
-                                    detectTapGestures { offset -> if (size.width > 0) onSeek((offset.x / size.width).coerceIn(0f, 1f)) }
-                                }
-                                .pointerInput(durationMs) {
-                                    detectDragGestures(
-                                        onDragStart = { offset -> if (size.width > 0) onSeek((offset.x / size.width).coerceIn(0f, 1f)) },
-                                        onDrag = { change, _ ->
-                                            change.consume()
-                                            if (size.width > 0) onSeek((change.position.x / size.width).coerceIn(0f, 1f))
-                                        },
-                                    )
-                                },
-                        )
+            VideoProgressBar(
+                positionMs = positionMs,
+                durationMs = durationMs,
+                bufferedMs = bufferedMs,
+                onSeek = onSeek,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 22.dp, bottom = 82.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ResumeVideoPrompt(
+    positionMs: Long,
+    modifier: Modifier = Modifier,
+    onResume: () -> Unit,
+    onStartOver: () -> Unit,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(22.dp),
+        color = Color.Black.copy(alpha = .78f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = .16f)),
+        tonalElevation = 0.dp,
+    ) {
+        Row(
+            Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Continue watching", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text("Resume from ${formatVideoTime(positionMs)}", color = Color.White.copy(alpha = .68f), fontSize = 11.sp)
+            }
+            TextButton(onClick = onStartOver) { Text("Start over", color = Color.White.copy(alpha = .78f)) }
+            Button(
+                onClick = onResume,
+                shape = RoundedCornerShape(16.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+            ) {
+                Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(17.dp))
+                Spacer(Modifier.width(3.dp))
+                Text("Resume")
+            }
+        }
+    }
+}
+
+@Composable
+private fun VideoProgressBar(
+    positionMs: Long,
+    durationMs: Long,
+    bufferedMs: Long,
+    onSeek: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val progress = if (durationMs > 0L) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
+    val buffered = if (durationMs > 0L) (bufferedMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
+    Column(modifier) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(formatVideoTime(positionMs), color = Color.White.copy(alpha = .92f), fontSize = 11.sp, modifier = Modifier.width(52.dp))
+            Box(
+                Modifier
+                    .weight(1f)
+                    .height(34.dp)
+                    .pointerInput(durationMs) {
+                        detectTapGestures { offset ->
+                            if (size.width > 0) onSeek((offset.x / size.width).coerceIn(0f, 1f))
+                        }
                     }
-                    Text(formatVideoTime(durationMs), color = Color.White, fontSize = 11.sp, modifier = Modifier.width(54.dp), textAlign = TextAlign.End)
+                    .pointerInput(durationMs) {
+                        detectDragGestures(
+                            onDragStart = { offset -> if (size.width > 0) onSeek((offset.x / size.width).coerceIn(0f, 1f)) },
+                            onDrag = { change, _ ->
+                                change.consume()
+                                if (size.width > 0) onSeek((change.position.x / size.width).coerceIn(0f, 1f))
+                            },
+                        )
+                    },
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Box(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(5.dp)).background(Color.White.copy(alpha = .24f)))
+                Box(Modifier.fillMaxWidth(buffered).height(5.dp).clip(RoundedCornerShape(5.dp)).background(Color.White.copy(alpha = .38f)))
+                Box(Modifier.fillMaxWidth(progress).height(5.dp).clip(RoundedCornerShape(5.dp)).background(Color.White))
+                BoxWithConstraints(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(22.dp)
+                        .padding(horizontal = 1.dp),
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .size(14.dp)
+                            .offset(x = ((maxWidth - 14.dp).coerceAtLeast(0.dp) * progress))
+                            .align(Alignment.CenterStart),
+                        shape = CircleShape,
+                        color = Color.White,
+                        tonalElevation = 0.dp,
+                    ) {}
                 }
             }
+            Text(formatVideoTime(durationMs), color = Color.White.copy(alpha = .78f), fontSize = 11.sp, modifier = Modifier.width(52.dp), textAlign = TextAlign.End)
         }
     }
 }
@@ -759,7 +894,7 @@ internal fun VideoSubtitleOverlay(
     controlsVisible: Boolean,
 ) {
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 28.dp).then(if (top) Modifier.statusBarsPadding().padding(top = 92.dp) else Modifier.navigationBarsPadding().padding(bottom = if (controlsVisible) 110.dp else 36.dp)),
+        Modifier.fillMaxWidth().padding(horizontal = 28.dp).then(if (top) Modifier.statusBarsPadding().padding(top = 92.dp) else Modifier.navigationBarsPadding().padding(bottom = if (controlsVisible) 150.dp else 48.dp)),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = if (top) Arrangement.Top else Arrangement.Bottom,
     ) {

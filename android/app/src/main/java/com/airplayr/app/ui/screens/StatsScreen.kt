@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.LocalFireDepartment
@@ -121,6 +122,7 @@ fun StatsScreen(container: AppContainer, libraryViewModel: LibraryViewModel, pla
             }
             item { SessionsCard(s, colors) }
             item { ActivityCard(modeTitle, modeCaption, modeData, mode, colors) { mode = it } }
+            item { TopAlbumsCard(s.topAlbums, colors, onOpenAlbum) }
             item { GenresCard(s.genres, colors) }
             item {
                 TopMediaCard(
@@ -352,35 +354,67 @@ private fun ActivityCard(title: String, caption: String, data: List<List<Long>>,
 }
 
 @Composable
-private fun GenresCard(genres: List<PlaybackStatsRepository.GenreStat>, colors: com.airplayr.app.ui.theme.AirPlayrColors) {
-    var filter by rememberSaveable { mutableStateOf("all") }
-    val filtered = when (filter) {
-        "music" -> genres.filter { it.musicPlays > 0 }.map { it.copy(plays = it.musicPlays, share = it.musicPlays.toDouble() / genres.sumOf { g -> g.musicPlays }.coerceAtLeast(1)) }
-        "video" -> genres.filter { it.videoPlays > 0 }.map { it.copy(plays = it.videoPlays, share = it.videoPlays.toDouble() / genres.sumOf { g -> g.videoPlays }.coerceAtLeast(1)) }
-        else -> genres
+private fun TopAlbumsCard(
+    albums: List<PlaybackStatsRepository.TopItem>,
+    colors: com.airplayr.app.ui.theme.AirPlayrColors,
+    onOpenAlbum: (String) -> Unit,
+) {
+    AirPlayrCard(shape = RoundedCornerShape(28.dp), containerColor = colors.surface, elevation = 5.dp) {
+        Column(Modifier.fillMaxWidth().padding(22.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Top albums", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 26.sp, lineHeight = 30.sp, color = colors.textPrimary, modifier = Modifier.weight(1f))
+                Text("PLAYS", fontFamily = AirPlayrFonts.OpenSansBold, fontSize = 11.sp, letterSpacing = 1.5.sp, color = colors.textPrimary)
+            }
+            if (albums.isEmpty()) {
+                Text("Albums you listen to most will appear here.", fontFamily = AirPlayrFonts.OpenSans, fontSize = 14.sp, color = colors.textPrimary, modifier = Modifier.padding(vertical = 14.dp))
+            } else {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }).padding(top = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    albums.forEach { album ->
+                        Column(
+                            Modifier.width(148.dp).clickable { onOpenAlbum(album.title) },
+                        ) {
+                            Box {
+                                Artwork(album.artworkUri, Modifier.size(148.dp), 18.dp, album.title, MediaType.AUDIO, AirPlayrIcons.AlbumDisc)
+                                Surface(
+                                    Modifier.align(Alignment.BottomStart).padding(8.dp),
+                                    shape = CircleShape,
+                                    color = colors.surfaceContainer.copy(alpha = .94f),
+                                ) {
+                                    Icon(Icons.Default.PlayArrow, "Open album", tint = colors.primary, modifier = Modifier.padding(7.dp).size(18.dp))
+                                }
+                            }
+                            Text(album.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 16.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+                            Text("${album.periodPlays} plays · ${album.artist ?: "Unknown artist"}", fontFamily = AirPlayrFonts.OpenSans, fontSize = 10.sp, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+            }
+        }
     }
+}
+
+@Composable
+private fun GenresCard(genres: List<PlaybackStatsRepository.GenreStat>, colors: com.airplayr.app.ui.theme.AirPlayrColors) {
     AirPlayrCard(shape = RoundedCornerShape(28.dp), containerColor = colors.surface, elevation = 5.dp) {
         Column(Modifier.fillMaxWidth().padding(22.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Genres", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 26.sp, lineHeight = 30.sp, color = colors.textPrimary)
-                    Text("Where your plays are going", fontFamily = AirPlayrFonts.OpenSans, fontSize = 11.sp, color = colors.textSecondary, modifier = Modifier.padding(top = 2.dp))
+                    Text("Your music genres", fontFamily = AirPlayrFonts.OpenSans, fontSize = 11.sp, color = colors.textSecondary, modifier = Modifier.padding(top = 2.dp))
                 }
-                Text(if (filtered.isNotEmpty()) "${filtered.size} genres" else "NO DATA", fontFamily = AirPlayrFonts.OpenSansBold, fontSize = 11.sp, letterSpacing = 1.5.sp, color = colors.textPrimary)
+                Text(if (genres.isNotEmpty()) "${genres.size} genres" else "NO DATA", fontFamily = AirPlayrFonts.OpenSansBold, fontSize = 11.sp, letterSpacing = 1.5.sp, color = colors.textPrimary)
             }
-            Row(Modifier.fillMaxWidth().padding(top = 16.dp).clip(RoundedCornerShape(22.dp)).background(colors.surfaceContainerLow).padding(4.dp)) {
-                listOf("all" to "All", "music" to "Music", "video" to "Videos").forEach { (key, label) ->
-                    val selected = filter == key
-                    Box(Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(19.dp)).background(if (selected) colors.primaryContainer else Color.Transparent).clickable { filter = key }, contentAlignment = Alignment.Center) {
-                        Text(label, fontFamily = AirPlayrFonts.OpenSansBold, fontSize = 13.sp, color = colors.textPrimary)
-                    }
-                }
-            }
-            if (filtered.isEmpty()) {
-                Text("Genre insights will appear as you play music or videos with genre metadata.", fontFamily = AirPlayrFonts.OpenSans, fontSize = 14.sp, lineHeight = 20.sp, color = colors.textPrimary, modifier = Modifier.padding(vertical = 14.dp))
+            if (genres.isEmpty()) {
+                Text("Genre insights will appear as you listen to music with genre metadata.", fontFamily = AirPlayrFonts.OpenSans, fontSize = 14.sp, lineHeight = 20.sp, color = colors.textPrimary, modifier = Modifier.padding(vertical = 14.dp))
             } else {
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }).padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-                    filtered.forEach { genre -> GenreRingItem(genre, colors) }
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }).padding(top = 18.dp),
+                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                ) {
+                    genres.forEach { GenreRingItem(it, colors) }
                 }
             }
         }
@@ -389,17 +423,25 @@ private fun GenresCard(genres: List<PlaybackStatsRepository.GenreStat>, colors: 
 
 @Composable
 private fun GenreRingItem(item: PlaybackStatsRepository.GenreStat, colors: com.airplayr.app.ui.theme.AirPlayrColors) {
-    val size = 82.dp
-    androidx.compose.foundation.Canvas(Modifier.size(size)) {
-        val stroke = 8.dp.toPx()
-        drawArc(colors.surfaceContainerHigh, -90f, 360f, false, style = Stroke(stroke))
-        drawArc(colors.primary, -90f, (item.share.coerceIn(0.0, 1.0) * 360.0).toFloat(), false, style = Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-    }
-    Column(Modifier.width(104.dp).padding(top = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(item.plays.toString(), fontFamily = AirPlayrFonts.OpenSansBold, fontSize = 18.sp, color = colors.textPrimary, modifier = Modifier.offset(y = (-70).dp))
-        Text("${(item.share * 100).toInt()}%", fontFamily = AirPlayrFonts.OpenSans, fontSize = 9.sp, color = colors.textPrimary, modifier = Modifier.offset(y = (-70).dp))
-        Text(item.name, fontFamily = AirPlayrFonts.OpenSansBold, fontSize = 13.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.offset(y = (-46).dp))
-        Text("${item.musicPlays} music · ${item.videoPlays} video", fontFamily = AirPlayrFonts.OpenSans, fontSize = 8.sp, color = colors.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.offset(y = (-44).dp))
+    Column(Modifier.width(72.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(58.dp), contentAlignment = Alignment.Center) {
+            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                val stroke = 5.dp.toPx()
+                drawArc(colors.surfaceContainerHigh, -90f, 360f, false, style = Stroke(stroke))
+                drawArc(
+                    colors.primary,
+                    -90f,
+                    (item.share.coerceIn(0.0, 1.0) * 360.0).toFloat(),
+                    false,
+                    style = Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round),
+                )
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(item.plays.toString(), fontFamily = AirPlayrFonts.OpenSansBold, fontSize = 15.sp, color = colors.textPrimary)
+                Text("${(item.share * 100).toInt()}%", fontFamily = AirPlayrFonts.OpenSans, fontSize = 8.sp, color = colors.textSecondary)
+            }
+        }
+        Text(item.name, fontFamily = AirPlayrFonts.OpenSansBold, fontSize = 11.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 7.dp))
     }
 }
 

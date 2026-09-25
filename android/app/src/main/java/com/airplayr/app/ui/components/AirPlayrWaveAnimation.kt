@@ -1,9 +1,13 @@
 package com.airplayr.app.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxSize
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.LottieConstants
@@ -19,6 +23,7 @@ import com.airplayr.app.ui.theme.LocalAirPlayrColors
 fun AirPlayrWaveAnimation(
     modifier: Modifier = Modifier,
     iterations: Int = LottieConstants.IterateForever,
+    isPlaying: Boolean = true,
 ) {
     val colors = LocalAirPlayrColors.current
     val composition by rememberLottieComposition(
@@ -27,6 +32,7 @@ fun AirPlayrWaveAnimation(
     val progress by animateLottieCompositionAsState(
         composition = composition,
         iterations = iterations,
+        isPlaying = isPlaying,
         restartOnPlay = false,
     )
     val palette = rememberAirPlayrIllustrationPalette(
@@ -51,10 +57,17 @@ fun AirPlayrWaveAnimation(
             arrayOf("**", "line12", "**"),
         ),
     )
-    LottieAnimation(
-        composition = composition,
-        progress = { progress },
-        dynamicProperties = dynamicProperties,
+    AnimatedVisibility(
+        visible = isPlaying,
+        enter = fadeIn(),
+        exit = fadeOut(),
         modifier = modifier,
-    )
+    ) {
+        LottieAnimation(
+            composition = composition,
+            progress = { progress },
+            dynamicProperties = dynamicProperties,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
 }

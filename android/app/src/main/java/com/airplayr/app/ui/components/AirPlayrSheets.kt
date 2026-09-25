@@ -259,8 +259,6 @@ fun LyricsSheet(
     context: Context,
     repository: LyricsRepository,
     state: PlaybackUiState,
-    nowPlayingTheme: String,
-    reduceMotion: Boolean,
     onClose: () -> Unit,
     onSeek: (Double) -> Unit,
     onEdit: () -> Unit,
@@ -271,18 +269,26 @@ fun LyricsSheet(
     var refreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    fun loadSaved() = scope.launch(Dispatchers.IO) {
-        val saved = service.getCached(state.currentId.orEmpty())
-        withContext(Dispatchers.Main.immediate) {
-            result = saved
-            lyricsState = if (saved == null) "idle" else "ready"
+    fun loadSaved() = scope.launch {
+        lyricsState = "loading"
+        val id = state.currentId.orEmpty()
+        val track = LyricsTrack(
+            state.currentTitle.orEmpty(),
+            state.currentArtist.orEmpty(),
+            state.currentAlbum.orEmpty(),
+            state.durationMs / 1000.0,
+        )
+        val loaded = withContext(Dispatchers.IO) {
+            service.getCached(id) ?: service.fetchShared(id, track, force = false).await()
         }
+        result = loaded
+        lyricsState = if (loaded != null) "ready" else "error"
     }
     fun refresh() = scope.launch {
         lyricsState = "loading"
         refreshing = true
         val fetched = withContext(Dispatchers.IO) {
-            service.fetch(
+            service.fetchShared(
                 state.currentId.orEmpty(),
                 LyricsTrack(
                     state.currentTitle.orEmpty(),
@@ -291,7 +297,7 @@ fun LyricsSheet(
                     state.durationMs / 1000.0,
                 ),
                 true,
-            )
+            ).await()
         }
         result = fetched
         lyricsState = when {
@@ -321,9 +327,6 @@ fun LyricsSheet(
         title = "Lyrics",
         eyebrow = "PLAYBACK",
         onDismiss = onClose,
-        sheetBackgroundTheme = nowPlayingTheme,
-        sheetBackgroundArtworkUri = state.artworkUri,
-        reduceMotion = reduceMotion,
     ) {
         Column(Modifier.fillMaxWidth()) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

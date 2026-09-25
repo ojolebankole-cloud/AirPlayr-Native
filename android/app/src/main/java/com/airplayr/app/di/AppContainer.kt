@@ -32,6 +32,7 @@ import com.airplayr.app.core.cast.CastController
 import com.airplayr.app.ui.navigation.HomeRepository
 import com.airplayr.app.ui.navigation.HomeStatsCache
 import com.airplayr.app.ui.navigation.HomeSnapshotStore
+import com.airplayr.app.ui.navigation.LibraryWarmCache
 
 class AppContainer(context: Context) {
     val appContext: Context = context.applicationContext
@@ -140,6 +141,9 @@ class AppContainer(context: Context) {
     val lyricsRepository: com.airplayr.app.core.lyrics.LyricsRepository by lazy {
         com.airplayr.app.core.lyrics.LyricsRepository(appContext, database.lyricsCacheDao())
     }
+    val lyricsPrefetchCoordinator: com.airplayr.app.core.lyrics.LyricsPrefetchCoordinator by lazy {
+        com.airplayr.app.core.lyrics.LyricsPrefetchCoordinator(lyricsRepository)
+    }
 
     val preferences = PreferencesRepository(appContext)
     val mediaStore = MediaStoreDataSource(appContext)
@@ -156,12 +160,14 @@ class AppContainer(context: Context) {
     // HomeRepository construction is cheap; starting it here lets its Room observer warm
     // on the application IO scope before the first Home composition.
     private val homeSnapshotStore = HomeSnapshotStore(appContext)
+    val libraryWarmCache = LibraryWarmCache()
     val homeRepository: HomeRepository = HomeRepository({ mediaLibrary }, { structured }, applicationScope, homeSnapshotStore)
     val homeStats: HomeStatsCache by lazy { HomeStatsCache(appContext) { structured } }
     val search: com.airplayr.app.core.data.search.SearchRepository by lazy { com.airplayr.app.core.data.search.SearchRepository { database } }
     val collections: com.airplayr.app.core.intelligence.CollectionsRepository by lazy { com.airplayr.app.core.intelligence.CollectionsRepository(mediaLibrary, structured) }
     val dsp: com.airplayr.app.core.playback.dsp.DspRepository by lazy { com.airplayr.app.core.playback.dsp.DspRepository(appContext) }
     val videoController: NativeVideoController by lazy { NativeVideoController(appContext) }
+    val vaultManager: com.airplayr.app.core.vault.VaultManager by lazy { com.airplayr.app.core.vault.VaultManager(appContext) }
     val cast: CastController by lazy { CastController(appContext) }
 
     init {

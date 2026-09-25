@@ -2,6 +2,7 @@ package com.airplayr.app.core.playback.service
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.os.Bundle
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem as ExoMediaItem
@@ -13,6 +14,8 @@ import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
 import androidx.media3.session.MediaLibraryService.LibraryParams
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.DefaultMediaNotificationProvider
@@ -52,6 +55,7 @@ class AirPlayrPlaybackService : MediaLibraryService() {
     companion object {
         const val MEDIA_NOTIFICATION_CHANNEL_ID = "airplayr_music_playback"
         const val MEDIA_NOTIFICATION_ID = 24071
+        private const val COMMAND_FORCE_NEXT = "airplayr.notification.NEXT"
 
         @Volatile
         private var activeInstance: AirPlayrPlaybackService? = null
@@ -104,6 +108,28 @@ class AirPlayrPlaybackService : MediaLibraryService() {
     private val persistMutex = Mutex()
 
     private val mediaLibraryCallback = object : MediaLibrarySession.Callback {
+        override fun onConnect(
+            session: MediaSession,
+            controllerInfo: MediaSession.ControllerInfo,
+        ): MediaSession.ConnectionResult {
+            val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
+                .buildUpon()
+                .add(SessionCommand(COMMAND_FORCE_NEXT, Bundle.EMPTY))
+                .build()
+            return MediaSession.ConnectionResult.accept(sessionCommands, controllerInfo.playerCommands)
+        }
+
+        override fun onCustomCommand(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            customCommand: SessionCommand,
+            args: Bundle,
+        ) = if (customCommand.customAction == COMMAND_FORCE_NEXT) {
+            if (player.hasNextMediaItem()) player.seekToNextMediaItem()
+            Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+        } else {
+            Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED))
+        }
         override fun onGetLibraryRoot(
             session: MediaLibrarySession,
             browser: MediaSession.ControllerInfo,
@@ -259,7 +285,10 @@ class AirPlayrPlaybackService : MediaLibraryService() {
                 replayGainMultiplier = replayGainMultiplier.coerceAtLeast(0.001f)
             }
             if (hydrating) return
-            if (events.contains(Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED) || events.contains(Player.EVENT_REPEAT_MODE_CHANGED)) {
+            if (events.contains(Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED) ||
+                events.contains(Player.EVENT_REPEAT_MODE_CHANGED) ||
+                events.contains(Player.EVENT_TIMELINE_CHANGED) ||
+                events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) {
                 mediaLibrarySession?.setMediaButtonPreferences(notificationMediaButtons(player))
             }
             if (events.containsAny(
@@ -306,24 +335,28 @@ class AirPlayrPlaybackService : MediaLibraryService() {
         }
     }
 
-    private fun notificationMediaButtons(source: Player): List<CommandButton> = listOf(
-        CommandButton.Builder(
-            if (source.shuffleModeEnabled) CommandButton.ICON_SHUFFLE_ON else CommandButton.ICON_SHUFFLE_OFF,
+    private fun notificationMediaButtons(source: Player): List<CommandButton> = buildList {
+        add(
+            CommandButton.Builder(
+                if (source.shuffleModeEnabled) CommandButton.ICON_SHUFFLE_ON else CommandButton.ICON_SHUFFLE_OFF,
+            )
+                .setDisplayName("Shuffle")
+                .setPlayerCommand(Player.COMMAND_SET_SHUFFLE_MODE)
+                .build()
         )
-            .setDisplayName("Shuffle")
-            .setPlayerCommand(Player.COMMAND_SET_SHUFFLE_MODE)
-            .build(),
-        CommandButton.Builder(
-            when (source.repeatMode) {
-                Player.REPEAT_MODE_ONE -> CommandButton.ICON_REPEAT_ONE
-                Player.REPEAT_MODE_ALL -> CommandButton.ICON_REPEAT_ALL
-                else -> CommandButton.ICON_REPEAT_OFF
-            },
-        )
-            .setDisplayName("Repeat")
-            .setPlayerCommand(Player.COMMAND_SET_REPEAT_MODE)
-            .build(),
-    )
+        // Media3 normally hides Next when a one-item timeline has no next item. Keep a
+        // reference-style Next button visible in that exact case and route it through a
+        // session command. Multi-item queues keep Media3's native Next button.
+        if (!source.hasNextMediaItem()) {
+            add(
+                CommandButton.Builder(CommandButton.ICON_NEXT)
+                    .setDisplayName("Next")
+                    .setSessionCommand(SessionCommand(COMMAND_FORCE_NEXT, Bundle.EMPTY))
+                    .setEnabled(true)
+                    .build()
+            )
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -353,27 +386,13 @@ class AirPlayrPlaybackService : MediaLibraryService() {
         // Crossfade needs a second player only when it is actually used. Do not allocate the
         // second ExoPlayer on every existing-user launch when the common default is gapless/off.
 
-        castPlayer = CastPlayer.Builder(applicationContext)
+        // Media3 CastPlayer already owns the local -> Cast handoff. Do not add a second
+        // SessionAvailabilityListener that manually copies the timeline and switches players.
+        // That duplicate handoff can race Media3's own remote-player transfer when a device is
+        // selected from the Cast picker and can terminate the process on real devices.
+        castPlayer = CastPlayer.Builder(this)
             .setLocalPlayer(localPlayer)
             .build()
-        castPlayer.setSessionAvailabilityListener(object : androidx.media3.cast.SessionAvailabilityListener {
-            override fun onCastSessionAvailable() {
-                if (::switchingPlayer.isInitialized && activePlaybackPlayer !== castPlayer) {
-                    val source = activePlaybackPlayer
-                    val items = (0 until source.mediaItemCount).map { source.getMediaItemAt(it) }
-                    val index = source.currentMediaItemIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0))
-                    if (items.isNotEmpty()) {
-                        castPlayer.setMediaItems(items, index, source.currentPosition)
-                        castPlayer.prepare()
-                        castPlayer.playWhenReady = source.playWhenReady
-                        switchingPlayer.switchTo(castPlayer)
-                        activePlaybackPlayer = castPlayer
-                        source.pause()
-                    }
-                }
-            }
-            override fun onCastSessionUnavailable() = Unit
-        })
         switchingPlayer = AirPlayrSwitchingPlayer(castPlayer)
         activePlaybackPlayer = castPlayer
         player = switchingPlayer

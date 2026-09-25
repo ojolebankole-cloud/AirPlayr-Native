@@ -152,6 +152,12 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
         }
 
         item {
+        settingSection("Privacy & security") {
+            SettingRow("Vault", "Private encrypted video storage · device protected", icon = Icons.Default.Lock, onClick = { onNavigate("vault") })
+        }
+        }
+
+        item {
         settingSection("Player") {
             SettingRow("Resume behavior", resumeLabel(current.resumeMode), onClick = { selector = SettingSelector("Resume behavior", current.resumeMode, listOf("auto" to "Resume automatically", "ask" to "Ask before resuming", "start" to "Always start from beginning")) { set("resume", it) } })
             SettingRow("Default speed", "${trimNumber(current.defaultSpeed)}×", onClick = { selector = SettingSelector("Default speed", current.defaultSpeed.toString(), listOf("0.25" to "0.25×", "0.5" to "0.50×", "0.75" to "0.75×", "1.0" to "1×", "1.25" to "1.25×", "1.5" to "1.5×", "1.75" to "1.75×", "2.0" to "2×", "2.5" to "2.5×", "3.0" to "3×", "3.5" to "3.5×", "4.0" to "4×")) { set("speed", it.toDouble()) } })

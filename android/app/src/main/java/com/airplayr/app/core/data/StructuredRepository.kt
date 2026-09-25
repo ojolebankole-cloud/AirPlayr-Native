@@ -72,6 +72,34 @@ class StructuredRepository(private val databaseProvider: () -> AirPlayrDatabase)
         }
     }
     suspend fun clearHistory() = db.userDataDao().clearHistory()
+    /** Removes every user-facing reference to a video that has been moved into the private vault. */
+    suspend fun hideMediaEverywhere(mediaId: String) {
+        db.withTransaction {
+            val dao = db.userDataDao()
+            dao.removeFavorite(mediaId)
+            dao.removeHistory(mediaId)
+            dao.removePlaylistReferences(mediaId)
+            dao.removeVideoProgress(mediaId)
+            dao.removeVideoBookmarks(mediaId)
+            dao.removePlaybackEvents(mediaId)
+            dao.removePlaybackSessions(mediaId)
+        }
+    }
+    suspend fun hideMediaEverywhereBatch(mediaIds: List<String>) {
+        if (mediaIds.isEmpty()) return
+        db.withTransaction {
+            val dao = db.userDataDao()
+            mediaIds.distinct().forEach { mediaId ->
+                dao.removeFavorite(mediaId)
+                dao.removeHistory(mediaId)
+                dao.removePlaylistReferences(mediaId)
+                dao.removeVideoProgress(mediaId)
+                dao.removeVideoBookmarks(mediaId)
+                dao.removePlaybackEvents(mediaId)
+                dao.removePlaybackSessions(mediaId)
+            }
+        }
+    }
     suspend fun recent(limit:Int=100): List<PlaybackHistoryEntity> = db.userDataDao().history(limit)
 
     suspend fun totalPlaybackSeconds(type: MediaType): Long =

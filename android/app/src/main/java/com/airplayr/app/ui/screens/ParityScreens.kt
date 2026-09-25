@@ -7,6 +7,8 @@ import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.components.AirPlayrCard
+import com.airplayr.app.ui.components.AirPlayrLongListFastScrollHandle
+import com.airplayr.app.ui.components.AirPlayrLongGridFastScrollHandle
 import com.airplayr.app.ui.components.rememberAirPlayrIllustrationPalette
 import com.airplayr.app.ui.components.rememberAirPlayrLottieTheme
 import com.airplayr.app.ui.components.airPlayrShadow
@@ -111,6 +113,7 @@ import com.airplayr.app.ui.components.AirPlayrFeatureCollectionActionSheet
 import com.airplayr.app.ui.components.AirPlayrPremiumMediaActionSheet
 import com.airplayr.app.ui.components.AirPlayrMediaMenuAction
 import com.airplayr.app.ui.components.AirPlayrSelectionBar
+import com.airplayr.app.ui.components.AirPlayrBulkSelectionSheet
 import com.airplayr.app.ui.components.TagEditorSheet
 import com.airplayr.app.core.playback.VideoQueueStore
 import com.airplayr.app.ui.theme.AirPlayrColors
@@ -438,7 +441,7 @@ private fun RediscoverHero(
     ) {
         androidx.compose.animation.Crossfade(targetState = slide, animationSpec = androidx.compose.animation.core.tween(700), label = "rediscover-hero-fade") { page ->
             if (page == 0 || previewVideo == null) {
-                Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(colors.primary, colors.secondary, colors.tertiary))))
+                Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(colors.surfaceContainerHigh, colors.surfaceContainerHighest, colors.surfaceContainerLow))))
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .12f)))
                 com.airbnb.lottie.compose.LottieAnimation(
                     composition = composition,
@@ -1054,10 +1057,15 @@ fun BrowseFilterScreen(
     var videoDetailsItem by remember { mutableStateOf<MediaItem?>(null) }
     var videoPlaylistItem by remember { mutableStateOf<MediaItem?>(null) }
     var deleteVideoItem by remember { mutableStateOf<MediaItem?>(null) }
+    var bulkSelectionSheetOpen by remember { mutableStateOf(false) }
+    var bulkPlaylistItems by remember { mutableStateOf<List<MediaItem>?>(null) }
+    var pendingDeleteSelection by remember { mutableStateOf<List<MediaItem>?>(null) }
     var renameVideoItem by remember { mutableStateOf<MediaItem?>(null) }
     var renameVideoName by remember { mutableStateOf("") }
     var pendingRename by remember { mutableStateOf<Pair<MediaItem, String>?>(null) }
     var videoViewMode by rememberSaveable { mutableStateOf("list") }
+    val browseListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) }
+    val browseGridState = rememberSaveable(saver = androidx.compose.foundation.lazy.grid.LazyGridState.Saver) { androidx.compose.foundation.lazy.grid.LazyGridState() }
 
     val renameLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         val pending = pendingRename
@@ -1083,6 +1091,19 @@ fun BrowseFilterScreen(
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             libraryViewModel.refresh()
             AppFeedback.showSnackbar("Video deleted ✓")
+        }
+    }
+
+    val bulkDeleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val count = pendingDeleteSelection?.size ?: 0
+            pendingDeleteSelection = null
+            selectedIds = emptySet()
+            selectionMode = false
+            libraryViewModel.refresh()
+            AppFeedback.showSnackbar("Deleted $count ${if (count == 1) "item" else "items"} ✓")
+        } else {
+            pendingDeleteSelection = null
         }
     }
 
@@ -1127,6 +1148,55 @@ fun BrowseFilterScreen(
             }.onFailure {
                 AppFeedback.showSnackbar("Unable to delete video")
             }
+        }
+    }
+
+    fun shareSelected(items: List<MediaItem>) {
+        val uris = items.mapNotNull { runCatching { android.net.Uri.parse(it.uri) }.getOrNull() }.distinct()
+        if (uris.isEmpty()) {
+            AppFeedback.showSnackbar("Nothing available to share")
+            return
+        }
+        runCatching {
+            val mime = if (uris.size == 1) items.firstOrNull()?.mimeType ?: "*/*" else if (items.map { it.mediaType }.distinct().size == 1) {
+                if (items.first().mediaType == MediaType.VIDEO) "video/*" else "audio/*"
+            } else "*/*"
+            val send = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                type = mime
+                putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(send, "Share selected media").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }.onFailure { AppFeedback.showSnackbar("Unable to share selected media") }
+    }
+
+    fun deleteSelected(items: List<MediaItem>) {
+        val uris = items.mapNotNull { item ->
+            item.mediaStoreId?.let { storeId ->
+                val base = if (item.mediaType == MediaType.VIDEO) MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                android.content.ContentUris.withAppendedId(base, storeId)
+            }
+        }.distinct()
+        if (uris.isEmpty()) {
+            AppFeedback.showSnackbar("Selected media cannot be deleted from this device")
+            return
+        }
+        pendingDeleteSelection = items
+        runCatching {
+            if (Build.VERSION.SDK_INT >= 30) {
+                val request = MediaStore.createDeleteRequest(context.contentResolver, uris)
+                bulkDeleteLauncher.launch(IntentSenderRequest.Builder(request.intentSender).build())
+            } else {
+                val deleted = uris.count { context.contentResolver.delete(it, null, null) > 0 }
+                pendingDeleteSelection = null
+                selectedIds = emptySet()
+                selectionMode = false
+                libraryViewModel.refresh()
+                AppFeedback.showSnackbar("Deleted $deleted ${if (deleted == 1) "item" else "items"} ✓")
+            }
+        }.onFailure {
+            pendingDeleteSelection = null
+            AppFeedback.showSnackbar("Unable to delete selected media")
         }
     }
 
@@ -1178,23 +1248,35 @@ fun BrowseFilterScreen(
                     }
                 },
             )
-            if (isFolder && selectionMode) {
-                Text(
-                    if (hasSelection) "${selectedIds.size} selected" else "Select songs",
-                    fontFamily = AirPlayrFonts.OpenSans,
-                    fontSize = 12.sp,
-                    color = colors.textSecondary,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 2.dp),
-                )
-            } else if (!isFolder && selectedIds.isNotEmpty()) {
+            if (selectionMode && hasSelection) {
                 AirPlayrSelectionBar(
                     count = selectedItems.size,
                     onClear = { selectedIds = emptySet(); selectionMode = false },
                     onSelectAll = { selectedIds = ordered.map { it.id }.toSet(); selectionMode = true },
-                    onPlay = if (type == MediaType.AUDIO) ({ playback.playQueue(selectedItems); selectedIds = emptySet(); selectionMode = false; onOpenPlayer() }) else ({ selectedItems.firstOrNull()?.let { onOpenVideo(it.id) }; selectedIds = emptySet(); selectionMode = false }),
-                    onPlayNext = if (type == MediaType.AUDIO) ({ selectedItems.asReversed().forEach(playback::playNext); selectedIds = emptySet(); selectionMode = false }) else null,
-                    onPlaylist = if (container != null && type == MediaType.AUDIO) ({ musicPlaylistOpen = true }) else null,
-                    onLike = if (container != null && type == MediaType.AUDIO) ({ scope.launch { selectedItems.forEach { container.structured.toggleFavorite(it) }; selectedIds = emptySet(); selectionMode = false } }) else null,
+                    onPlay = {
+                        val audio = selectedItems.filter { it.mediaType == MediaType.AUDIO }
+                        val videos = selectedItems.filter { it.mediaType == MediaType.VIDEO }
+                        if (audio.isNotEmpty()) { playback.playQueue(audio); selectedIds = emptySet(); selectionMode = false; onOpenPlayer() }
+                        else if (videos.isNotEmpty()) { VideoQueueStore.setLoopingQueue(videos, videos.first().id); selectedIds = emptySet(); selectionMode = false; onOpenVideo(videos.first().id) }
+                    },
+                    onPlayNext = {
+                        val audio = selectedItems.filter { it.mediaType == MediaType.AUDIO }
+                        val videos = selectedItems.filter { it.mediaType == MediaType.VIDEO }
+                        audio.asReversed().forEach(playback::playNext)
+                        VideoQueueStore.playNext(videos)
+                        selectedIds = emptySet(); selectionMode = false
+                    },
+                    onPlaylist = if (container != null) ({ bulkPlaylistItems = selectedItems; bulkSelectionSheetOpen = false }) else null,
+                    onLike = if (container != null && selectedItems.any { it.mediaType == MediaType.AUDIO }) ({ scope.launch { selectedItems.filter { it.mediaType == MediaType.AUDIO }.forEach { container.structured.toggleFavorite(it) }; selectedIds = emptySet(); selectionMode = false } }) else null,
+                    onMore = { bulkSelectionSheetOpen = true },
+                )
+            } else if (selectionMode) {
+                Text(
+                    if (isFolder) "Select media" else "Select songs",
+                    fontFamily = AirPlayrFonts.OpenSans,
+                    fontSize = 12.sp,
+                    color = colors.textSecondary,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
                 )
             }
             if (isFolder && folderMode.equals("video", true) && !selectionMode) {
@@ -1209,7 +1291,9 @@ fun BrowseFilterScreen(
                 }
             }
             if (isFolder && folderMode.equals("video", true) && !selectionMode && videoViewMode == "grid") {
+                Box(Modifier.fillMaxSize()) {
                 androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                    state = browseGridState,
                     columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(2),
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = airPlayrBottomContentPadding()),
@@ -1220,9 +1304,12 @@ fun BrowseFilterScreen(
                         VideoGridCard(item, onOpen = { onOpenVideo(item.id) }, onMore = { videoActionItem = item })
                     }
                 }
+                AirPlayrLongGridFastScrollHandle(browseGridState)
+                }
             } else {
+                Box(Modifier.fillMaxSize()) {
                 LazyColumn(
-                    state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
+                    state = browseListState,
                     contentPadding = PaddingValues(start = 0.dp, end = 0.dp, bottom = airPlayrBottomContentPadding()),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
@@ -1279,9 +1366,11 @@ fun BrowseFilterScreen(
                         }
                     }
                 }
+                AirPlayrLongListFastScrollHandle(browseListState)
+                }
             }
         }
-        if (ordered.isNotEmpty()) {
+        if (ordered.isNotEmpty() && !selectionMode) {
             FloatingActionButton(
                 onClick = {
                     when {
@@ -1311,6 +1400,50 @@ fun BrowseFilterScreen(
             onDescending = { sortAscending = false },
             onDismiss = { sortSheetOpen = false },
         )
+    }
+
+    if (bulkSelectionSheetOpen && selectedItems.isNotEmpty()) {
+        AirPlayrBulkSelectionSheet(
+            count = selectedItems.size,
+            canFavorite = selectedItems.any { it.mediaType == MediaType.AUDIO },
+            onPlay = {
+                val audio = selectedItems.filter { it.mediaType == MediaType.AUDIO }
+                val videos = selectedItems.filter { it.mediaType == MediaType.VIDEO }
+                bulkSelectionSheetOpen = false
+                if (audio.isNotEmpty()) { playback.playQueue(audio); selectedIds = emptySet(); selectionMode = false; onOpenPlayer() }
+                else if (videos.isNotEmpty()) { VideoQueueStore.setLoopingQueue(videos, videos.first().id); selectedIds = emptySet(); selectionMode = false; onOpenVideo(videos.first().id) }
+            },
+            onPlayNext = {
+                val audio = selectedItems.filter { it.mediaType == MediaType.AUDIO }
+                val videos = selectedItems.filter { it.mediaType == MediaType.VIDEO }
+                audio.asReversed().forEach(playback::playNext)
+                VideoQueueStore.playNext(videos)
+                bulkSelectionSheetOpen = false; selectedIds = emptySet(); selectionMode = false
+            },
+            onAddToQueue = {
+                selectedItems.filter { it.mediaType == MediaType.AUDIO }.forEach(playback::addToQueue)
+                VideoQueueStore.add(selectedItems.filter { it.mediaType == MediaType.VIDEO })
+                bulkSelectionSheetOpen = false; selectedIds = emptySet(); selectionMode = false
+                AppFeedback.showSnackbar("Added ${selectedItems.size} ${if (selectedItems.size == 1) "item" else "items"} to the queue.")
+            },
+            onAddToPlaylist = { bulkSelectionSheetOpen = false; bulkPlaylistItems = selectedItems },
+            onFavorite = if (container != null && selectedItems.any { it.mediaType == MediaType.AUDIO }) ({
+                scope.launch { selectedItems.filter { it.mediaType == MediaType.AUDIO }.forEach { container.structured.toggleFavorite(it) }; bulkSelectionSheetOpen = false; selectedIds = emptySet(); selectionMode = false }
+            }) else null,
+            onShare = { bulkSelectionSheetOpen = false; shareSelected(selectedItems) },
+            onDelete = { bulkSelectionSheetOpen = false; deleteSelected(selectedItems) },
+            onDismiss = { bulkSelectionSheetOpen = false },
+        )
+    }
+
+    bulkPlaylistItems?.let { playlistItems ->
+        if (container != null && playlistItems.isNotEmpty()) {
+            HistoryFavoritePlaylistSheet(container, playlistItems, onDismiss = {
+                bulkPlaylistItems = null
+                selectedIds = emptySet()
+                selectionMode = false
+            })
+        }
     }
 
     if (musicActionOpen && selectedMusicItem != null) {
@@ -1557,6 +1690,7 @@ fun RecentScreen(
     onOpen: (String) -> Unit,
     container: AppContainer? = null,
     onOpenPlayer: () -> Unit = {},
+    onBack: () -> Unit = {},
 ) {
     val snapshot by viewModel.snapshot.collectAsStateWithLifecycle()
     val audio = snapshot.audio
@@ -1598,7 +1732,7 @@ fun RecentScreen(
     var playlistTarget by remember { mutableStateOf<List<MediaItem>?>(null) }
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            ListTopBar(title, "${data.size} local items")
+            ListTopBar(title, "${data.size} local items", onBack = onBack)
             if (!snapshot.ready) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = LocalAirPlayrColors.current.primary) }
             else if (data.isEmpty()) EmptyNativeState("Nothing here yet", "AirPlayr will build this section as your library and listening history grows.")
             else LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = airPlayrBottomContentPadding()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1678,7 +1812,7 @@ fun RecentScreen(
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun MyPlaylistsScreen(container: AppContainer, libraryViewModel: LibraryViewModel, playback: PlaybackController, onOpen: (String) -> Unit, onOpenGrid: (MediaType) -> Unit = {}, onBack: () -> Unit = {}) {
+fun MyPlaylistsScreen(container: AppContainer, libraryViewModel: LibraryViewModel, playback: PlaybackController, onOpen: (String) -> Unit, onOpenGrid: (MediaType) -> Unit = {}, onBack: () -> Unit = {}, onOpenVideo: (String) -> Unit = {}) {
     val colors = LocalAirPlayrColors.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -1687,6 +1821,7 @@ fun MyPlaylistsScreen(container: AppContainer, libraryViewModel: LibraryViewMode
     val library = snapshot.audio + snapshot.video
     val libraryReady = snapshot.ready
     var selected by remember { mutableStateOf<com.airplayr.app.core.data.db.MusicPlaylistEntity?>(null) }
+    var createMediaType by remember { mutableStateOf(MediaType.AUDIO) }
     var headerMenu by remember { mutableStateOf(false) }
     var fabOpen by remember { mutableStateOf(false) }
     var dialogMode by remember { mutableStateOf("create") }
@@ -1712,7 +1847,12 @@ fun MyPlaylistsScreen(container: AppContainer, libraryViewModel: LibraryViewMode
     }
     var exportPlaylist by remember { mutableStateOf<com.airplayr.app.core.data.db.MusicPlaylistEntity?>(null) }
     val idMap by produceState(initialValue = emptyMap<String, List<MediaItem>>(), playlists, library) {
-        value = playlists.associate { p -> p.id to runCatching { container.structured.playlistIds(p.id).mapNotNull { id -> library.firstOrNull { it.id == id } } }.getOrDefault(emptyList()) }
+        value = playlists.associate { p ->
+            val source = if (p.mediaType == MediaType.VIDEO.value) snapshot.video else snapshot.audio
+            p.id to runCatching {
+                container.structured.playlistIds(p.id).mapNotNull { id -> source.firstOrNull { it.id == id } }
+            }.getOrDefault(emptyList())
+        }
     }
     fun itemsOf(p: com.airplayr.app.core.data.db.MusicPlaylistEntity) = idMap[p.id].orEmpty()
 
@@ -1724,12 +1864,30 @@ fun MyPlaylistsScreen(container: AppContainer, libraryViewModel: LibraryViewMode
         val n = dialogName.trim().ifBlank { "New playlist" }
         scope.launch {
             if (dialogMode == "rename" && selected != null) { container.structured.renamePlaylist(selected!!.id, n); com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Playlist renamed.") }
-            else { val created = container.structured.createPlaylist(n); com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Playlist created."); onOpen(created.id) }
+            else { val created = container.structured.createPlaylist(n, createMediaType.value); com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("${if (createMediaType == MediaType.VIDEO) "Video" else "Music"} playlist created."); if (createMediaType == MediaType.VIDEO) onOpenGrid(MediaType.VIDEO) else onOpen(created.id) }
             dialogOpen = false; selected = null; dialogName = ""
         }
     }
-    fun playPlaylist(p: com.airplayr.app.core.data.db.MusicPlaylistEntity, shuffle: Boolean = false) { val rows = itemsOf(p); if (rows.isEmpty()) com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("This playlist has no songs yet.") else { val ordered = if (shuffle) rows.shuffled() else rows; playback.playQueue(ordered, 0); selected = null } }
-    fun queuePlaylist(p: com.airplayr.app.core.data.db.MusicPlaylistEntity, next: Boolean) { val rows = itemsOf(p); if (rows.isEmpty()) com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("This playlist has no songs yet.") else { rows.forEach { if (next) playback.playNext(it) else playback.addToQueue(it) }; selected = null; com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("${rows.size} songs ${if (next) "added as next" else "added to the queue"}.") } }
+    fun playPlaylist(p: com.airplayr.app.core.data.db.MusicPlaylistEntity, shuffle: Boolean = false) {
+        val rows = itemsOf(p)
+        if (rows.isEmpty()) {
+            com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("This playlist is empty.")
+        } else {
+            val ordered = if (shuffle) rows.shuffled() else rows
+            playback.playQueue(ordered, 0)
+            selected = null
+            if (p.mediaType == MediaType.VIDEO.value) onOpenVideo(ordered.first().id)
+        }
+    }
+    fun queuePlaylist(p: com.airplayr.app.core.data.db.MusicPlaylistEntity, next: Boolean) {
+        val rows = itemsOf(p)
+        if (rows.isEmpty()) com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("This playlist is empty.") else {
+            rows.forEach { if (next) playback.playNext(it) else playback.addToQueue(it) }
+            selected = null
+            val kind = if (p.mediaType == MediaType.VIDEO.value) "videos" else "songs"
+            com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("${rows.size} $kind ${if (next) "added as next" else "added to the queue"}.")
+        }
+    }
 
     Box(Modifier.fillMaxSize().background(colors.background)) {
         LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1777,7 +1935,7 @@ fun MyPlaylistsScreen(container: AppContainer, libraryViewModel: LibraryViewMode
                             else if (rows.isNotEmpty()) Row(Modifier.fillMaxSize()) { rows.take(4).forEach { r -> com.airplayr.app.ui.components.Artwork(r.artworkUri, Modifier.weight(1f).fillMaxHeight(), 0.dp, r.title) } }
                             else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(Icons.Default.QueueMusic, null, tint = colors.primary, modifier = Modifier.size(50.dp)) }
                         }
-                        Row(Modifier.fillMaxWidth().padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(p.name, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis); Text("${rows.size} ${if (rows.size == 1) "song" else "songs"}", fontFamily = AirPlayrFonts.OpenSans, fontSize = 11.sp, color = colors.textSecondary, modifier = Modifier.padding(top = 2.dp)) }; IconButton(onClick = { selected = p }) { Icon(Icons.Default.MoreVert, "Playlist options", tint = colors.primary) } }
+                        Row(Modifier.fillMaxWidth().padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(p.name, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 18.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis); Text("${rows.size} ${if (p.mediaType == MediaType.VIDEO.value) { if (rows.size == 1) "video" else "videos" } else { if (rows.size == 1) "song" else "songs" }}", fontFamily = AirPlayrFonts.OpenSans, fontSize = 11.sp, color = colors.textSecondary, modifier = Modifier.padding(top = 2.dp)) }; IconButton(onClick = { selected = p }) { Icon(Icons.Default.MoreVert, "Playlist options", tint = colors.primary) } }
                     }
                 }
             }
@@ -1791,7 +1949,7 @@ fun MyPlaylistsScreen(container: AppContainer, libraryViewModel: LibraryViewMode
             if (fabOpen) Column(verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.End) {
                 SmallFabOption("External playlist", Icons.Default.Public) { fabOpen = false; com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("External playlist URLs are not connected to AirPlayr yet.") }
                 SmallFabOption("Import playlist (.m3u)", Icons.Default.FileDownload) { fabOpen = false; importPickerLauncher.launch(arrayOf("audio/x-mpegurl","application/x-mpegURL","text/plain","*/*")) }
-                SmallFabOption("Create playlist", Icons.Default.List) { fabOpen = false; dialogMode = "create"; dialogName = ""; dialogOpen = true }
+                SmallFabOption("Create playlist", Icons.Default.List) { fabOpen = false; dialogMode = "create"; dialogName = ""; createMediaType = MediaType.AUDIO; dialogOpen = true }
             }
             Spacer(Modifier.height(10.dp))
             FloatingActionButton(onClick = { fabOpen = !fabOpen }, containerColor = if (fabOpen) colors.surfaceContainerHigh else colors.primary, contentColor = if (fabOpen) colors.primary else colors.onPrimary, modifier = Modifier.size(88.dp), shape = RoundedCornerShape(28.dp)) { Icon(if (fabOpen) Icons.Default.Close else Icons.Default.Add, if (fabOpen) "Close" else "Add", modifier = Modifier.size(34.dp)) }
@@ -1819,7 +1977,24 @@ fun MyPlaylistsScreen(container: AppContainer, libraryViewModel: LibraryViewMode
             }
         }
         if (targetPicker) ModalBottomSheet(onDismissRequest = { targetPicker = false }, containerColor = colors.surfaceContainerLow) { ActionGroup { playlists.filter { it.id != selected?.id }.forEach { target -> ActionButton(target.name, Icons.Default.List, onClick = { val ids = targetSource?.let { itemsOf(it).map { m -> m.id } }.orEmpty(); scope.launch { ids.forEach { container.structured.addToPlaylist(target.id, it) }; targetPicker = false; targetSource = null; com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Added to ${target.name}.") } }) } } }
-        if (dialogOpen) AlertDialog(onDismissRequest = { dialogOpen = false }, title = { Text(if (dialogMode == "rename") "Rename playlist" else "Create playlist") }, text = { OutlinedTextField(dialogName, { dialogName = it }, singleLine = true, modifier = Modifier.fillMaxWidth()) }, dismissButton = { TextButton(onClick = { dialogOpen = false }) { Text("Cancel") } }, confirmButton = { TextButton(onClick = { createOrRename() }) { Text(if (dialogMode == "rename") "Save" else "OK") } })
+        if (dialogOpen) AlertDialog(
+            onDismissRequest = { dialogOpen = false },
+            title = { Text(if (dialogMode == "rename") "Rename playlist" else "Create playlist") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(dialogName, { dialogName = it }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    if (dialogMode == "create") {
+                        Text("Playlist type", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(selected = createMediaType == MediaType.AUDIO, onClick = { createMediaType = MediaType.AUDIO }, label = { Text("Music") }, leadingIcon = { Icon(Icons.Default.MusicNote, null) })
+                            FilterChip(selected = createMediaType == MediaType.VIDEO, onClick = { createMediaType = MediaType.VIDEO }, label = { Text("Videos") }, leadingIcon = { Icon(Icons.Default.VideoLibrary, null) })
+                        }
+                    }
+                }
+            },
+            dismissButton = { TextButton(onClick = { dialogOpen = false }) { Text("Cancel") } },
+            confirmButton = { TextButton(onClick = { createOrRename() }) { Text(if (dialogMode == "rename") "Save" else "Create") } },
+        )
         deleteTarget?.let { p -> AlertDialog(onDismissRequest = { deleteTarget = null }, title = { Text("Delete playlist?") }, text = { Text("“${p.name}” will be removed. Your media stays on the device.") }, dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel") } }, confirmButton = { TextButton(onClick = { scope.launch { container.structured.deletePlaylist(p.id); deleteTarget = null; com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("Playlist deleted.") } }) { Text("Delete", color = colors.error) } }) }
     }
 }
@@ -1857,7 +2032,7 @@ fun PlaylistDetailScreen(
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             ListTopBar(name, "${items.size} ${if (mediaType == MediaType.VIDEO) "videos" else "songs"}")
-            LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = airPlayrBottomContentPadding()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyColumn(state = playlistListState,contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = airPlayrBottomContentPadding()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item { Button(onClick = {
                     playback.playQueue(items)
                     if (items.isNotEmpty()) {
@@ -1879,6 +2054,7 @@ fun PlaylistDetailScreen(
                     }
                 }
             }
+            AirPlayrLongListFastScrollHandle(playlistListState)
         }
         if (items.isNotEmpty()) {
             FloatingActionButton(
@@ -1955,7 +2131,7 @@ private fun MediaListCard(
 }
 
 @Composable
-private fun ListTopBar(title: String, subtitle: String) = AirPlayrScreenHeader(title, subtitle)
+private fun ListTopBar(title: String, subtitle: String, onBack: (() -> Unit)? = null) = AirPlayrScreenHeader(title, subtitle, onBack = onBack)
 
 @Composable
 fun BrowseIndexScreen(

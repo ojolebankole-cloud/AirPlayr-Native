@@ -77,6 +77,7 @@ import com.airplayr.app.core.data.media.MediaItem
 import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.airPlayrBottomContentPadding
+import com.airplayr.app.ui.components.AirPlayrLongListFastScrollHandle
 import com.airplayr.app.ui.components.AirPlayrAlbumRailCard
 import com.airplayr.app.ui.components.AirPlayrFeatureCollectionActionSheet
 import com.airplayr.app.ui.components.AirPlayrMediaRow
@@ -114,6 +115,7 @@ fun MostPlayedScreen(
     val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
     val playbackState by playback.stableState.collectAsStateWithLifecycle()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val mostPlayedListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) }
     val music = snapshot.audio
     val videos = snapshot.video
     val allMedia = remember(music, videos) { music + videos }
@@ -168,7 +170,8 @@ fun MostPlayedScreen(
 
     Box(Modifier.fillMaxSize().background(colors.background)) {
         LazyColumn(
-            Modifier.fillMaxSize(),
+            state = mostPlayedListState,
+            modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding()),
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
@@ -251,6 +254,7 @@ fun MostPlayedScreen(
                 item { AirPlayrSectionEmpty("Not enough play data yet", "Play some music or videos and your leaderboard will start to fill in.") }
             }
         }
+        AirPlayrLongListFastScrollHandle(mostPlayedListState)
 
         val fabTarget = topTrackItem ?: topVideoItem
         if (fabTarget != null) {
@@ -476,7 +480,7 @@ private fun MostPlayedHero(
                 }
                 else -> {
                     Box(Modifier.fillMaxSize().background(Brush.linearGradient(
-                        listOf(colors.primary, colors.secondary, colors.tertiary, colors.primary),
+                        listOf(colors.surfaceContainerHigh, colors.surfaceContainer, colors.surfaceContainerHighest, colors.surfaceContainerHigh),
                         start = Offset(-sizeForGradient(phase), 0f),
                         end = Offset(sizeForGradient(phase) + 760f, 560f),
                     )))

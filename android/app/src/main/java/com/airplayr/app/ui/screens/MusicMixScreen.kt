@@ -132,11 +132,14 @@ fun MusicMixScreen(
     }
     val genres = remember(snapshot.audio) { MusicMixGenerator.availableGenres(snapshot.audio) }
 
-    var mix by remember(config.id, selectedGenre, today, snapshot.audio, snapshot.favorites) {
+    var mix by remember(config.id, today) {
         mutableStateOf<List<MediaItem>>(emptyList())
     }
+    var mixLoading by remember(config.id, today, selectedGenre) { mutableStateOf(true) }
     LaunchedEffect(config.id, selectedGenre, today, snapshot.audio, snapshot.favorites) {
-        mix = withContext(Dispatchers.Default) {
+        if (!snapshot.ready) return@LaunchedEffect
+        mixLoading = true
+        val generated = withContext(Dispatchers.Default) {
             if (mode == MusicMixMode.ROCK_YOUR_WORLD) {
                 MusicMixGenerator.rockYourWorldMix(
                     library = snapshot.audio,
@@ -158,6 +161,11 @@ fun MusicMixScreen(
                 )
             }
         }
+        // Publish the newly generated filter result only after the whole computation is complete.
+        // The previous mix stays visible while this runs, so changing filters never flashes an
+        // empty state or makes the user wait for the screen to reconstruct itself.
+        mix = generated
+        mixLoading = false
     }
 
     LaunchedEffect(config.id, selectedGenre, today, mixPlaybackActive) {
@@ -321,10 +329,28 @@ fun MusicMixScreen(
                 }
             }
 
-            if (mix.isEmpty()) {
+            if (mixLoading && mix.isNotEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    androidx.compose.material3.LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                        color = colors.primary,
+                        trackColor = colors.surfaceContainerHigh,
+                    )
+                }
+            }
+            if (!snapshot.ready || (mix.isEmpty() && mixLoading)) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
-                        if (snapshot.ready) "No music is available for this mix yet." else "Loading your music…",
+                        "Loading your music…",
+                        color = colors.textSecondary,
+                        fontFamily = AirPlayrFonts.OpenSans,
+                        modifier = Modifier.padding(vertical = 32.dp),
+                    )
+                }
+            } else if (mix.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        "No music is available for this mix yet.",
                         color = colors.textSecondary,
                         fontFamily = AirPlayrFonts.OpenSans,
                         modifier = Modifier.padding(vertical = 32.dp),
@@ -612,6 +638,7 @@ private fun MixHero(
             Spacer(Modifier.height(4.dp))
             AirPlayrWaveAnimation(
                 modifier = Modifier.fillMaxWidth().height(124.dp),
+                isPlaying = playing,
             )
             Row(
                 Modifier.fillMaxWidth().padding(top = 8.dp),

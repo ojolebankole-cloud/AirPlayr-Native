@@ -43,6 +43,7 @@ import com.airplayr.app.core.lyrics.LyricsService
 import com.airplayr.app.core.lyrics.LyricsTrack
 import com.airplayr.app.core.playback.VideoQueueStore
 import com.airplayr.app.di.AppContainer
+import com.airplayr.app.ui.components.AirPlayrLongListFastScrollHandle
 import com.airplayr.app.ui.components.AirPlayrSheetScaffold
 import com.airplayr.app.ui.components.AirPlayrMediaMenuAction
 import com.airplayr.app.ui.components.AirPlayrMoreButton
@@ -102,6 +103,9 @@ private fun matches(entry: SearchEntry, query: String): Boolean {
 @Composable
 fun SearchScreen(
     container: AppContainer,
+    initialFilter: String = "all",
+    musicOnly: Boolean = false,
+    videoOnly: Boolean = false,
     libraryViewModel: LibraryViewModel,
     onOpen: (MediaItem) -> Unit,
     onNavigate: (String) -> Unit = {},
@@ -111,10 +115,11 @@ fun SearchScreen(
     val focus = LocalFocusManager.current
     val focusRequester = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
+    val searchListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) }
     val playback: PlaybackController = viewModel(factory = PlaybackControllerFactory(container.appContext))
     var query by rememberSaveable { mutableStateOf("") }
     var debounced by rememberSaveable { mutableStateOf("") }
-    var filter by rememberSaveable { mutableStateOf("all") }
+    var filter by rememberSaveable(initialFilter) { mutableStateOf(initialFilter) }
     var selected by remember { mutableStateOf<MediaItem?>(null) }
     var selectedIds by rememberSaveable { mutableStateOf<Set<String>>(emptySet()) }
     var playlistTarget by remember { mutableStateOf<MediaItem?>(null) }
@@ -242,15 +247,20 @@ fun SearchScreen(
             .toList()
     }
 
-    val filtered = remember(entries, debounced, filter) {
-        val base = when (filter) {
-            "songs" -> entries.filter { it.type == "song" }
-            "albums" -> entries.filter { it.type == "album" }
-            "artists" -> entries.filter { it.type == "artist" }
-            "playlists" -> entries.filter { it.type == "playlist" }
-            "genres" -> entries.filter { it.type == "genre" }
-            "videos" -> entries.filter { it.type == "video" }
+    val filtered = remember(entries, debounced, filter, musicOnly, videoOnly) {
+        val scopedEntries = when {
+            musicOnly -> entries.filter { it.type != "video" }
+            videoOnly -> entries.filter { it.type == "video" }
             else -> entries
+        }
+        val base = when (filter) {
+            "songs" -> scopedEntries.filter { it.type == "song" }
+            "albums" -> scopedEntries.filter { it.type == "album" }
+            "artists" -> scopedEntries.filter { it.type == "artist" }
+            "playlists" -> scopedEntries.filter { it.type == "playlist" }
+            "genres" -> scopedEntries.filter { it.type == "genre" }
+            "videos" -> scopedEntries.filter { it.type == "video" }
+            else -> scopedEntries
         }
         if (debounced.isBlank()) base else base.filter { matches(it, debounced) }
     }
@@ -335,7 +345,7 @@ fun SearchScreen(
             Modifier.horizontalScroll(rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }).padding(horizontal = 16.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            FILTERS.forEach { (key, label) ->
+            FILTERS.filter { keyLabel -> when { videoOnly -> keyLabel.first == "videos"; musicOnly -> keyLabel.first != "videos"; else -> true } }.forEach { (key, label) ->
                 val active = filter == key
                 FilterChip(
                     selected = active,
@@ -361,7 +371,7 @@ fun SearchScreen(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
+            state = searchListState,
             contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding()),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
@@ -391,7 +401,29 @@ fun SearchScreen(
                     }
                 }
 
-                if (recentArtists.isNotEmpty()) {
+                if (videoOnly) {
+                    val recentVideoEntries = history.asSequence()
+                        .filter { it.mediaType == MediaType.VIDEO.value }
+                        .mapNotNull { h -> lookup[h.mediaId]?.takeIf { it.mediaType == MediaType.VIDEO } }
+                        .distinctBy { it.id }
+                        .take(12)
+                    if (recentVideoEntries.isNotEmpty()) {
+                        item { SearchSectionHeader("RECENT VIDEOS", colors) }
+                        items(recentVideoEntries, key = { "recent-video:${it.id}" }) { item ->
+                            SearchContentRow(
+                                SearchEntry(item.id, "video", item.title.ifBlank { item.filename }, "Video", item),
+                                colors,
+                                false,
+                                selected = item.id in selectedIds,
+                                onClick = { if (item.id in selectedIds) selectedIds = selectedIds - item.id else openEntry(SearchEntry(item.id, "video", item.title.ifBlank { item.filename }, "Video", item)) },
+                                onLongPress = { selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id },
+                                onMore = { selected = item },
+                            )
+                        }
+                    }
+                }
+
+                if (!videoOnly && recentArtists.isNotEmpty()) {
                     item { SearchSectionHeader("RECENTLY PLAYED ARTISTS", colors) }
                     items(recentArtists, key = { "recent-artist:${it.id}" }) { entry ->
                         SearchArtistRow(
@@ -402,7 +434,7 @@ fun SearchScreen(
                         )
                     }
                 }
-                if (recentSongs.isNotEmpty()) {
+                if (!videoOnly && recentSongs.isNotEmpty()) {
                     item { SearchSectionHeader("RECENTLY PLAYED SONGS", colors) }
                     items(recentSongs, key = { "recent-song:${it.id}" }) { entry ->
                         val playing = entry.item?.let { playbackState.isPlaying && playbackState.currentId == it.id } == true
@@ -414,7 +446,7 @@ fun SearchScreen(
                         )
                     }
                 }
-                if (recentAlbums.isNotEmpty()) {
+                if (!videoOnly && recentAlbums.isNotEmpty()) {
                     item { SearchSectionHeader("RECENTLY PLAYED ALBUMS", colors) }
                     items(recentAlbums, key = { "recent-album:${it.id}" }) { entry ->
                         SearchAlbumRow(
@@ -447,6 +479,7 @@ fun SearchScreen(
                 }
             }
         }
+        AirPlayrLongListFastScrollHandle(searchListState)
     }
 
     if (selected != null) {

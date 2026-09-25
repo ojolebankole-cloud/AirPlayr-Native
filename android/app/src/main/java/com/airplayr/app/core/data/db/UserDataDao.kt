@@ -13,6 +13,12 @@ interface UserDataDao {
     @Query("SELECT EXISTS(SELECT 1 FROM favorites WHERE mediaId = :mediaId)") suspend fun isFavorite(mediaId: String): Boolean
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun addFavorite(item: FavoriteEntity)
     @Query("DELETE FROM favorites WHERE mediaId = :mediaId") suspend fun removeFavorite(mediaId: String)
+    @Query("DELETE FROM playback_history WHERE mediaId = :mediaId") suspend fun removeHistory(mediaId: String)
+    @Query("DELETE FROM music_playlist_items WHERE mediaId = :mediaId") suspend fun removePlaylistReferences(mediaId: String)
+    @Query("DELETE FROM video_progress WHERE mediaId = :mediaId") suspend fun removeVideoProgress(mediaId: String)
+    @Query("DELETE FROM video_bookmarks WHERE mediaId = :mediaId") suspend fun removeVideoBookmarks(mediaId: String)
+    @Query("DELETE FROM playback_events WHERE mediaId = :mediaId") suspend fun removePlaybackEvents(mediaId: String)
+    @Query("DELETE FROM playback_sessions WHERE mediaId = :mediaId") suspend fun removePlaybackSessions(mediaId: String)
     @Query("SELECT mediaId FROM favorites") suspend fun favoriteIds(): List<String>
 
     @Query("SELECT * FROM playback_history ORDER BY playedAt DESC LIMIT :limit") fun observeHistory(limit: Int): Flow<List<PlaybackHistoryEntity>>

@@ -54,6 +54,9 @@ private val SEEK_STEP_SECONDS = intPreferencesKey("seek_step_seconds")
 private val LIBRARY_SORT = stringPreferencesKey("library_sort")
 private val LIBRARY_SORT_ORDER = stringPreferencesKey("library_sort_order")
 private val LIBRARY_LAYOUT = stringPreferencesKey("library_layout")
+private val VIDEO_LIBRARY_MODE = stringPreferencesKey("video_library_mode")
+private val VIDEO_LIBRARY_SORT = stringPreferencesKey("video_library_sort")
+private val VIDEO_LIBRARY_SORT_ORDER = stringPreferencesKey("video_library_sort_order")
 private val GRID_COLUMNS = intPreferencesKey("grid_columns")
 private val AUTO_REFRESH = booleanPreferencesKey("auto_refresh_library")
 private val SHOW_NOTIFICATION = booleanPreferencesKey("show_now_playing_notification")
@@ -219,6 +222,14 @@ class PreferencesRepository(private val context: Context) {
     suspend fun setLibrarySort(v: String) = context.airPlayrDataStore.edit { it[LIBRARY_SORT] = v.coerceIn(setOf("recent", "name", "artist", "album", "genre", "duration", "modified")) }
     suspend fun setLibrarySortOrder(v: String) = context.airPlayrDataStore.edit { it[LIBRARY_SORT_ORDER] = v.coerceIn(setOf("asc", "desc")) }
     suspend fun setLibraryLayout(v: String) = context.airPlayrDataStore.edit { it[LIBRARY_LAYOUT] = v.coerceIn(setOf("grid", "list")) }
+
+    /** Video library has its own browsing mode and sort state so changing it never alters Music. */
+    val videoLibraryMode: Flow<String> = context.airPlayrDataStore.data.map { it[VIDEO_LIBRARY_MODE] ?: "folders" }
+    val videoLibrarySort: Flow<String> = context.airPlayrDataStore.data.map { it[VIDEO_LIBRARY_SORT] ?: "recent" }
+    val videoLibrarySortOrder: Flow<String> = context.airPlayrDataStore.data.map { it[VIDEO_LIBRARY_SORT_ORDER] ?: "desc" }
+    suspend fun setVideoLibraryMode(v: String) = context.airPlayrDataStore.edit { it[VIDEO_LIBRARY_MODE] = v.coerceIn(setOf("folders", "all")) }
+    suspend fun setVideoLibrarySort(v: String) = context.airPlayrDataStore.edit { it[VIDEO_LIBRARY_SORT] = v.coerceIn(setOf("recent", "name", "artist", "album", "genre", "duration", "modified")) }
+    suspend fun setVideoLibrarySortOrder(v: String) = context.airPlayrDataStore.edit { it[VIDEO_LIBRARY_SORT_ORDER] = v.coerceIn(setOf("asc", "desc")) }
     suspend fun setGridColumns(v: Int) = context.airPlayrDataStore.edit { it[GRID_COLUMNS] = v.coerceIn(setOf(0, 2, 3, 4)) }
     suspend fun setAutoRefreshLibrary(v: Boolean) = editBool(AUTO_REFRESH, v)
     suspend fun setShowNowPlayingNotification(v: Boolean) = editBool(SHOW_NOTIFICATION, v)

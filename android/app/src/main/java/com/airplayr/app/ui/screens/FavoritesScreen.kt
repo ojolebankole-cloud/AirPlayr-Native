@@ -30,6 +30,7 @@ import com.airplayr.app.core.data.media.MediaItem
 import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.core.playback.VideoQueueStore
 import com.airplayr.app.di.AppContainer
+import com.airplayr.app.ui.components.AirPlayrLongListFastScrollHandle
 import com.airplayr.app.ui.components.*
 import com.airplayr.app.ui.feedback.AppFeedback
 import com.airplayr.app.ui.playback.PlaybackController
@@ -51,6 +52,7 @@ fun FavoritesScreen(
 ) {
     val colors = LocalAirPlayrColors.current
     val scope = rememberCoroutineScope()
+    val favoritesListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) }
     val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
     val playbackState by playback.stableState.collectAsStateWithLifecycle()
     var headerMenu by remember { mutableStateOf(false) }
@@ -90,7 +92,7 @@ fun FavoritesScreen(
     Box(Modifier.fillMaxSize().background(colors.background)) {
         LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
+                state = favoritesListState,
                 contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding()),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
@@ -231,6 +233,7 @@ fun FavoritesScreen(
             },
             onAddToPlaylist = { headerMenu = false; playlistTarget = songs },
         )
+        AirPlayrLongListFastScrollHandle(favoritesListState)
     }
 
     selected?.let { item ->

@@ -213,6 +213,79 @@ private fun fixedAccentScheme(seed: Color, darkTheme: Boolean): ColorScheme {
     }
 }
 
+private fun dynamicAirPlayrScheme(seed: ColorScheme, darkTheme: Boolean): ColorScheme {
+    val primary = seed.primary
+    val secondary = seed.secondary
+    val tertiary = seed.tertiary
+    return if (!darkTheme) {
+        // Dynamic accent roles still come from the user's wallpaper, but AirPlayr owns the canvas.
+        // The result is a softly tinted light surface instead of pure Android white.
+        val background = blend(seed.background, blend(primary, Color.White, 0.94f), 0.68f)
+        val surface = blend(background, seed.surface, 0.42f)
+        val low = blend(background, primary, 0.055f)
+        val container = blend(background, secondary, 0.085f)
+        val high = blend(container, tertiary, 0.10f)
+        val highest = blend(high, primary, 0.08f)
+        lightColorScheme(
+            primary = primary, onPrimary = seed.onPrimary,
+            primaryContainer = blend(primary, Color.White, 0.82f),
+            onPrimaryContainer = seed.onPrimaryContainer,
+            secondary = secondary, onSecondary = seed.onSecondary,
+            secondaryContainer = blend(secondary, Color.White, 0.84f),
+            onSecondaryContainer = seed.onSecondaryContainer,
+            tertiary = tertiary, onTertiary = seed.onTertiary,
+            tertiaryContainer = blend(tertiary, Color.White, 0.86f),
+            onTertiaryContainer = seed.onTertiaryContainer,
+            error = seed.error, onError = seed.onError, errorContainer = seed.errorContainer, onErrorContainer = seed.onErrorContainer,
+            background = background, onBackground = seed.onBackground,
+            surface = surface, onSurface = seed.onSurface,
+            surfaceVariant = blend(seed.surfaceVariant, secondary, 0.10f), onSurfaceVariant = seed.onSurfaceVariant,
+            outline = seed.outline, outlineVariant = blend(seed.outlineVariant, primary, 0.10f),
+            inverseSurface = seed.inverseSurface, inverseOnSurface = seed.inverseOnSurface, inversePrimary = seed.inversePrimary,
+            scrim = seed.scrim,
+            surfaceDim = blend(background, primary, 0.10f),
+            surfaceBright = blend(surface, Color.White, 0.32f),
+            surfaceContainerLowest = blend(background, Color.White, 0.18f),
+            surfaceContainerLow = low,
+            surfaceContainer = container,
+            surfaceContainerHigh = high,
+            surfaceContainerHighest = highest,
+        )
+    } else {
+        // Dynamic dark is intentionally charcoal/tinted rather than OLED-black. This keeps
+        // AirPlayr's cards readable and gives the wallpaper accent room without swallowing the UI.
+        val background = blend(seed.background, blend(primary, Color(0xFF101318), 0.84f), 0.58f)
+        val surface = blend(background, secondary, 0.10f)
+        val lowest = blend(background, Color.Black, 0.20f)
+        val low = blend(background, primary, 0.075f)
+        val container = blend(background, secondary, 0.13f)
+        val high = blend(container, tertiary, 0.12f)
+        val highest = blend(high, primary, 0.10f)
+        darkColorScheme(
+            primary = seed.primary, onPrimary = seed.onPrimary,
+            primaryContainer = blend(primary, Color.Black, 0.34f), onPrimaryContainer = seed.onPrimaryContainer,
+            secondary = secondary, onSecondary = seed.onSecondary,
+            secondaryContainer = blend(secondary, Color.Black, 0.34f), onSecondaryContainer = seed.onSecondaryContainer,
+            tertiary = tertiary, onTertiary = seed.onTertiary,
+            tertiaryContainer = blend(tertiary, Color.Black, 0.30f), onTertiaryContainer = seed.onTertiaryContainer,
+            error = seed.error, onError = seed.onError, errorContainer = seed.errorContainer, onErrorContainer = seed.onErrorContainer,
+            background = background, onBackground = seed.onBackground,
+            surface = surface, onSurface = seed.onSurface,
+            surfaceVariant = blend(seed.surfaceVariant, secondary, 0.10f), onSurfaceVariant = seed.onSurfaceVariant,
+            outline = seed.outline, outlineVariant = blend(seed.outlineVariant, primary, 0.12f),
+            inverseSurface = seed.inverseSurface, inverseOnSurface = seed.inverseOnSurface, inversePrimary = seed.inversePrimary,
+            scrim = seed.scrim,
+            surfaceDim = lowest,
+            surfaceBright = blend(surface, Color.White, 0.16f),
+            surfaceContainerLowest = lowest,
+            surfaceContainerLow = low,
+            surfaceContainer = container,
+            surfaceContainerHigh = high,
+            surfaceContainerHighest = highest,
+        )
+    }
+}
+
 private fun arrangeLightScheme(scheme: ColorScheme): ColorScheme {
     // Preserve the AirPlayr near-white sky-blue canvas while allowing dynamic/fixed accents to
     // keep their Material-You tonal hierarchy.
@@ -272,15 +345,15 @@ fun AirPlayrTheme(
         dynamicColorRefresh.intValue,
     ) {
         when {
-            useDynamicColor && darkTheme -> dynamicDarkColorScheme(context)
-            useDynamicColor -> dynamicLightColorScheme(context)
+            useDynamicColor && darkTheme -> dynamicAirPlayrScheme(dynamicDarkColorScheme(context), darkTheme = true)
+            useDynamicColor -> dynamicAirPlayrScheme(dynamicLightColorScheme(context), darkTheme = false)
             accentColor == "dynamic" && !useDynamicColor -> fixedAccentScheme(fixedSeed, darkTheme)
             else -> fixedAccentScheme(fixedSeed, darkTheme)
         }
     }
 
-    val scheme = remember(baseScheme, darkTheme) {
-        if (darkTheme) baseScheme else arrangeLightScheme(baseScheme)
+    val scheme = remember(baseScheme, darkTheme, useDynamicColor) {
+        if (useDynamicColor) baseScheme else if (darkTheme) baseScheme else arrangeLightScheme(baseScheme)
     }
 
     val accessibleScheme = if (highContrast) {

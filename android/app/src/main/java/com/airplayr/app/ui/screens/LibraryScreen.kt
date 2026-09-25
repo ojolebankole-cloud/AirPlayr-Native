@@ -42,6 +42,7 @@ fun LibraryScreen(
     var menuFavorite by remember { mutableStateOf(false) }
     var detailsTarget by remember { mutableStateOf<MediaItem?>(null) }
     val scope = rememberCoroutineScope()
+    val libraryListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) }
 
     LaunchedEffect(menuItem?.id) {
         val item = menuItem
@@ -69,7 +70,7 @@ fun LibraryScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
+                    state = libraryListState,
                     contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding()),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
@@ -88,6 +89,7 @@ fun LibraryScreen(
                 }
             }
         }
+        AirPlayrLongListFastScrollHandle(libraryListState)
     }
 
     menuItem?.let { item ->

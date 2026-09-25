@@ -550,6 +550,7 @@ fun AirPlayrSelectionBar(
     onPlayNext: (() -> Unit)? = null,
     onPlaylist: (() -> Unit)? = null,
     onLike: (() -> Unit)? = null,
+    onMore: (() -> Unit)? = null,
 ) {
     val c = LocalAirPlayrColors.current
     Card(
@@ -567,8 +568,55 @@ fun AirPlayrSelectionBar(
             onPlay?.let { IconButton(onClick = it) { Icon(AirPlayrIcons.Play, "Play selected", tint = c.primary) } }
             onPlayNext?.let { IconButton(onClick = it) { Icon(AirPlayrIcons.Next, "Play selected next", tint = c.primary) } }
             onPlaylist?.let { IconButton(onClick = it) { Icon(Icons.Default.PlaylistAdd, "Add selected to playlist", tint = c.primary) } }
-            onLike?.let { IconButton(onClick = it) { Icon(Icons.Default.FavoriteBorder, "Like selected", tint = c.primary) } }
+            onLike?.let { IconButton(onClick = it) { Icon(Icons.Default.FavoriteBorder, "Favorite selected", tint = c.primary) } }
+            onMore?.let { IconButton(onClick = it) { Icon(Icons.Default.MoreVert, "More selection actions", tint = c.primary) } }
             onSelectAll?.let { TextButton(onClick = it) { Text("All", color = c.primary) } }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AirPlayrBulkSelectionSheet(
+    count: Int,
+    canFavorite: Boolean,
+    onPlay: () -> Unit,
+    onPlayNext: (() -> Unit)? = null,
+    onAddToQueue: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onFavorite: (() -> Unit)? = null,
+    onShare: () -> Unit,
+    onDelete: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val c = LocalAirPlayrColors.current
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = c.surfaceContainerLow,
+        tonalElevation = 0.dp,
+    ) {
+        Column(
+            Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
+                Text("Selected media", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 26.sp, color = c.textPrimary)
+                Text("$count ${if (count == 1) "item" else "items"} selected", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = c.textSecondary, modifier = Modifier.padding(top = 2.dp))
+            }
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.surfaceContainerHigh), elevation = CardDefaults.cardElevation(0.dp)) {
+                Column {
+                    ActionButton("Play now", Icons.Default.PlayArrow, onPlay)
+                    onPlayNext?.let { ActionButton("Play next", Icons.Default.SkipNext, it) }
+                    ActionButton("Add to queue", Icons.Default.QueueMusic, onAddToQueue)
+                    ActionButton("Add to playlist", Icons.Default.PlaylistAdd, onAddToPlaylist)
+                    if (canFavorite && onFavorite != null) ActionButton("Add to favorites", Icons.Default.FavoriteBorder, onFavorite)
+                    ActionButton("Share", Icons.Default.Share, onShare)
+                }
+            }
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = c.errorContainer.copy(alpha = .72f)), elevation = CardDefaults.cardElevation(0.dp)) {
+                ActionButton("Delete from device", Icons.Default.Delete, onDelete, destructive = true)
+            }
         }
     }
 }
