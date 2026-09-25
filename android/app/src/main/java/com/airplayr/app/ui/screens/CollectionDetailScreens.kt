@@ -1,7 +1,7 @@
 package com.airplayr.app.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.blur
+import androidx.compose.ui.draw.blur
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PinDrop
 import androidx.compose.material.icons.filled.PlayArrow
@@ -23,12 +24,15 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.aspectRatio
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,7 +57,7 @@ import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import com.airplayr.app.ui.navigation.LibraryViewModel
-import com.airplayr.app.core.playback.PlaybackController
+import com.airplayr.app.ui.playback.PlaybackController
 import com.airplayr.app.ui.feedback.AppFeedback
 import java.net.URLEncoder
 import java.util.Locale
@@ -1016,7 +1020,7 @@ fun GenreDetailScreen(
                                         .size(sizes[index])
                                         .align(aligns[index])
                                         .offset(
-                                            x = when (index) { 1, 3 -> (-20).dp else 20.dp },
+                                            x = if (index == 1 || index == 3) (-20).dp else 20.dp,
                                             y = when (index) { 0 -> 30.dp; 1, 2 -> 70.dp; else -> (-15).dp },
                                         )
                                         .shadow(14.dp, RoundedCornerShape(20.dp))

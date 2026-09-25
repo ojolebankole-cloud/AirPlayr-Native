@@ -116,7 +116,7 @@ fun SearchScreen(
     val focusRequester = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
     val searchListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) }
-    val playback: PlaybackController = viewModel(factory = PlaybackControllerFactory(container.appContext))
+    val playback: PlaybackController = viewModel(factory = PlaybackControllerFactory(container.appContext, container.lyricsPrefetchCoordinator))
     var query by rememberSaveable { mutableStateOf("") }
     var debounced by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable(initialFilter) { mutableStateOf(initialFilter) }
@@ -407,6 +407,7 @@ fun SearchScreen(
                         .mapNotNull { h -> lookup[h.mediaId]?.takeIf { it.mediaType == MediaType.VIDEO } }
                         .distinctBy { it.id }
                         .take(12)
+                        .toList()
                     if (recentVideoEntries.isNotEmpty()) {
                         item { SearchSectionHeader("RECENT VIDEOS", colors) }
                         items(recentVideoEntries, key = { "recent-video:${it.id}" }) { item ->

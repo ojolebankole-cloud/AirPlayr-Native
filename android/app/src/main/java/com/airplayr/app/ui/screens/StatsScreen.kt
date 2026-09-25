@@ -58,7 +58,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
-fun StatsScreen(container: AppContainer, libraryViewModel: LibraryViewModel, playback: PlaybackController, onOpenMedia: (MediaItem) -> Unit = {}, onOpenVideo: (String) -> Unit = {}, onBack: (() -> Unit)? = null) {
+fun StatsScreen(
+    container: AppContainer,
+    libraryViewModel: LibraryViewModel,
+    playback: PlaybackController,
+    onOpenMedia: (MediaItem) -> Unit = {},
+    onOpenVideo: (String) -> Unit = {},
+    onOpenAlbum: (String) -> Unit = {},
+    onBack: (() -> Unit)? = null,
+) {
     val colors = LocalAirPlayrColors.current
     val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
     val music = snapshot.audio

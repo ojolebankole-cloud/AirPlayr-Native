@@ -725,7 +725,7 @@ private fun VideoControlsOverlay(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
-                    .padding(horizontal = 22.dp, bottom = 82.dp),
+                    .padding(start = 22.dp, end = 22.dp, bottom = 82.dp),
             )
         }
     }

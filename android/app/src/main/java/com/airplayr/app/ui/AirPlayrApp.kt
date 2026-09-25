@@ -71,6 +71,10 @@ import com.airplayr.app.ui.screens.FeatureCollectionScreen
 import com.airplayr.app.ui.screens.MostPlayedScreen
 import com.airplayr.app.ui.screens.BrowseIndexScreen
 import com.airplayr.app.ui.screens.BrowseFilterScreen
+import com.airplayr.app.ui.screens.RecentCollectionsScreen
+import com.airplayr.app.ui.screens.AlbumDetailScreen
+import com.airplayr.app.ui.screens.ArtistDetailScreen
+import com.airplayr.app.ui.screens.GenreDetailScreen
 import com.airplayr.app.ui.screens.MusicMixScreen
 import com.airplayr.app.ui.screens.MusicMixMode
 import com.airplayr.app.ui.metadata.MetadataScreen
@@ -363,6 +367,7 @@ fun AirPlayrApp(
                 composable("video-search") {
                     SearchScreen(
                         container = container,
+                        libraryViewModel = libraryViewModel,
                         initialFilter = "videos",
                         videoOnly = true,
                         onOpen = { item -> if (item.mediaType == MediaType.VIDEO) navigate("video/${item.id}") },
@@ -373,6 +378,7 @@ fun AirPlayrApp(
                 composable("music-search") {
                     SearchScreen(
                         container = container,
+                        libraryViewModel = libraryViewModel,
                         initialFilter = "all",
                         musicOnly = true,
                         onOpen = { item ->

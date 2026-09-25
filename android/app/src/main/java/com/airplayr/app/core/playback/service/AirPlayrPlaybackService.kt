@@ -116,7 +116,10 @@ class AirPlayrPlaybackService : MediaLibraryService() {
                 .buildUpon()
                 .add(SessionCommand(COMMAND_FORCE_NEXT, Bundle.EMPTY))
                 .build()
-            return MediaSession.ConnectionResult.accept(sessionCommands, controllerInfo.playerCommands)
+            return MediaSession.ConnectionResult.accept(
+                sessionCommands,
+                Player.Commands.Builder().addAllCommands().build(),
+            )
         }
 
         override fun onCustomCommand(

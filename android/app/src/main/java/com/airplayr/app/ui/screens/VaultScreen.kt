@@ -126,6 +126,31 @@ fun VaultScreen(
         }
     }
 
+    fun completeMove() {
+        scope.launch {
+            val movedCount = pendingStages.size
+            pendingStages.forEach { (_, entry) -> manager.finalizeMove(entry) }
+            container.structured.hideMediaEverywhereBatch(pendingStages.map { it.first.id })
+            runCatching { container.mediaLibrary.deltaRefresh(MediaType.VIDEO) }
+            entries = manager.entries()
+            addOpen = false
+            pendingStages = emptyList()
+            deleteUris = emptyList()
+            busy = false
+            AppFeedback.showSnackbar("$movedCount video${if (movedCount == 1) "" else "s"} secured in Vault.")
+        }
+    }
+
+    fun cancelMove() {
+        scope.launch {
+            pendingStages.forEach { (_, entry) -> manager.rollbackStaged(entry) }
+            pendingStages = emptyList()
+            deleteUris = emptyList()
+            busy = false
+            AppFeedback.showSnackbar("Vault move cancelled.")
+        }
+    }
+
     val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) completeMove() else cancelMove()
     }
@@ -159,30 +184,6 @@ fun VaultScreen(
         }
     }
 
-    fun completeMove() {
-        scope.launch {
-            val movedCount = pendingStages.size
-            pendingStages.forEach { (_, entry) -> manager.finalizeMove(entry) }
-            container.structured.hideMediaEverywhereBatch(pendingStages.map { it.first.id })
-            runCatching { container.mediaLibrary.deltaRefresh(MediaType.VIDEO) }
-            entries = manager.entries()
-            addOpen = false
-            pendingStages = emptyList()
-            deleteUris = emptyList()
-            busy = false
-            AppFeedback.showSnackbar("$movedCount video${if (movedCount == 1) "" else "s"} secured in Vault.")
-        }
-    }
-
-    fun cancelMove() {
-        scope.launch {
-            pendingStages.forEach { (_, entry) -> manager.rollbackStaged(entry) }
-            pendingStages = emptyList()
-            deleteUris = emptyList()
-            busy = false
-            AppFeedback.showSnackbar("Vault move cancelled.")
-        }
-    }
 
     Box(Modifier.fillMaxSize().background(colors.background)) {
         if (!unlocked) {

@@ -1161,11 +1161,10 @@ fun BrowseFilterScreen(
             val mime = if (uris.size == 1) items.firstOrNull()?.mimeType ?: "*/*" else if (items.map { it.mediaType }.distinct().size == 1) {
                 if (items.first().mediaType == MediaType.VIDEO) "video/*" else "audio/*"
             } else "*/*"
-            val send = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                type = mime
-                putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
+            val send = Intent(Intent.ACTION_SEND_MULTIPLE)
+            send.type = mime
+            send.putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             context.startActivity(Intent.createChooser(send, "Share selected media").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }.onFailure { AppFeedback.showSnackbar("Unable to share selected media") }
     }
@@ -2020,6 +2019,7 @@ fun PlaylistDetailScreen(
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var selectedItem by remember { mutableStateOf<MediaItem?>(null) }
     val scope = rememberCoroutineScope()
+    val playlistListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) }
     var playlistTarget by remember { mutableStateOf<List<MediaItem>?>(null) }
     LaunchedEffect(id, mediaType) {
         val p = container.database.userDataDao().playlist(id)

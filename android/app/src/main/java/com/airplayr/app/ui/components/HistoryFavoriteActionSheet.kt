@@ -267,7 +267,7 @@ fun HistoryFavoritePlaylistSheet(container: AppContainer, items: List<MediaItem>
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             val artwork = playlist.artworkUri
-                            if (!artwork.isNullOrBlank()) Artwork(artwork, Modifier.size(52.dp), 17.dp, playlist.name, mediaType, if (mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music, false)
+                            if (!artwork.isNullOrBlank()) Artwork(artwork, Modifier.size(52.dp), 17.dp, playlist.name, mediaType, if (mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music, isPlaying = false)
                             else Surface(Modifier.size(52.dp), shape = RoundedCornerShape(17.dp), color = Color(0xFFDCCCE0)) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Icon(if (mediaType == MediaType.VIDEO) Icons.Default.VideoLibrary else Icons.Default.QueueMusic, null, tint = Color(0xFF4D3158), modifier = Modifier.size(27.dp)) } }
                             Column(Modifier.weight(1f).padding(horizontal = 16.dp)) {
                                 Text(playlist.name, color = referenceText, fontFamily = AirPlayrFonts.OpenSans, fontSize = 18.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
