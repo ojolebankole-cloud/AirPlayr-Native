@@ -32,8 +32,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -135,7 +133,7 @@ fun VideoScreen(
     var subtitleCues by remember { mutableStateOf<List<String>>(emptyList()) }
     var pendingSubtitleCues by remember { mutableStateOf<List<String>?>(null) }
     var fitMode by remember(video?.id, defaultFitMode) { mutableStateOf(defaultFitMode) }
-    var isFullscreen by remember { mutableStateOf(false) }
+    val isFullscreenState = remember { mutableStateOf(false) }
     var positionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
     var bufferedMs by remember { mutableLongStateOf(0L) }
@@ -151,7 +149,7 @@ fun VideoScreen(
     var resumePromptVisible by remember(video?.id) { mutableStateOf(false) }
     var playbackInitializedForId by remember { mutableStateOf<String?>(null) }
     var decoderLabel by remember(video?.id) { mutableStateOf<String?>(null) }
-    var pinchZoom by remember(video?.id, settings?.gesturePinchZoom) { mutableFloatStateOf(1f) }
+    val pinchZoomState = remember(video?.id, settings?.gesturePinchZoom) { mutableFloatStateOf(1f) }
     var longPressBoostActive by remember(video?.id) { mutableStateOf(false) }
     val activity = context as? Activity
     val originalRequestedOrientation = remember { activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
@@ -210,9 +208,9 @@ fun VideoScreen(
     }
 
     fun toggleFullscreen() {
-        isFullscreen = !isFullscreen
+        isFullscreenState.value = !isFullscreenState.value
         val activity = context as? Activity ?: return
-        WindowMode.setFullscreen(activity, isFullscreen)
+        WindowMode.setFullscreen(activity, isFullscreenState.value)
         touch()
     }
 
@@ -432,7 +430,7 @@ fun VideoScreen(
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        player?.let { p -> AndroidVideoSurface(p, fitMode, Modifier.fillMaxSize().graphicsLayer(scaleX = pinchZoom, scaleY = pinchZoom)) }
+        player?.let { p -> AndroidVideoSurface(p, fitMode, Modifier.fillMaxSize().graphicsLayer(scaleX = pinchZoomState.floatValue, scaleY = pinchZoomState.floatValue)) }
 
         if (subtitleOn && subtitleCues.isNotEmpty()) {
             VideoSubtitleOverlay(
@@ -526,7 +524,7 @@ fun VideoScreen(
                 .pointerInput(player, locked, settings?.gesturePinchZoom) {
                     if (settings?.gesturePinchZoom == true) {
                         detectTransformGestures { _, _, zoom, _ ->
-                            if (!locked) pinchZoom = (pinchZoom * zoom).coerceIn(1f, 3f)
+                            if (!locked) pinchZoomState.floatValue = (pinchZoomState.floatValue * zoom).coerceIn(1f, 3f)
                         }
                     }
                 }
@@ -542,7 +540,7 @@ fun VideoScreen(
             muted = muted,
             speed = speed,
             subtitleOn = subtitleOn,
-            isFullscreen = isFullscreen,
+            isFullscreen = isFullscreenState.value,
             isLandscape = (context.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE),
             positionMs = positionMs,
             durationMs = durationMs,
@@ -553,7 +551,7 @@ fun VideoScreen(
             qualityLabel = player?.videoSize?.let { videoQualityLabel(it.width, it.height, decoderLabel) }
                 ?: video?.let { videoQualityLabel(it.width, it.height, decoderLabel) }
                 ?: "",
-            onBack = { if (isFullscreen) toggleFullscreen() else (context as? ComponentActivity)?.onBackPressedDispatcher?.onBackPressed() },
+            onBack = { if (isFullscreenState.value) toggleFullscreen() else (context as? ComponentActivity)?.onBackPressedDispatcher?.onBackPressed() },
             onCast = onCast,
             onAudioTracks = { audioTracksOpen = true; touch() },
             onEqualizer = { onNavigate("equalizer") },

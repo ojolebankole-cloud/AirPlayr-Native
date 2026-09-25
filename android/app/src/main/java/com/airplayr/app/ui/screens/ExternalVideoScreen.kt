@@ -18,8 +18,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -66,7 +64,7 @@ fun ExternalVideoScreen(
     var player by remember(uri) { mutableStateOf<Player?>(null) }
     var muted by remember(uri, muteOnStart) { mutableStateOf(muteOnStart) }
     var controlsVisible by remember { mutableStateOf(true) }
-    var fullscreen by remember { mutableStateOf(false) }
+    val fullscreenState = remember { mutableStateOf(false) }
     var fitMode by remember(uri, defaultFitMode) { mutableStateOf(defaultFitMode) }
     var position by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
@@ -81,7 +79,7 @@ fun ExternalVideoScreen(
     var volumeOverlay by remember { mutableStateOf(false) }
     var volumeOverlayValue by remember { mutableIntStateOf((VideoGestureSupport.musicVolumeFraction(context) * 100f).roundToInt().coerceIn(0, 100)) }
     var brightnessFeedback by remember { mutableStateOf<String?>(null) }
-    var pinchZoom by remember(uri, settings?.gesturePinchZoom) { mutableFloatStateOf(1f) }
+    val pinchZoomState = remember(uri, settings?.gesturePinchZoom) { mutableFloatStateOf(1f) }
     var longPressBoostActive by remember(uri) { mutableStateOf(false) }
 
     fun touch() { controlsVisible = true; interaction++ }
@@ -91,8 +89,8 @@ fun ExternalVideoScreen(
         touch()
     }
     fun toggleFullscreen() {
-        fullscreen = if (fullscreen) false else true
-        WindowMode.setFullscreen(context as? Activity ?: return, fullscreen)
+        fullscreenState.value = !fullscreenState.value
+        WindowMode.setFullscreen(context as? Activity ?: return, fullscreenState.value)
         touch()
     }
     fun toggleMute() {
@@ -228,12 +226,12 @@ fun ExternalVideoScreen(
         .pointerInput(player, settings?.gesturePinchZoom) {
             if (settings?.gesturePinchZoom == true) {
                 detectTransformGestures { _, _, zoom, _ ->
-                    pinchZoom = (pinchZoom * zoom).coerceIn(1f, 3f)
+                    pinchZoomState.floatValue = (pinchZoomState.floatValue * zoom).coerceIn(1f, 3f)
                 }
             }
         }
         ) {
-        player?.let { AndroidVideoSurface(it, fitMode, Modifier.fillMaxSize().graphicsLayer(scaleX = pinchZoom, scaleY = pinchZoom)) }
+        player?.let { AndroidVideoSurface(it, fitMode, Modifier.fillMaxSize().graphicsLayer(scaleX = pinchZoomState.floatValue, scaleY = pinchZoomState.floatValue)) }
         if (subtitleOn && cues.isNotEmpty()) {
             VideoSubtitleOverlay(cues, settings?.subtitleSize ?: 1.0, parseSubtitleColor(settings?.subtitleColor), settings?.subtitleBg ?: true, settings?.subtitlePosition == "top", controlsVisible)
         }
@@ -272,7 +270,7 @@ fun ExternalVideoScreen(
                 Row(Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 18.dp, bottom = 76.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     GlassIconButton(Icons.Default.Forward10, "Forward 10 seconds", Modifier.size(50.dp), onClick = { seek(10_000L) })
                     GlassIconButton(Icons.Default.PictureInPictureAlt, "Picture in picture", Modifier.size(50.dp), onClick = { if (Build.VERSION.SDK_INT >= 26) (context as? Activity)?.enterPictureInPictureMode(); touch() })
-                    GlassIconButton(if (fullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, "Fullscreen", Modifier.size(50.dp), ::toggleFullscreen)
+                    GlassIconButton(if (fullscreenState.value) Icons.Default.FullscreenExit else Icons.Default.Fullscreen, "Fullscreen", Modifier.size(50.dp), ::toggleFullscreen)
                 }
                 Column(Modifier.fillMaxWidth().align(Alignment.BottomCenter).navigationBarsPadding().padding(horizontal = 18.dp, vertical = 12.dp)) {
                     val progress = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f
