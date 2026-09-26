@@ -2,6 +2,7 @@
 package com.airplayr.app.ui.screens
 
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.rememberScrollState
 import android.app.Activity
