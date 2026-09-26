@@ -52,8 +52,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.airplayr.app.core.data.media.MediaItem
-import com.airplayr.app.core.data.preferences.PreferencesRepository
-import com.airplayr.app.core.data.preferences.NowPlayingTheme
 import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.ui.playback.PlaybackController
 import com.airplayr.app.ui.theme.AirPlayrIcons
@@ -69,15 +67,12 @@ fun MusicQueueSheet(
     val colors = LocalAirPlayrColors.current
     val state by playback.state.collectAsStateWithLifecycle()
     val queue by playback.queueItems.collectAsStateWithLifecycle()
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val preferences = remember(context) { PreferencesRepository(context) }
-    val settings by preferences.settings.collectAsStateWithLifecycle(initialValue = null)
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        containerColor = colors.surfaceContainerLow,
         tonalElevation = 0.dp,
         dragHandle = {
             Box(
@@ -95,12 +90,6 @@ fun MusicQueueSheet(
                 .fillMaxWidth()
                 .fillMaxHeight(0.96f),
         ) {
-            PlaybackBackground(
-                theme = settings?.nowPlayingTheme ?: NowPlayingTheme.DEFAULT,
-                artworkUri = state.artworkUri,
-                modifier = Modifier.matchParentSize(),
-                reduceMotion = settings?.reduceMotion == true,
-            )
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -118,7 +107,7 @@ fun MusicQueueSheet(
                     .fillMaxWidth()
                     .weight(1f)
                     .clip(RoundedCornerShape(topStart = 34.dp, topEnd = 34.dp))
-                    .background(colors.surfaceContainerLow.copy(alpha = 0.24f)),
+                    .background(colors.surfaceContainerLow),
             ) {
                 Text(
                     "Up next",

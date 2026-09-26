@@ -201,28 +201,6 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
         }
         }
 
-        item {
-        settingSection("Subtitles") {
-            SettingSwitch("Subtitles enabled by default", null, current.subtitlesEnabledDefault) { toggle("subDefault", it) }
-            SettingRow("Text size", subtitleSizeLabel(current.subtitleSize), onClick = { selector = SettingSelector("Subtitle size", current.subtitleSize.toString(), listOf("0.8" to "Small", "1.0" to "Medium", "1.2" to "Large", "1.5" to "Extra large")) { set("subSize", it.toDouble()) } })
-            SettingRow("Text color", subtitleColorLabel(current.subtitleColor), onClick = { selector = SettingSelector("Subtitle color", current.subtitleColor, listOf("#FFFFFF" to "White", "#FFEB3B" to "Yellow", "#00E5FF" to "Cyan", "#FF80AB" to "Pink", "#000000" to "Black")) { set("subColor", it) } })
-            SettingRow("Position", if (current.subtitlePosition == "top") "Top" else "Bottom", onClick = { selector = SettingSelector("Subtitle position", current.subtitlePosition, listOf("bottom" to "Bottom", "top" to "Top")) { set("subPos", it) } })
-            SettingRow(
-                "Delay",
-                "${current.subtitleDelayMs} ms",
-                onClick = {
-                    selector = SettingSelector(
-                        "Subtitle delay",
-                        current.subtitleDelayMs.toString(),
-                        (-4000..4000 step 500).map { it.toString() to "$it ms" },
-                    ) { set("subDelay", it.toInt()) }
-                },
-            )
-            SettingSwitch("Background behind text", null, current.subtitleBg) { toggle("subBg", it) }
-            SettingSwitch("Remember subtitle track", null, current.rememberSubtitleTrack) { toggle("rememberSub", it) }
-            SettingSwitch("Prefer external subtitles", null, current.preferExternalSubtitles) { toggle("externalSub", it) }
-        }
-        }
 
         item {
         settingSection("Audio") {

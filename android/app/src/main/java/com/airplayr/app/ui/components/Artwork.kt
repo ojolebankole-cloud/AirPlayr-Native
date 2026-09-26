@@ -190,6 +190,36 @@ private fun calculateSample(width: Int, height: Int, targetWidth: Int, targetHei
 }
 
 @Composable
+fun rememberArtworkDominantColor(uri: String?, fallback: androidx.compose.ui.graphics.Color): androidx.compose.ui.graphics.Color {
+    val context = LocalContext.current
+    val bitmap by produceState<Bitmap?>(null, uri) {
+        value = withContext(Dispatchers.IO) {
+            uri?.takeIf { it.isNotBlank() }?.let { raw ->
+                ArtworkMemoryCache.getOrLoad("palette:$raw:96x96") { loadBitmap(context, raw, MediaType.AUDIO, 96, 96) }
+            }
+        }
+    }
+    return remember(bitmap, fallback) {
+        bitmap?.let {
+            var r = 0L; var g = 0L; var b = 0L; var count = 0
+            val stepX = maxOf(1, it.width / 24); val stepY = maxOf(1, it.height / 24)
+            for (y in 0 until it.height step stepY) {
+                for (x in 0 until it.width step stepX) {
+                    val px = it.getPixel(x, y)
+                    if (android.graphics.Color.alpha(px) < 180) continue
+                    r += android.graphics.Color.red(px); g += android.graphics.Color.green(px); b += android.graphics.Color.blue(px); count++
+                }
+            }
+            if (count > 0) {
+                val avg = androidx.compose.ui.graphics.Color(r.toFloat() / count / 255f, g.toFloat() / count / 255f, b.toFloat() / count / 255f)
+                // Keep the reference-card feel: artwork-derived, but slightly softened for text legibility.
+                androidx.compose.ui.graphics.lerp(avg, fallback, 0.12f)
+            } else fallback
+        } ?: fallback
+    }
+}
+
+@Composable
 fun ArtworkBackdrop(
     uri: String?,
     modifier: Modifier = Modifier,

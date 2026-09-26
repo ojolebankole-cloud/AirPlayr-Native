@@ -292,7 +292,7 @@ fun HistoryScreen(
         )
     }
     playlistTarget?.let { list -> HistoryFavoritePlaylistSheet(container, list) { playlistTarget = null } }
-    detailsTarget?.let { item -> HistoryFavoriteDetailsSheet(item, playing = playbackState.isPlaying && playbackState.currentId == item.id) { detailsTarget = null } }
+    detailsTarget?.let { item -> MediaDetailsSheet(item, playing = playbackState.isPlaying && playbackState.currentId == item.id) { detailsTarget = null } }
     editTarget?.let { HistoryFavoriteTagEditorSheet(container, it) { editTarget = null } }
     lyricsTarget?.let { HistoryFavoriteLyricsSheet(container, it) { lyricsTarget = null } }
     deleteTarget?.let { item ->

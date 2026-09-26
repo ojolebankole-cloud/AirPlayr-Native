@@ -7,6 +7,7 @@ import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.components.AirPlayrCard
+import com.airplayr.app.ui.components.MediaDetailsSheet
 import com.airplayr.app.ui.components.AirPlayrLongListFastScrollHandle
 import com.airplayr.app.ui.components.AirPlayrLongGridFastScrollHandle
 import com.airplayr.app.ui.components.rememberAirPlayrIllustrationPalette
@@ -120,6 +121,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.verticalScroll
 import com.airplayr.app.ui.components.Artwork
+import com.airplayr.app.ui.components.AirPlayrWaveAnimation
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.PlaylistRemove
@@ -147,6 +149,7 @@ fun FeatureCollectionScreen(
     var loading by remember(cachedFeatures, cacheKey, title) { mutableStateOf(cachedFeatures[cacheKey] == null && title != "Rediscover") }
     var menuOpen by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<MediaItem?>(null) }
+    var detailsTarget by remember { mutableStateOf<MediaItem?>(null) }
     var favorite by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var selectionMode by rememberSaveable { mutableStateOf(false) }
@@ -223,6 +226,7 @@ fun FeatureCollectionScreen(
                     badge = when (title) { "Rock your world" -> "HIGH ENERGY · ${items.size} SONGS"; "Rediscover" -> "THE REWIND · ${items.size} VIDEOS"; "Tuned in" -> "${profile.first} MIX · ${items.size} SONGS"; else -> "MADE FOR YOU" },
                     colors = colors,
                     playing = playbackState.isPlaying && playbackState.currentId == hero.id,
+                    animatedWave = title == "For you now" || title == "Tuned in",
                     onPlay = { if (hero.mediaType == MediaType.AUDIO) playback.playQueue(items, 0) else onVideoOpen(hero.id) },
                     onShuffle = { playAll(true) }
                 )
@@ -351,7 +355,7 @@ fun FeatureCollectionScreen(
                     onPlayNext = { VideoQueueStore.playNext(listOf(item)); selected = null },
                     onAddQueue = { VideoQueueStore.add(listOf(item)); selected = null },
                     onPlaylist = { selected = null },
-                    onDetails = { selected = null },
+                    onDetails = { detailsTarget = item; selected = null },
                     onDelete = { selected = null },
                     onBlacklist = null,
                     onGoAlbum = { selected = null },
@@ -382,6 +386,13 @@ fun FeatureCollectionScreen(
         playlistTarget?.let { target ->
             val app = container
             if (app != null) HistoryFavoritePlaylistSheet(app, target, onDismiss = { playlistTarget = null })
+        }
+        detailsTarget?.let { item ->
+            MediaDetailsSheet(
+                item = item,
+                playing = playbackState.isPlaying && playbackState.currentId == item.id,
+                onDismiss = { detailsTarget = null },
+            )
         }
     }
 }
@@ -503,12 +514,16 @@ private fun RediscoverVideoPreview(item: MediaItem) {
 }
 
 @Composable
-private fun FeatureHero(item: MediaItem, title: String?, subtitle: String, badge: String, colors: com.airplayr.app.ui.theme.AirPlayrColors, playing: Boolean, onPlay: () -> Unit, onShuffle: () -> Unit) {
+private fun FeatureHero(item: MediaItem, title: String?, subtitle: String, badge: String, colors: com.airplayr.app.ui.theme.AirPlayrColors, playing: Boolean, animatedWave: Boolean, onPlay: () -> Unit, onShuffle: () -> Unit) {
     val art = item.displayArtworkUri()
     Box(Modifier.fillMaxWidth().height(360.dp).padding(horizontal = 22.dp).clip(RoundedCornerShape(30.dp)).airPlayrShadow(RoundedCornerShape(30.dp), 6.dp).clickable { onPlay() }) {
-        if (art != null) com.airplayr.app.ui.components.Artwork(art, Modifier.fillMaxSize(), 30.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music, isPlaying = playing)
-        else Box(Modifier.fillMaxSize().background(colors.primaryContainer))
-        Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = .42f)))
+        if (animatedWave) {
+            Box(Modifier.fillMaxSize().background(colors.primaryContainer))
+            AirPlayrWaveAnimation(Modifier.fillMaxSize().padding(18.dp), isPlaying = playing)
+        } else if (art != null) {
+            com.airplayr.app.ui.components.Artwork(art, Modifier.fillMaxSize(), 30.dp, item.title, item.mediaType, if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music, isPlaying = playing)
+        } else Box(Modifier.fillMaxSize().background(colors.primaryContainer))
+        Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = .28f)))
         Column(Modifier.fillMaxSize().padding(22.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Surface(shape = RoundedCornerShape(30.dp), color = colors.surfaceContainerHighest) { Row(Modifier.padding(horizontal = 11.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.AutoAwesome, null, tint = colors.primary, modifier = Modifier.size(14.dp)); Text(badge, fontFamily = AirPlayrFonts.OpenSans, fontSize = 10.sp, letterSpacing = .8.sp, color = colors.textPrimary, modifier = Modifier.padding(start = 6.dp)) } }
@@ -1329,8 +1344,8 @@ fun BrowseFilterScreen(
                                     VideoMediaRow(
                                         item = item,
                                         big = videoViewMode == "big",
-                                        onOpen = { if (selectionMode) selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id else onOpenVideo(item.id) },
-                                        onPlay = { onOpenVideo(item.id) },
+                                        onOpen = { if (selectionMode) selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id else if (item.mediaType == MediaType.VIDEO) { VideoQueueStore.setLoopingQueue(filtered.filter { it.mediaType == MediaType.VIDEO }, item.id); onOpenVideo(item.id) } else onOpenVideo(item.id) },
+                                        onPlay = { VideoQueueStore.setLoopingQueue(filtered.filter { it.mediaType == MediaType.VIDEO }, item.id); onOpenVideo(item.id) },
                                         onMore = { videoActionItem = item },
                                     )
                                 } else {
@@ -1498,7 +1513,7 @@ fun BrowseFilterScreen(
             onDelete = { videoActionItem = null; deleteVideoItem = item },
         )
     }
-    videoDetailsItem?.let { item -> VideoDetailsSheet(item, onDismiss = { videoDetailsItem = null }) }
+    videoDetailsItem?.let { item -> MediaDetailsSheet(item, onDismiss = { videoDetailsItem = null }) }
     videoPlaylistItem?.let { item ->
         val app = container ?: return@let
         HistoryFavoritePlaylistSheet(app, listOf(item), onDismiss = { videoPlaylistItem = null })
@@ -1630,52 +1645,7 @@ private fun VideoActionSheet(
     )
 }
 
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-@Composable
-private fun VideoDetailsSheet(item: MediaItem, onDismiss: () -> Unit) {
-    val colors = LocalAirPlayrColors.current
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.surfaceContainerLow) {
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(22.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            com.airplayr.app.ui.components.Artwork(item.thumbnailUri ?: item.artworkUri, Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(20.dp)), 20.dp, item.title, MediaType.VIDEO, AirPlayrIcons.Video, isPlaying = false)
-            Text(item.title.ifBlank { item.filename }, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 25.sp, color = colors.textPrimary)
-            VideoDetailLine("Resolution", if (item.width > 0 && item.height > 0) "${item.width} × ${item.height}" else "Unknown")
-            VideoDetailLine("Duration", formatTime(item.durationMs))
-            VideoDetailLine("File size", formatBytes(item.sizeBytes))
-            VideoDetailLine("Format", item.mimeType ?: item.filename.substringAfterLast('.', "Unknown").uppercase())
-            VideoDetailLine("Date added", formatDate(item.dateAdded))
-            VideoDetailLine("Date modified", formatDate(item.dateModified))
-            VideoDetailLine("Location", item.path ?: item.relativePath ?: item.folder ?: item.uri)
-        }
-    }
-}
 
-@Composable
-private fun VideoDetailLine(label: String, value: String) {
-    val colors = LocalAirPlayrColors.current
-    Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-        Text(label, fontFamily = AirPlayrFonts.OpenSans, fontSize = 11.sp, color = colors.textSecondary)
-        Text(value, fontFamily = AirPlayrFonts.OpenSans, fontSize = 14.sp, color = colors.textPrimary, maxLines = 3, overflow = TextOverflow.Ellipsis)
-    }
-}
-
-private fun formatTime(ms: Long): String {
-    val totalSeconds = (ms.coerceAtLeast(0L) / 1000L)
-    val hours = totalSeconds / 3600L
-    val minutes = (totalSeconds % 3600L) / 60L
-    val seconds = totalSeconds % 60L
-    return if (hours > 0L) String.format(java.util.Locale.getDefault(), "%d:%02d:%02d", hours, minutes, seconds)
-    else String.format(java.util.Locale.getDefault(), "%d:%02d", minutes, seconds)
-}
-
-private fun formatBytes(bytes: Long): String {
-    if (bytes <= 0L) return "Unknown"
-    val units = listOf("B", "KB", "MB", "GB", "TB")
-    var value = bytes.toDouble(); var index = 0
-    while (value >= 1024 && index < units.lastIndex) { value /= 1024; index++ }
-    return if (index == 0) "${bytes} ${units[index]}" else "%.1f %s".format(value, units[index])
-}
-
-private fun formatDate(seconds: Long): String = if (seconds <= 0L) "Unknown" else java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT).format(java.util.Date(seconds * 1000L))
 
 @Composable
 fun RecentScreen(
@@ -1869,15 +1839,25 @@ fun MyPlaylistsScreen(container: AppContainer, libraryViewModel: LibraryViewMode
             com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("This playlist is empty.")
         } else {
             val ordered = if (shuffle) rows.shuffled() else rows
-            playback.playQueue(ordered, 0)
+            if (p.mediaType == MediaType.VIDEO.value) {
+                VideoQueueStore.setLoopingQueue(ordered, ordered.first().id)
+                VideoQueueStore.setShuffle(shuffle)
+                onOpenVideo(ordered.first().id)
+            } else {
+                playback.playQueue(ordered, 0)
+                selected = null
+            }
             selected = null
-            if (p.mediaType == MediaType.VIDEO.value) onOpenVideo(ordered.first().id)
         }
     }
     fun queuePlaylist(p: com.airplayr.app.core.data.db.MusicPlaylistEntity, next: Boolean) {
         val rows = itemsOf(p)
         if (rows.isEmpty()) com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("This playlist is empty.") else {
-            rows.forEach { if (next) playback.playNext(it) else playback.addToQueue(it) }
+            if (p.mediaType == MediaType.VIDEO.value) {
+                if (next) VideoQueueStore.playNext(rows) else VideoQueueStore.add(rows)
+            } else {
+                rows.forEach { if (next) playback.playNext(it) else playback.addToQueue(it) }
+            }
             selected = null
             val kind = if (p.mediaType == MediaType.VIDEO.value) "videos" else "songs"
             com.airplayr.app.ui.feedback.AppFeedback.showSnackbar("${rows.size} $kind ${if (next) "added as next" else "added to the queue"}.")
@@ -2057,7 +2037,7 @@ fun PlaylistDetailScreen(
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             item {
-                Box(Modifier.fillMaxWidth().height(455.dp)) {
+                Box(Modifier.fillMaxWidth().height(420.dp)) {
                     Box(Modifier.fillMaxSize().background(colors.surfaceContainerLow)) {
                         if (heroArts.isNotEmpty()) {
                             heroArts.forEachIndexed { index, uri ->
@@ -2087,15 +2067,16 @@ fun PlaylistDetailScreen(
                         onClick = { (context as? androidx.activity.ComponentActivity)?.onBackPressedDispatcher?.onBackPressed() },
                         modifier = Modifier.statusBarsPadding().padding(start = 12.dp, top = 8.dp).size(48.dp),
                     ) { Icon(Icons.Default.ArrowBack, "Back", tint = colors.textPrimary, modifier = Modifier.size(29.dp)) }
-                    Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 40.dp, vertical = 18.dp)) {
-                        Text(title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 54.sp, lineHeight = 58.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("${items.size} ${if (mediaType == MediaType.VIDEO) if (items.size == 1) "Video" else "Videos" else if (items.size == 1) "Song" else "Songs"}  ·  $durationLabel", fontFamily = AirPlayrFonts.OpenSans, fontSize = 17.sp, color = colors.textPrimary)
+                    Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 22.dp, vertical = 18.dp)) {
+                        Text(if (mediaType == MediaType.VIDEO) "VIDEO PLAYLIST" else "MUSIC PLAYLIST", fontFamily = AirPlayrFonts.OpenSansBold, fontSize = 11.sp, letterSpacing = 1.6.sp, color = colors.primary)
+                        Text(title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 42.sp, lineHeight = 46.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = colors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text("${items.size} ${if (mediaType == MediaType.VIDEO) if (items.size == 1) "Video" else "Videos" else if (items.size == 1) "Song" else "Songs"} · $durationLabel", fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, color = colors.textSecondary)
                     }
                 }
             }
             item {
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 40.dp, vertical = 14.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
@@ -2125,19 +2106,19 @@ fun PlaylistDetailScreen(
             }
             items(items, key = { it.id }) { item ->
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 40.dp, vertical = 10.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Artwork(
                         item.displayArtworkUri(),
-                        Modifier.size(90.dp).clip(RoundedCornerShape(18.dp)),
+                        Modifier.size(70.dp).clip(RoundedCornerShape(18.dp)),
                         18.dp,
                         item.title,
                         item.mediaType,
                         if (mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music,
                         isPlaying = playbackState.isPlaying && playbackState.currentId == item.id,
                     )
-                    Column(Modifier.weight(1f).padding(horizontal = 22.dp)) {
+                    Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
                         Text(item.title.ifBlank { item.filename }, fontFamily = AirPlayrFonts.OpenSans, fontSize = 20.sp, color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text("${item.artist.orEmpty().ifBlank { if (mediaType == MediaType.VIDEO) "Video" else "Unknown Artist" }}  ·  ${formatPlaylistDuration(item.durationMs)}", fontFamily = AirPlayrFonts.OpenSans, fontSize = 15.sp, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
                     }

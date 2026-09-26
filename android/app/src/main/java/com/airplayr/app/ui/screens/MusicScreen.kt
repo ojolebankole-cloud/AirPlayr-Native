@@ -96,6 +96,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -119,6 +120,7 @@ import com.airplayr.app.ui.components.ActionButton
 import com.airplayr.app.ui.components.ActionGroup
 import com.airplayr.app.ui.components.AirPlayrPremiumMediaActionSheet
 import com.airplayr.app.ui.components.Artwork
+import com.airplayr.app.ui.components.rememberArtworkDominantColor
 import com.airplayr.app.ui.components.HistoryFavoritePlaylistSheet
 import com.airplayr.app.ui.components.TagEditorSheet
 import com.airplayr.app.ui.navigation.LibraryViewModel
@@ -1092,33 +1094,54 @@ private fun GenreGrid(data: List<CollectionGroup>, onNavigate: (String) -> Unit,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             items(data, key = { it.name }) { genre ->
-                val arts = genre.songs.mapNotNull { it.artworkUri }.distinct().take(2)
-                val tint = when ((genre.name.hashCode() and Int.MAX_VALUE) % 5) {
-                    0 -> colors.primaryContainer
-                    1 -> colors.secondaryContainer
-                    2 -> colors.tertiaryContainer
-                    3 -> colors.surfaceContainerHigh
-                    else -> colors.surfaceContainerHighest
-                }
-                Surface(
-                    onClick = { onNavigate("genre/${encode(genre.name)}") },
-                    shape = RoundedCornerShape(17.dp),
-                    color = tint,
-                    modifier = Modifier.height(112.dp),
-                ) {
-                    Box(Modifier.fillMaxSize()) {
-                        Column(Modifier.padding(13.dp).fillMaxSize(), verticalArrangement = Arrangement.Center) {
-                            Text(genre.name, style = MaterialTheme.typography.titleMedium, color = colors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Text("${genre.songs.size} Songs", style = MaterialTheme.typography.labelMedium, color = colors.textSecondary, modifier = Modifier.padding(top = 4.dp))
-                        }
-                        arts.forEachIndexed { i, uri ->
-                            Artwork(uri, Modifier.size(70.dp).align(if (i == 0) Alignment.BottomEnd else Alignment.TopEnd).padding(5.dp), 13.dp, genre.name, MediaType.AUDIO, AirPlayrIcons.Music)
-                        }
-                    }
-                }
+                GenreReferenceCard(genre = genre, onClick = { onNavigate("genre/${encode(genre.name)}") }, colors = colors)
             }
         }
         AirPlayrFastScrollGridHandle(stateGrid)
+    }
+}
+
+@Composable
+private fun GenreReferenceCard(
+    genre: CollectionGroup,
+    onClick: () -> Unit,
+    colors: com.airplayr.app.ui.theme.AirPlayrColors,
+) {
+    val artwork = genre.songs.firstOrNull()?.artworkUri
+    val cardColor = rememberArtworkDominantColor(artwork, colors.surfaceContainerHigh)
+    val cardText = if (cardColor.luminance() > 0.62f) Color.Black else Color.White
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(24.dp),
+        color = cardColor,
+        tonalElevation = 0.dp,
+        modifier = Modifier.height(150.dp),
+    ) {
+        Box(Modifier.fillMaxSize()) {
+            Column(
+                Modifier.align(Alignment.CenterStart).padding(start = 16.dp, end = 76.dp),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(genre.name, fontFamily = AirPlayrFonts.OpenSans, fontSize = 20.sp, fontWeight = FontWeight.Medium, color = cardText, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text("${genre.songs.size} ${if (genre.songs.size == 1) "Song" else "Songs"}", fontFamily = AirPlayrFonts.OpenSans, fontSize = 15.sp, color = cardText.copy(alpha = .84f), modifier = Modifier.padding(top = 5.dp))
+            }
+            artwork?.let { uri ->
+                Artwork(
+                    uri,
+                    Modifier
+                        .size(112.dp)
+                        .align(Alignment.BottomEnd)
+                        .offset(x = 12.dp, y = 14.dp)
+                        .graphicsLayer { rotationZ = 11f }
+                        .shadow(8.dp, RoundedCornerShape(22.dp))
+                        .clip(RoundedCornerShape(22.dp)),
+                    22.dp,
+                    genre.name,
+                    MediaType.AUDIO,
+                    AirPlayrIcons.Music,
+                )
+            }
+        }
     }
 }
 

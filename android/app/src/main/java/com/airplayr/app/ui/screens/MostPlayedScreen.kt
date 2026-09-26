@@ -63,6 +63,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -79,6 +80,7 @@ import com.airplayr.app.core.data.media.MediaType
 import com.airplayr.app.di.AppContainer
 import com.airplayr.app.ui.airPlayrBottomContentPadding
 import com.airplayr.app.ui.components.AirPlayrLongListFastScrollHandle
+import com.airplayr.app.ui.components.AirPlayrWaveAnimation
 import com.airplayr.app.ui.components.AirPlayrAlbumRailCard
 import com.airplayr.app.ui.components.AirPlayrFeatureCollectionActionSheet
 import com.airplayr.app.ui.components.AirPlayrMediaRow
@@ -196,7 +198,7 @@ fun MostPlayedScreen(
                     topVideo = topVideoItem,
                     onTrack = { topTrackItem?.let { playSongs(listOf(it)) } },
                     onVideo = { topVideoItem?.let { onOpenVideo(it.id) } },
-                    isTrackPlaying = playbackState.isPlaying && playbackState.currentId == topTrackItem?.id,
+                    isMusicPlaying = playbackState.isPlaying && playbackState.currentMediaType == MediaType.AUDIO,
                 )
             }
             if (topSongItems.isNotEmpty()) {
@@ -329,7 +331,7 @@ fun MostPlayedScreen(
         )
     }
     playlistTarget?.let { com.airplayr.app.ui.components.HistoryFavoritePlaylistSheet(container, it) { playlistTarget = null } }
-    detailsTarget?.let { item -> com.airplayr.app.ui.components.HistoryFavoriteDetailsSheet(item, playing = playbackState.isPlaying && playbackState.currentId == item.id) { detailsTarget = null } }
+    detailsTarget?.let { item -> com.airplayr.app.ui.components.MediaDetailsSheet(item, playing = playbackState.isPlaying && playbackState.currentId == item.id) { detailsTarget = null } }
     editTarget?.let { item -> com.airplayr.app.ui.components.HistoryFavoriteTagEditorSheet(container, item) { editTarget = null } }
     lyricsTarget?.let { item -> com.airplayr.app.ui.components.HistoryFavoriteLyricsSheet(container, item) { lyricsTarget = null } }
     deleteTarget?.let { item ->
@@ -373,7 +375,7 @@ private fun MostPlayedHero(
     topVideo: MediaItem?,
     onTrack: () -> Unit,
     onVideo: () -> Unit,
-    isTrackPlaying: Boolean,
+    isMusicPlaying: Boolean,
 ) {
     val colors = LocalAirPlayrColors.current
     val transition = rememberInfiniteTransition(label = "most-played-hero-gradient")
@@ -400,7 +402,7 @@ private fun MostPlayedHero(
     val lottieProgress by animateLottieCompositionAsState(
         composition = composition,
         iterations = LottieConstants.IterateForever,
-        isPlaying = slide == 0 && isTrackPlaying,
+        isPlaying = isMusicPlaying,
     )
     val illustrationPalette = rememberAirPlayrIllustrationPalette(
         colors.primary, colors.secondary, colors.tertiary,
@@ -511,6 +513,10 @@ private fun MostPlayedHero(
                 }
             }
         }
+        AirPlayrWaveAnimation(
+            modifier = Modifier.fillMaxSize().graphicsLayer(alpha = .26f).padding(18.dp),
+            isPlaying = isMusicPlaying,
+        )
     }
 }
 

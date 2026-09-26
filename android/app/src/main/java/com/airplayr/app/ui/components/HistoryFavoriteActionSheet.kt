@@ -352,29 +352,6 @@ private fun AddedBadge() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun HistoryFavoriteDetailsSheet(item: MediaItem, playing: Boolean = false, onDismiss: () -> Unit) {
-    val colors = LocalAirPlayrColors.current
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.surfaceContainerLow) {
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(22.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Artwork(
-                item.artworkUri ?: item.thumbnailUri,
-                if (item.mediaType == MediaType.VIDEO) Modifier.width(140.dp).height(79.dp) else Modifier.size(110.dp),
-                20.dp,
-                item.title,
-                item.mediaType,
-                if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music,
-                isPlaying = playing,
-            )
-            Text(item.title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 25.sp, color = colors.textPrimary)
-            Text(listOfNotNull(item.artist, item.album, item.genre).joinToString(" • ").ifBlank { item.filename }, color = colors.textSecondary)
-            Text("${item.sizeBytes / 1024 / 1024} MB · ${item.durationMs / 1000}s", color = colors.textSecondary)
-            Text("${item.mimeType ?: "Unknown media type"}", color = colors.textSecondary, fontSize = 12.sp)
-            Text("${item.uri}", color = colors.textSecondary, fontSize = 11.sp, maxLines = 2)
-        }
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -1,7 +1,17 @@
 package com.airplayr.app.ui.screens
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+
 import com.airplayr.app.core.data.media.MediaType
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
 import com.airplayr.app.core.data.preferences.PreferencesRepository
 import com.airplayr.app.core.lyrics.LyricsRepository
 import android.content.Context
@@ -134,7 +144,6 @@ fun PlayerScreen(
     onBack: () -> Unit,
     onEqualizer: () -> Unit,
     onNavigate: (String) -> Unit,
-    inSheet: Boolean = false,
 ) {
     val colors = LocalAirPlayrColors.current
     val config = LocalConfiguration.current
@@ -146,6 +155,7 @@ fun PlayerScreen(
     val dsp by dspRepo.state.collectAsStateWithLifecycle(initialValue = com.airplayr.app.core.playback.dsp.DspState())
     var sheet by remember { mutableStateOf<PlayerSheet?>(null) }
     var queueOpen by remember { mutableStateOf(false) }
+    var dragOffsetY by remember { mutableFloatStateOf(0f) }
     var favorite by remember(state.currentId) { mutableStateOf(false) }
     var currentItem by remember(state.currentId) { mutableStateOf<MediaItem?>(null) }
     var audioTechnical by remember(state.currentId) { mutableStateOf<AudioTechnicalMetadata?>(null) }
@@ -215,15 +225,43 @@ fun PlayerScreen(
     val progressDuration = state.durationMs.coerceAtLeast(1L)
     val repeatLabel = when (state.repeatMode) { REPEAT_ONE -> "Repeat one"; REPEAT_ALL -> "Repeat all"; else -> "Repeat off" }
 
-    Box(Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER).fillMaxSize().background(colors.background)) {
+    Box(
+        Modifier
+            .testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER)
+            .fillMaxSize()
+            .background(colors.background)
+            .offset { IntOffset(0, dragOffsetY.toInt()) }
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onVerticalDrag = { _, dragAmount ->
+                        if (dragAmount > 0f || dragOffsetY > 0f) {
+                            dragOffsetY = (dragOffsetY + dragAmount).coerceAtLeast(0f)
+                        }
+                    },
+                    onDragEnd = {
+                        if (dragOffsetY > 120f) {
+                            dragOffsetY = 0f
+                            onBack()
+                        } else {
+                            dragOffsetY = 0f
+                        }
+                    },
+                    onDragCancel = { dragOffsetY = 0f },
+                )
+            },
+    ) {
         Column(
-            Modifier.fillMaxSize().then(if (inSheet) Modifier else Modifier.navigationBarsPadding()).padding(horizontal = 20.dp),
+            Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // Header: back chevron pinned left, Lyrics pill + more menu pinned right.
             // and the right-hand cluster is now wrap-content (not a fixed 142.dp width) so it
             // can never get pushed past the screen edge on narrow devices or larger font scales.
-            Row(Modifier.fillMaxWidth().then(if (inSheet) Modifier else Modifier.statusBarsPadding()).height(54.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().height(54.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onBack, modifier = Modifier.testTag(com.airplayr.app.core.qa.AirPlayrQaTags.PLAYER_BACK).size(54.dp)) {
                     Surface(
                         modifier = Modifier.size(44.dp),
@@ -266,15 +304,24 @@ fun PlayerScreen(
             }
 
             Spacer(Modifier.height(4.dp))
-            Artwork(
-                state.artworkUri,
-                Modifier.size(artSizeDp).shadow(AirPlayrElevation.medium, RoundedCornerShape(min(34f, artSizeDp.value * 0.055f).dp)),
-                min(34f, artSizeDp.value * 0.055f).dp,
-                state.currentTitle,
-                com.airplayr.app.core.data.media.MediaType.AUDIO,
-                com.airplayr.app.ui.theme.AirPlayrIcons.Music,
-                isPlaying = state.isPlaying,
-            )
+            AnimatedContent(
+                targetState = state.currentId ?: "__empty__",
+                transitionSpec = {
+                    (slideInHorizontally(initialOffsetX = { it }) + fadeIn(tween(220))) togetherWith
+                        (slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(tween(170)))
+                },
+                label = "music-track-swipe",
+            ) { _ ->
+                Artwork(
+                    state.artworkUri,
+                    Modifier.size(artSizeDp).shadow(AirPlayrElevation.medium, RoundedCornerShape(min(34f, artSizeDp.value * 0.055f).dp)),
+                    min(34f, artSizeDp.value * 0.055f).dp,
+                    state.currentTitle,
+                    com.airplayr.app.core.data.media.MediaType.AUDIO,
+                    com.airplayr.app.ui.theme.AirPlayrIcons.Music,
+                    isPlaying = state.isPlaying,
+                )
+            }
 
             Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
@@ -417,7 +464,7 @@ fun PlayerScreen(
                 onCancelTimer = { controller.cancelSleepTimer() },
             )
             PlayerSheet.Speed -> SpeedPitchSheet(dsp, controller) { sheet = null }
-            PlayerSheet.Details -> DetailsSheetContent(currentItem, { sheet = null }, { sheet = PlayerSheet.Tags })
+            PlayerSheet.Details -> currentItem?.let { MediaDetailsSheet(it, playing = state.isPlaying && state.currentId == it.id, onDismiss = { sheet = null }, onEditMetadata = { sheet = PlayerSheet.Tags }) }
             PlayerSheet.More -> MoreSheet(
                 item = currentItem,
                 controller = controller,
@@ -705,39 +752,6 @@ private fun PlayerPlaylistSheet(container: AppContainer?, item: MediaItem, onClo
             }
         }
     }
-}
-
-@Composable
-private fun DetailsSheetContent(item: MediaItem?, onClose: () -> Unit, onTags: () -> Unit) {
-    val colors = LocalAirPlayrColors.current
-    AirPlayrSheetScaffold("Track details", "MUSIC", onClose) {
-        if (item == null) {
-            Text("No track is currently loaded.")
-        } else {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Artwork(item.artworkUri, Modifier.size(74.dp), 18.dp, item.title)
-                Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                    Text(item.title, style = MaterialTheme.typography.titleLarge, maxLines = 2)
-                    Text(item.artist.orEmpty().ifBlank { "Unknown artist" }, color = colors.textSecondary)
-                }
-            }
-            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer), elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)) {
-                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DetailLine("Album", item.album)
-                    DetailLine("Genre", item.genre)
-                    DetailLine("Duration", time(item.durationMs))
-                    DetailLine("Size", formatBytes(item.sizeBytes))
-                    DetailLine("Format", item.mimeType)
-                    DetailLine("Location", item.path ?: item.relativePath)
-                }
-            }
-            Button(onClick = onTags, modifier = Modifier.fillMaxWidth()) { Text("Edit metadata") }
-        }
-    }
-}
-
-@Composable private fun DetailLine(label: String, value: String?) {
-    if (!value.isNullOrBlank()) Row(Modifier.fillMaxWidth()) { Text(label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(84.dp)); Text(value, style = MaterialTheme.typography.bodyMedium) }
 }
 
 private data class AudioTechnicalMetadata(val display: String)

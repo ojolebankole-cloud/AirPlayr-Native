@@ -51,6 +51,7 @@ import com.airplayr.app.ui.components.AirPlayrPremiumMediaActionSheet
 import com.airplayr.app.ui.components.AirPlayrSelectionBar
 import com.airplayr.app.ui.components.Artwork
 import com.airplayr.app.ui.components.displayArtworkUri
+import com.airplayr.app.ui.components.MediaDetailsSheet
 import com.airplayr.app.ui.feedback.AppFeedback
 import com.airplayr.app.ui.playback.PlaybackController
 import com.airplayr.app.ui.playback.PlaybackControllerFactory
@@ -576,20 +577,12 @@ fun SearchScreen(
     }
 
     detailsSheet?.let { item ->
-        AirPlayrSheetScaffold("Details", "MEDIA", onDismiss = { detailsSheet = null }) {
-            Artwork(
-                item.displayArtworkUri(),
-                if (item.mediaType == MediaType.VIDEO) Modifier.width(124.dp).height(70.dp) else Modifier.size(92.dp),
-                18.dp,
-                item.title,
-                item.mediaType,
-                if (item.mediaType == MediaType.VIDEO) AirPlayrIcons.Video else AirPlayrIcons.Music,
-                isPlaying = playbackState.isPlaying && playbackState.currentId == item.id,
-            )
-            Text(item.title, style = MaterialTheme.typography.titleLarge)
-            Text(listOfNotNull(item.artist, item.album, item.genre).joinToString(" • ").ifBlank { item.filename }, color = colors.textSecondary)
-            Text("${item.sizeBytes / 1024 / 1024} MB · ${item.durationMs / 1000}s", color = colors.textSecondary)
-        }
+        MediaDetailsSheet(
+            item = item,
+            playing = playbackState.isPlaying && playbackState.currentId == item.id,
+            onDismiss = { detailsSheet = null },
+            onEditMetadata = if (item.mediaType == MediaType.AUDIO) ({ detailsSheet = null; tagTarget = item }) else null,
+        )
     }
 
     deletePending?.let { item ->

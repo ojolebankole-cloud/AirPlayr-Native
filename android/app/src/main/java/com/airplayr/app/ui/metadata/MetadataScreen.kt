@@ -79,7 +79,7 @@ fun MetadataScreen(container: AppContainer, libraryViewModel: LibraryViewModel) 
                 item { OutlinedTextField(artist, { artist = it }, Modifier.fillMaxWidth(), label = { Text("Artist") }) }
                 item { OutlinedTextField(album, { album = it }, Modifier.fillMaxWidth(), label = { Text("Album") }) }
                 item {
-                    Button(onClick = { scope.launch { status = "Searching…"; val item = selected!!.copy(title = title, artist = artist.ifBlank { null }, album = album.ifBlank { null }); results = runCatching { container.metadata.search(item, force = true) }.getOrDefault(emptyList()); status = if (results.isEmpty()) "No matches" else "${results.size} matches" } }) { Text("Search") }
+                    Button(onClick = { scope.launch { status = "Searching…"; val item = selected!!.copy(title = title, artist = artist.ifBlank { null }, album = album.ifBlank { null }); val outcome = runCatching { container.metadata.search(item, force = true) }; results = outcome.getOrDefault(emptyList()); status = outcome.fold({ if (it.isEmpty()) "No matches found online" else "${it.size} matches found online" }, { "Online metadata lookup failed: ${it.message?.take(90) ?: "network error"}" }) } }) { Text("Search") }
                     if (status.isNotBlank()) Text(status, Modifier.padding(top = 8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 items(results, key = { "${it.provider}:${it.id}" }) { match ->
@@ -90,7 +90,7 @@ fun MetadataScreen(container: AppContainer, libraryViewModel: LibraryViewModel) 
                             Text("Score ${match.score} • ${match.genre.ifBlank { "Unknown genre" }}")
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(onClick = { scope.launch { status = if (container.metadata.downloadArtwork(match) != null) "Artwork cached" else "Artwork unavailable" } }) { Text("Cache artwork") }
-                                Button(onClick = { scope.launch { val item = selected!!; val ok = container.metadata.applyToMediaStore(item, match); if (ok) runCatching { container.mediaLibrary.deltaRefresh(item.mediaType) }; status = if (ok) "Metadata applied and library refreshed" else "Metadata update failed" } }) { Text("Apply to file") }
+                                Button(onClick = { scope.launch { val item = selected!!; status = "Writing metadata…"; val ok = container.metadata.applyToMediaStore(item, match); if (ok) runCatching { container.mediaLibrary.deltaRefresh(item.mediaType) }; status = if (ok) "Metadata and artwork written to the audio file" else "Could not write metadata to this audio file" } }) { Text("Apply to file") }
                             }
                         }
                     }

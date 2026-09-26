@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -83,13 +84,14 @@ import com.airplayr.app.ui.components.AirPlayrMediaRow
 import com.airplayr.app.ui.components.AirPlayrPremiumMediaActionSheet
 import com.airplayr.app.ui.components.Artwork
 import com.airplayr.app.ui.components.AirPlayrMediaMenuAction
-import com.airplayr.app.ui.components.HistoryFavoriteDetailsSheet
+import com.airplayr.app.ui.components.MediaDetailsSheet
 import com.airplayr.app.ui.feedback.AppFeedback
 import com.airplayr.app.ui.navigation.LibraryViewModel
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.AirPlayrIcons
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import kotlinx.coroutines.launch
+import java.net.URLEncoder
 
 private const val VIDEO_MODE_FOLDERS = "folders"
 private const val VIDEO_MODE_ALL = "all"
@@ -132,7 +134,6 @@ fun VideoLibraryScreen(
     val currentVideoId by VideoQueueStore.currentId.collectAsStateWithLifecycle()
 
     var viewMode by rememberSaveable { mutableStateOf(VIDEO_MODE_FOLDERS) }
-    var selectedFolder by rememberSaveable { mutableStateOf<String?>(null) }
     var sortKey by rememberSaveable { mutableStateOf("recent") }
     var sortAscending by rememberSaveable { mutableStateOf(false) }
     var filterOpen by remember { mutableStateOf(false) }
@@ -143,13 +144,8 @@ fun VideoLibraryScreen(
     var folderMenu by remember { mutableStateOf<VideoFolderGroup?>(null) }
     val videoListState = rememberSaveable(saver = androidx.compose.foundation.lazy.LazyListState.Saver) { androidx.compose.foundation.lazy.LazyListState(0) }
 
-    LaunchedEffect(selectedFolder) {
-        videoListState.scrollToItem(0)
-    }
-
     LaunchedEffect(videoModePreference) {
         viewMode = if (videoModePreference == VIDEO_MODE_ALL) VIDEO_MODE_ALL else VIDEO_MODE_FOLDERS
-        if (viewMode == VIDEO_MODE_ALL) selectedFolder = null
     }
     LaunchedEffect(menuItem?.id) {
         val item = menuItem
@@ -171,11 +167,7 @@ fun VideoLibraryScreen(
                 )
             }
     }
-    val selectedFolderGroup = remember(folders, selectedFolder) { folders.firstOrNull { it.path == selectedFolder } }
-    val activeVideos = remember(videos, selectedFolder) {
-        selectedFolder?.let { path -> videos.filter { folderPathForVideo(it) == path } } ?: videos
-    }
-    val orderedVideos = remember(activeVideos, sortKey, sortAscending) { sortVideoItems(activeVideos, sortKey, sortAscending) }
+    val orderedVideos = remember(videos, sortKey, sortAscending) { sortVideoItems(videos, sortKey, sortAscending) }
     val orderedFolders = remember(folders, sortKey, sortAscending) { sortVideoFolders(folders, sortKey, sortAscending) }
 
     val currentVideo = remember(videos, currentVideoId) { videos.firstOrNull { it.id == currentVideoId } }
@@ -183,13 +175,9 @@ fun VideoLibraryScreen(
     Box(Modifier.fillMaxSize().background(colors.background)) {
         Column(Modifier.fillMaxSize()) {
             VideoHeader(
-                title = if (selectedFolderGroup == null) "Videos" else selectedFolderGroup.name,
-                subtitle = when {
-                    selectedFolderGroup != null -> "${selectedFolderGroup.items.size} videos"
-                    viewMode == VIDEO_MODE_FOLDERS -> "${videos.size} videos · ${folders.size} folders"
-                    else -> "${videos.size} videos"
-                },
-                onBack = if (selectedFolderGroup != null) ({ selectedFolder = null }) else null,
+                title = "Videos",
+                subtitle = if (viewMode == VIDEO_MODE_FOLDERS) "${videos.size} videos · ${folders.size} folders" else "${videos.size} videos",
+                onBack = null,
                 onSearch = onSearch,
                 onCast = onCast,
             )
@@ -207,7 +195,6 @@ fun VideoLibraryScreen(
                     onDismiss = { filterOpen = false },
                     onModeSelected = { mode ->
                         filterOpen = false
-                        selectedFolder = null
                         viewMode = mode
                         scope.launch { container.preferences.setVideoLibraryMode(mode) }
                     },
@@ -218,7 +205,7 @@ fun VideoLibraryScreen(
                 }
             }
 
-            if (selectedFolderGroup == null && viewMode == VIDEO_MODE_FOLDERS) {
+            if (viewMode == VIDEO_MODE_FOLDERS) {
                 if (!snapshot.ready) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { androidx.compose.material3.CircularProgressIndicator(color = colors.primary) }
                 } else if (orderedFolders.isEmpty()) {
@@ -230,7 +217,7 @@ fun VideoLibraryScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(orderedFolders, key = { it.path }) { folder ->
-                            VideoFolderRow(folder = folder, onOpen = { selectedFolder = folder.path }, onMore = { folderMenu = folder })
+                            VideoFolderRow(folder = folder, onOpen = { onNavigate("video-folder/${java.net.URLEncoder.encode(folder.path, "UTF-8")}") }, onMore = { folderMenu = folder })
                         }
                     }
                 }
@@ -238,10 +225,7 @@ fun VideoLibraryScreen(
                 if (!snapshot.ready) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { androidx.compose.material3.CircularProgressIndicator(color = colors.primary) }
                 } else if (orderedVideos.isEmpty()) {
-                    VideoEmptyState(
-                        if (selectedFolderGroup != null) "This folder is empty" else "No videos found",
-                        if (selectedFolderGroup != null) "The folder is indexed, but no playable videos are currently available." else "Videos on this device will appear here after the library is scanned.",
-                    )
+                    VideoEmptyState("No videos found", "Videos on this device will appear here after the library is scanned.")
                 } else {
                     LazyColumn(
                         state = videoListState,
@@ -252,7 +236,7 @@ fun VideoLibraryScreen(
                         items(orderedVideos, key = { it.id }) { item ->
                             AirPlayrMediaRow(
                                 item = item,
-                                onOpen = { onOpenVideo(item.id) },
+                                onOpen = { VideoQueueStore.setLoopingQueue(orderedVideos, item.id); onOpenVideo(item.id) },
                                 onMore = { menuItem = item },
                                 playing = false,
                                 compact = false,
@@ -266,7 +250,7 @@ fun VideoLibraryScreen(
         currentVideo?.let { item ->
             FloatingCurrentVideo(
                 item = item,
-                onClick = { onOpenVideo(item.id) },
+                onClick = { VideoQueueStore.setLoopingQueue(orderedVideos, item.id); onOpenVideo(item.id) },
                 collapsed = videoListState.firstVisibleItemIndex > 0 || videoListState.firstVisibleItemScrollOffset > 72,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = airPlayrFloatingPlayBottomPadding()),
             )
@@ -291,7 +275,7 @@ fun VideoLibraryScreen(
                         Text("Share folder", color = colors.textPrimary, modifier = Modifier.padding(start = 12.dp))
                     }
                 }
-                Surface(onClick = { folderMenu = null; selectedFolder = folder.path }, shape = RoundedCornerShape(18.dp), color = colors.surfaceContainer) {
+                Surface(onClick = { folderMenu = null; onNavigate("video-folder/${java.net.URLEncoder.encode(folder.path, "UTF-8")}") }, shape = RoundedCornerShape(18.dp), color = colors.surfaceContainer) {
                     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Folder, null, tint = colors.primary, modifier = Modifier.size(22.dp))
                         Text("Open folder", color = colors.textPrimary, modifier = Modifier.padding(start = 12.dp))
@@ -354,11 +338,90 @@ fun VideoLibraryScreen(
     }
 
     detailsTarget?.let { item ->
-        HistoryFavoriteDetailsSheet(
+        MediaDetailsSheet(
             item = item,
             playing = currentVideoId == item.id,
             onDismiss = { detailsTarget = null },
         )
+    }
+}
+
+@Composable
+fun VideoFolderDetailScreen(
+    folderPath: String,
+    libraryViewModel: LibraryViewModel,
+    onBack: () -> Unit,
+    onOpenVideo: (String) -> Unit,
+) {
+    val colors = LocalAirPlayrColors.current
+    val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
+    val videos = remember(snapshot.video, folderPath) {
+        snapshot.video.filter { folderPathForVideo(it) == folderPath }
+            .sortedWith(compareByDescending<MediaItem> { it.dateAdded }.thenBy { it.title.lowercase() })
+    }
+    val currentVideoId by VideoQueueStore.currentId.collectAsStateWithLifecycle()
+    val listState = rememberSaveable(saver = androidx.compose.foundation.lazy.LazyListState.Saver) { androidx.compose.foundation.lazy.LazyListState(0) }
+
+    fun playFolder(start: MediaItem? = null) {
+        val item = start ?: videos.firstOrNull() ?: return
+        VideoQueueStore.setLoopingQueue(videos, item.id)
+        onOpenVideo(item.id)
+    }
+
+    Box(Modifier.fillMaxSize().background(colors.background)) {
+        Column(Modifier.fillMaxSize()) {
+            Row(
+                Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onBack, modifier = Modifier.size(46.dp)) {
+                    Icon(Icons.Default.ArrowBack, "Back", tint = colors.primary, modifier = Modifier.size(26.dp))
+                }
+                Column(Modifier.weight(1f).padding(horizontal = 6.dp)) {
+                    Text(
+                        folderPath.substringAfterLast('/').ifBlank { folderPath.substringAfterLast('\\').ifBlank { "Videos" } },
+                        fontFamily = AirPlayrFonts.SmoochSans, fontSize = 29.sp, fontWeight = FontWeight.SemiBold,
+                        color = colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                    Text("${videos.size} ${if (videos.size == 1) "video" else "videos"}", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary)
+                }
+            }
+            if (!snapshot.ready) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { androidx.compose.material3.CircularProgressIndicator(color = colors.primary) }
+            } else if (videos.isEmpty()) {
+                VideoEmptyState("This folder is empty", "No playable videos are currently available in this folder.")
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = airPlayrFloatingPlayBottomPadding() + 88.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    items(videos, key = { it.id }) { item ->
+                        AirPlayrMediaRow(
+                            item = item,
+                            onOpen = { playFolder(item) },
+                            onMore = {},
+                            playing = currentVideoId == item.id,
+                            compact = false,
+                        )
+                    }
+                }
+            }
+        }
+
+        if (videos.isNotEmpty()) {
+            FloatingActionButton(
+                onClick = { playFolder() },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 22.dp, bottom = airPlayrFloatingPlayBottomPadding()).size(68.dp),
+                containerColor = colors.primary,
+                contentColor = colors.onPrimary,
+                shape = RoundedCornerShape(22.dp),
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 10.dp),
+            ) {
+                Icon(Icons.Default.PlayArrow, "Play folder", modifier = Modifier.size(31.dp))
+            }
+        }
     }
 }
 

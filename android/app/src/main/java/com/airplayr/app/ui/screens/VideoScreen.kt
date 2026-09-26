@@ -11,6 +11,7 @@ import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.os.Build
 import android.view.View
+import android.view.ViewConfiguration
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,8 +21,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.awaitFirstDown
+import androidx.compose.ui.input.pointer.waitForUpOrCancellation
+import androidx.compose.ui.input.pointer.awaitPointerEvent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.lazy.LazyRow
@@ -39,6 +44,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.consume
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -146,6 +152,7 @@ fun VideoScreen(
     var moreOpen by remember { mutableStateOf(false) }
     var queueOpen by remember { mutableStateOf(false) }
     var subtitleSettingsOpen by remember { mutableStateOf(false) }
+    var playbackInfoOpen by remember { mutableStateOf(false) }
     var audioTracksOpen by remember { mutableStateOf(false) }
     var volumeOverlay by remember { mutableStateOf(false) }
     var volumeOverlayValue by remember { mutableIntStateOf((VideoGestureSupport.musicVolumeFraction(context) * 100f).roundToInt().coerceIn(0, 100)) }
@@ -443,7 +450,7 @@ fun VideoScreen(
                 sizeScale = settings?.subtitleSize ?: 1.0,
                 textColor = parseSubtitleColor(settings?.subtitleColor),
                 background = settings?.subtitleBg ?: true,
-                top = settings?.subtitlePosition == "top",
+                position = settings?.subtitlePosition ?: "bottom",
                 controlsVisible = controlsVisible,
             )
         }
@@ -451,80 +458,81 @@ fun VideoScreen(
         Box(
             Modifier
                 .fillMaxSize()
-                .pointerInput(player, locked, settings?.gestureDoubleTapSeek, settings?.gestureLongPress2x) {
-                    detectTapGestures(
-                        onPress = {
-                            tryAwaitRelease()
-                            if (longPressBoostActive) {
-                                longPressBoostActive = false
-                                speed = defaultSpeed
-                                player?.setPlaybackSpeed(defaultSpeed)
-                            }
-                        },
-                        onTap = {
-                            if (!locked) {
-                                controlsVisible = !controlsVisible
-                                interactionTick++
-                            }
-                        },
-                        onDoubleTap = {
-                            if (!locked && settings?.gestureDoubleTapSeek != false) {
-                                player?.let { if (it.isPlaying) it.pause() else it.play() }
-                                controlsVisible = true
-                                interactionTick++
-                            }
-                        },
-                        onLongPress = {
-                            if (!locked && settings?.gestureLongPress2x == true) {
-                                longPressBoostActive = true
-                                speed = 2f
-                                player?.setPlaybackSpeed(2f)
-                            }
-                        },
-                    )
-                }
-                .pointerInput(player, locked, settings?.gestureVolume, settings?.gestureBrightness, settings?.gestureHorizontalSeek, durationMs) {
-                    var start = androidx.compose.ui.geometry.Offset.Zero
-                    var axis = 0
-                    var accumulatedX = 0f
-                    var accumulatedY = 0f
-                    detectDragGestures(
-                        onDragStart = { start = it; axis = 0; accumulatedX = 0f; accumulatedY = 0f },
-                        onDragEnd = { axis = 0 },
-                        onDragCancel = { axis = 0 },
-                        onDrag = { change, dragAmount ->
-                            if (locked) return@detectDragGestures
-                            change.consume()
-                            accumulatedX += dragAmount.x
-                            accumulatedY += dragAmount.y
-                            if (axis == 0 && (abs(accumulatedX) > 12f || abs(accumulatedY) > 12f)) {
-                                axis = if (abs(accumulatedX) > abs(accumulatedY)) 1 else 2
-                            }
-                            when (axis) {
-                                1 -> if (settings?.gestureHorizontalSeek != false && size.width > 0) {
-                                    val maxSeek = if (durationMs > 0L) (durationMs / 20L).coerceIn(10_000L, 60_000L) else 10_000L
-                                    val delta = (dragAmount.x / size.width.toFloat() * maxSeek).roundToLong()
-                                    if (delta != 0L) seekBy(delta)
+                .pointerInput(player, locked, settings?.gestureDoubleTapSeek, settings?.gestureLongPress2x, settings?.gestureVolume, settings?.gestureBrightness, settings?.gestureHorizontalSeek, durationMs) {
+                    var lastTapUptime = 0L
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val start = down.position
+                        var lastPosition = start
+                        var axis = 0
+                        var moved = false
+                        var longPressTriggered = false
+                        var finished = false
+                        while (!finished) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            val delta = change.position - lastPosition
+                            lastPosition = change.position
+                            val distance = (change.position - start).getDistance()
+                            if (!longPressTriggered && !moved && change.uptimeMillis - down.uptimeMillis >= ViewConfiguration.getLongPressTimeout().toLong()) {
+                                longPressTriggered = true
+                                if (!locked && settings?.gestureLongPress2x == true) {
+                                    longPressBoostActive = true
+                                    speed = 2f
+                                    player?.setPlaybackSpeed(2f)
                                 }
-                                2 -> if (size.height > 0) {
-                                    val startOnLeft = start.x < size.width / 2f
-                                    if (startOnLeft && settings?.gestureVolume != false) {
-                                        val fraction = VideoGestureSupport.adjustMusicVolume(context, -dragAmount.y / size.height.toFloat())
-                                        volumeOverlayValue = (fraction * 100f).roundToInt().coerceIn(0, 100)
-                                        volumeOverlay = true
-                                    } else if (!startOnLeft && settings?.gestureBrightness != false) {
-                                        val activity = context as? Activity
-                                        if (activity != null) {
-                                            val current = VideoGestureSupport.currentWindowBrightness(activity)
-                                            val next = (current - dragAmount.y / size.height.toFloat()).coerceIn(0.02f, 1f)
-                                            VideoGestureSupport.setWindowBrightness(activity, next)
-                                            brightnessFeedback = "${(next * 100f).roundToInt()}%"
+                            }
+                            if (distance > 18f) {
+                                moved = true
+                                if (axis == 0) axis = if (abs(change.position.x - start.x) > abs(change.position.y - start.y)) 1 else 2
+                                if (!locked) {
+                                    when (axis) {
+                                        1 -> if (settings?.gestureHorizontalSeek != false && size.width > 0) {
+                                            val maxSeek = if (durationMs > 0L) (durationMs / 20L).coerceIn(10_000L, 60_000L) else 10_000L
+                                            val seekDelta = (delta.x / size.width.toFloat() * maxSeek).roundToLong()
+                                            if (seekDelta != 0L) seekBy(seekDelta)
+                                        }
+                                        2 -> if (size.height > 0) {
+                                            val leftSide = start.x < size.width / 2f
+                                            if (leftSide && settings?.gestureVolume != false) {
+                                                val fraction = VideoGestureSupport.adjustMusicVolume(context, -delta.y / size.height.toFloat() * 1.35f)
+                                                volumeOverlayValue = (fraction * 100f).roundToInt().coerceIn(0, 100)
+                                                volumeOverlay = true
+                                            } else if (!leftSide && settings?.gestureBrightness != false) {
+                                                val a = context as? Activity
+                                                if (a != null) {
+                                                    val current = VideoGestureSupport.currentWindowBrightness(a)
+                                                    val next = (current - delta.y / size.height.toFloat() * 1.35f).coerceIn(0.02f, 1f)
+                                                    VideoGestureSupport.setWindowBrightness(a, next)
+                                                    brightnessFeedback = "${(next * 100f).roundToInt()}%"
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
-                        },
-                    )
+                            if (!change.pressed) finished = true
+                            change.consume()
+                        }
+                        if (!moved && !longPressTriggered && !locked) {
+                            val now = android.os.SystemClock.uptimeMillis()
+                            if (settings?.gestureDoubleTapSeek != false && now - lastTapUptime < 320L) {
+                                player?.let { if (it.isPlaying) it.pause() else it.play() }
+                                controlsVisible = true
+                                interactionTick++
+                                lastTapUptime = 0L
+                            } else {
+                                lastTapUptime = now
+                                controlsVisible = !controlsVisible
+                                interactionTick++
+                            }
+                        }
+                        if (longPressTriggered && longPressBoostActive) {
+                            longPressBoostActive = false
+                            speed = defaultSpeed
+                            player?.setPlaybackSpeed(defaultSpeed)
+                        }
+                    }
                 }
                 .pointerInput(player, locked, settings?.gesturePinchZoom) {
                     if (settings?.gesturePinchZoom == true) {
@@ -569,10 +577,9 @@ fun VideoScreen(
             onMute = ::toggleMute,
             onBack10 = { seekBy(-seekStepMs) },
             onForward10 = { seekBy(seekStepMs) },
-            onSubtitle = {
-                if (subtitleOnState.value) toggleSubtitles() else subtitleLauncher.launch(arrayOf("text/vtt", "application/x-subrip", "text/plain"))
-            },
+            onSubtitle = { subtitleSettingsOpen = true; touch() },
             onSubtitleSettings = { subtitleSettingsOpen = true },
+            onPlaybackInfo = { playbackInfoOpen = true; touch() },
             onPiP = { if (Build.VERSION.SDK_INT >= 26 && allowsPiP) runCatching { (context as? Activity)?.enterPictureInPictureMode() }; touch() },
             onRotate = ::rotate,
             onFullscreen = ::toggleFullscreen,
@@ -582,8 +589,7 @@ fun VideoScreen(
                 touch()
             },
             onSpeed = {
-                val speeds = listOf(.25f, .5f, .75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f, 4f)
-                speed = speeds[(speeds.indexOfFirst { it >= speed }.coerceAtLeast(0) + 1) % speeds.size]
+                speed = nextPlaybackSpeed(speed)
                 player?.setPlaybackSpeed(speed)
                 touch()
             },
@@ -651,7 +657,13 @@ fun VideoScreen(
         VideoQueueSheet(container.mediaLibrary, ::openQueueItem) { queueOpen = false }
     }
     if (subtitleSettingsOpen) {
-        VideoSubtitleSettingsSheet(container) { subtitleSettingsOpen = false }
+        VideoSubtitleSettingsSheet(
+            container = container,
+            subtitleEnabled = subtitleOnState.value,
+            onToggleEnabled = { enabled -> if (enabled != subtitleOnState.value) toggleSubtitles() },
+            onConnectFile = { subtitleSettingsOpen = false; subtitleLauncher.launch(arrayOf("text/vtt", "application/x-subrip", "text/plain")) },
+            onDismiss = { subtitleSettingsOpen = false },
+        )
     }
     if (audioTracksOpen) {
         VideoAudioTrackSheet(
@@ -687,8 +699,7 @@ fun VideoScreen(
                     ),
                     listOf(
                         AirPlayrMediaMenuAction("Speed ${"%.2f".format(Locale.US, speed).trimEnd('0').trimEnd('.') }×", Icons.Default.Speed, {
-                            val speeds = listOf(.25f, .5f, .75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f, 4f)
-                            speed = speeds[(speeds.indexOfFirst { it >= speed }.coerceAtLeast(0) + 1) % speeds.size]
+                            speed = nextPlaybackSpeed(speed)
                             player?.setPlaybackSpeed(speed)
                             moreOpen = false
                         }),
@@ -760,6 +771,7 @@ private fun VideoControlsOverlay(
     onForward10: () -> Unit,
     onSubtitle: () -> Unit,
     onSubtitleSettings: () -> Unit,
+    onPlaybackInfo: () -> Unit,
     onPiP: () -> Unit,
     onRotate: () -> Unit,
     onFullscreen: () -> Unit,
@@ -774,7 +786,7 @@ private fun VideoControlsOverlay(
             Box(Modifier.fillMaxWidth().height(145.dp).align(Alignment.TopCenter).background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .62f), Color.Transparent))))
             Box(Modifier.fillMaxWidth().height(180.dp).align(Alignment.BottomCenter).background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .72f)))))
 
-            BoxWithConstraints(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 18.dp, vertical = 12.dp)) {
+            BoxWithConstraints(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 18.dp, vertical = 12.dp)) {
                 val compactHeader = maxWidth < 600.dp
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
                     GlassIconButton(Icons.Default.ArrowBack, "Back", Modifier.size(54.dp), onBack)
@@ -782,14 +794,18 @@ private fun VideoControlsOverlay(
                         Text(title.ifBlank { "Video" }, color = Color.White, fontFamily = AirPlayrFonts.SmoochSans, fontSize = if (compactHeader) 16.sp else 19.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(subtitle.ifBlank { "AIRPLAYR VIDEO" }, color = Color.White.copy(alpha = .65f), fontSize = 10.sp, letterSpacing = 1.1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (qualityLabel.isNotBlank()) Text(qualityLabel, color = Color.White.copy(alpha = .82f), fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
+                            if (qualityLabel.isNotBlank()) {
+                                Surface(onClick = onPlaybackInfo, shape = RoundedCornerShape(10.dp), color = Color.White.copy(alpha = .10f)) {
+                                    Text(qualityLabel, color = Color.White.copy(alpha = .88f), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp))
+                                }
+                            }
                         }
                     }
                     if (compactHeader) {
                         GlassGroup {
                             GlassAction(Icons.Default.Cast, "Cast", onCast)
                             GlassAction(Icons.Default.Headphones, "Audio", onAudioTracks)
-                            GlassPill { Text("${trimSpeed(speed)}×", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
+                            GlassIconButton(Icons.Default.Speed, "Speed ${trimSpeed(speed)}×", Modifier.size(48.dp), onSpeed)
                             GlassAction(Icons.Default.MoreHoriz, "More", onMore)
                         }
                     } else {
@@ -801,9 +817,7 @@ private fun VideoControlsOverlay(
                         Spacer(Modifier.width(6.dp))
                         GlassIconButton(Icons.Default.GraphicEq, "Equalizer", Modifier.size(48.dp), onEqualizer)
                         Spacer(Modifier.width(6.dp))
-                        GlassPill {
-                            Text("${trimSpeed(speed)}×", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                        }
+                        GlassIconButton(Icons.Default.Speed, "Speed ${trimSpeed(speed)}×", Modifier.size(48.dp), onSpeed)
                         Spacer(Modifier.width(6.dp))
                         GlassIconButton(Icons.Default.BookmarkBorder, "Bookmark", Modifier.size(48.dp), onBookmark)
                         Spacer(Modifier.width(6.dp))
@@ -855,9 +869,12 @@ private fun VideoControlsOverlay(
 
             if (portrait) {
                 GlassGroup(Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 104.dp)) {
-                    GlassAction(if (shuffleQueue) Icons.Default.Shuffle else Icons.Default.Shuffle, if (shuffleQueue) "Shuffle on" else "Shuffle off", {
-                        if (shuffleQueue) VideoQueueStore.setShuffle(false) else VideoQueueStore.setShuffle(true)
-                    })
+                    GlassAction(
+                        Icons.Default.Shuffle,
+                        if (shuffleQueue) "Shuffle on" else "Shuffle off",
+                        { if (shuffleQueue) VideoQueueStore.setShuffle(false) else VideoQueueStore.setShuffle(true) },
+                        active = shuffleQueue,
+                    )
                     GlassAction(if (repeatQueue) Icons.Default.RepeatOne else Icons.Default.Repeat, if (repeatQueue) "Repeat on" else "Repeat off", {
                         if (repeatQueue) VideoQueueStore.setRepeat(false) else VideoQueueStore.setRepeat(true)
                     })
@@ -1013,9 +1030,9 @@ internal fun GlassGroup(modifier: Modifier = Modifier, content: @Composable RowS
 }
 
 @Composable
-internal fun GlassAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
-    Surface(onClick = onClick, modifier = Modifier.size(46.dp), shape = CircleShape, color = Color.Transparent, tonalElevation = 0.dp) {
-        Box(contentAlignment = Alignment.Center) { Icon(icon, label, tint = Color.White, modifier = Modifier.size(22.dp)) }
+internal fun GlassAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, active: Boolean = false) {
+    Surface(onClick = onClick, modifier = Modifier.size(46.dp).border(if (active) 1.5.dp else 0.dp, Color.White.copy(alpha = if (active) .70f else 0f), CircleShape), shape = CircleShape, color = if (active) Color.White.copy(alpha = .22f) else Color.Transparent, tonalElevation = 0.dp) {
+        Box(contentAlignment = Alignment.Center) { Icon(icon, label, tint = if (active) Color.White else Color.White.copy(alpha = .88f), modifier = Modifier.size(22.dp)) }
     }
 }
 
@@ -1037,13 +1054,18 @@ internal fun VideoSubtitleOverlay(
     sizeScale: Double,
     textColor: Color,
     background: Boolean,
-    top: Boolean,
+    position: String,
     controlsVisible: Boolean,
 ) {
+    val positionModifier = when (position) {
+        "top" -> Modifier.fillMaxWidth().statusBarsPadding().padding(top = 92.dp)
+        "center" -> Modifier.fillMaxWidth().padding(horizontal = 28.dp)
+        else -> Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = if (controlsVisible) 112.dp else 48.dp)
+    }
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 28.dp).then(if (top) Modifier.statusBarsPadding().padding(top = 92.dp) else Modifier.navigationBarsPadding().padding(bottom = if (controlsVisible) 112.dp else 48.dp)),
+        positionModifier.padding(horizontal = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = if (top) Arrangement.Top else Arrangement.Bottom,
+        verticalArrangement = Arrangement.Center,
     ) {
         Surface(
             shape = RoundedCornerShape(8.dp),
@@ -1143,6 +1165,56 @@ private fun VideoAudioTrackSheet(player: Player?, rememberSelection: Boolean, re
     }
 }
 
+@Composable
+private fun VideoPlaybackInfoSheet(
+    decoder: String,
+    quality: String,
+    width: Int,
+    height: Int,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Video playback", style = MaterialTheme.typography.titleLarge)
+                    Text("Decoder and source quality", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Close") }
+            }
+            Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Memory, null, tint = MaterialTheme.colorScheme.primary)
+                    Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                        Text("Decoder", fontWeight = FontWeight.SemiBold)
+                        Text(if (decoder.equals("SW", true)) "Software decoding" else "Hardware decoding", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text(decoder, fontWeight = FontWeight.Bold)
+                }
+            }
+            Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.HighQuality, null, tint = MaterialTheme.colorScheme.primary)
+                    Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                        Text("Quality", fontWeight = FontWeight.SemiBold)
+                        Text(if (width > 0 && height > 0) "$width × $height" else "Automatic", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text(quality, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+private fun videoQualityLabelOnly(width: Int, height: Int): String = when {
+    height >= 2160 -> "4K"
+    height >= 1440 -> "2K"
+    height >= 1080 -> "FHD"
+    height >= 720 -> "HD"
+    height > 0 -> "SD"
+    else -> "AUTO"
+}
+
 internal object WindowMode {
     fun setFullscreen(activity: Activity, fullscreen: Boolean) {
         val controller = androidx.core.view.WindowCompat.getInsetsController(activity.window, activity.window.decorView)
@@ -1168,6 +1240,12 @@ private fun videoQualityLabel(width: Int, height: Int, decoder: String?): String
         else -> "AUTO"
     }
     return listOfNotNull(decoder, quality).joinToString(" · ")
+}
+
+private fun nextPlaybackSpeed(value: Float): Float {
+    val speeds = listOf(.25f, .5f, .75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f, 4f)
+    val index = speeds.indexOfFirst { candidate -> candidate >= value }.coerceAtLeast(0)
+    return speeds[(index + 1) % speeds.size]
 }
 
 internal fun trimSpeed(value: Float): String = "%.2f".format(Locale.US, value).trimEnd('0').trimEnd('.')

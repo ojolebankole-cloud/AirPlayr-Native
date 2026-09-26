@@ -15,8 +15,12 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import org.json.JSONArray
+import org.jaudiotagger.audio.AudioFileIO
+import org.jaudiotagger.tag.FieldKey
+import org.jaudiotagger.tag.datatype.Artwork
 import org.json.JSONObject
 import java.io.File
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -98,42 +102,132 @@ class MetadataRepository(private val context: Context) {
     }
 
     suspend fun applyToMediaStore(item: MediaItem, match: MetadataMatch): Boolean = withContext(Dispatchers.IO) {
-        val mediaId = item.mediaStoreId ?: return@withContext false
-        val collection = if (item.mediaType == MediaType.AUDIO) MediaStore.Audio.Media.EXTERNAL_CONTENT_URI else MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-        val values = ContentValues().apply {
-            match.title.takeIf { it.isNotBlank() }?.let { put(MediaStore.MediaColumns.TITLE, it) }
-            if (item.mediaType == MediaType.AUDIO) {
-                match.artist.takeIf { it.isNotBlank() }?.let { put(MediaStore.Audio.AudioColumns.ARTIST, it) }
-                match.album.takeIf { it.isNotBlank() }?.let { put(MediaStore.Audio.AudioColumns.ALBUM, it) }
-                match.albumArtist.takeIf { it.isNotBlank() }?.let { put(MediaStore.Audio.AudioColumns.ALBUM_ARTIST, it) }
-                match.genre.takeIf { it.isNotBlank() }?.let { put(MediaStore.Audio.AudioColumns.GENRE, it) }
-                match.trackNumber.takeIf { it > 0 }?.let { put(MediaStore.Audio.AudioColumns.TRACK, it) }
-                match.discNumber.takeIf { it > 0 }?.let { put(MediaStore.Audio.AudioColumns.DISC_NUMBER, it) }
-                match.year.takeIf { it.length >= 4 }?.toIntOrNull()?.let { put(MediaStore.Audio.AudioColumns.YEAR, it) }
+        if (item.mediaType != MediaType.AUDIO) return@withContext false
+        val embedded = writeEmbeddedAudioMetadata(item, match)
+        if (!embedded) return@withContext false
+        // MediaStore is refreshed as an index hint. The authoritative metadata write is the
+        // embedded tag update above; MediaStore.update alone is not a reliable tag writer.
+        runCatching {
+            item.mediaStoreId?.let { id ->
+                val values = ContentValues().apply {
+                    match.title.takeIf { it.isNotBlank() }?.let { put(MediaStore.MediaColumns.TITLE, it) }
+                    match.artist.takeIf { it.isNotBlank() }?.let { put(MediaStore.Audio.AudioColumns.ARTIST, it) }
+                    match.album.takeIf { it.isNotBlank() }?.let { put(MediaStore.Audio.AudioColumns.ALBUM, it) }
+                    match.genre.takeIf { it.isNotBlank() }?.let { put(MediaStore.Audio.AudioColumns.GENRE, it) }
+                    match.albumArtist.takeIf { it.isNotBlank() }?.let { put(MediaStore.Audio.AudioColumns.ALBUM_ARTIST, it) }
+                    match.trackNumber.takeIf { it > 0 }?.let { put(MediaStore.Audio.AudioColumns.TRACK, it) }
+                    match.discNumber.takeIf { it > 0 }?.let { put(MediaStore.Audio.AudioColumns.DISC_NUMBER, it) }
+                    match.year.takeIf { it.length >= 4 }?.toIntOrNull()?.let { put(MediaStore.Audio.AudioColumns.YEAR, it) }
+                }
+                context.contentResolver.update(Uri.withAppendedPath(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id.toString()), values, null, null)
             }
         }
-        val ok = runCatching { context.contentResolver.update(Uri.withAppendedPath(collection, mediaId.toString()), values, null, null) > 0 }.getOrDefault(false)
-        if (ok) saveOverride(item.id, match)
-        ok
+        saveOverride(item.id, match)
+        true
+    }
+
+    private suspend fun writeEmbeddedAudioMetadata(item: MediaItem, match: MetadataMatch): Boolean {
+        val source = Uri.parse(item.uri)
+        val ext = item.filename.substringAfterLast('.', "mp3").lowercase().replace(Regex("[^a-z0-9]"), "").ifBlank { "mp3" }
+        val temp = File.createTempFile("airplayr-meta-", ".${ext}", context.cacheDir)
+        return try {
+            val input = when (source.scheme) {
+                "file" -> source.path?.let(::File)?.inputStream()
+                else -> context.contentResolver.openInputStream(source)
+            } ?: return false
+            input.use { it.copyTo(temp.outputStream()) }
+            val audio = AudioFileIO.read(temp)
+            val tag = audio.getTagOrCreateAndSetDefault()
+            fun set(key: FieldKey, value: String?) { if (!value.isNullOrBlank()) tag.setField(key, value.trim()) }
+            set(FieldKey.TITLE, match.title)
+            set(FieldKey.ARTIST, match.artist)
+            set(FieldKey.ALBUM, match.album)
+            set(FieldKey.ALBUM_ARTIST, match.albumArtist)
+            set(FieldKey.GENRE, match.genre)
+            set(FieldKey.YEAR, match.year)
+            if (match.trackNumber > 0) tag.setField(FieldKey.TRACK, match.trackNumber.toString())
+            if (match.trackTotal > 0) tag.setField(FieldKey.TRACK_TOTAL, match.trackTotal.toString())
+            if (match.discNumber > 0) tag.setField(FieldKey.DISC_NO, match.discNumber.toString())
+            if (match.discTotal > 0) tag.setField(FieldKey.DISC_TOTAL, match.discTotal.toString())
+            val artwork = match.artworkUrl?.let { downloadArtwork(match) }
+            if (artwork != null && artwork.scheme == "file") {
+                runCatching {
+                    val artFile = artwork.path?.let(::File)
+                    if (artFile != null && artFile.exists()) {
+                        tag.deleteArtworkField()
+                        tag.addField(Artwork.createArtworkFromFile(artFile))
+                    }
+                }
+            }
+            AudioFileIO.write(audio)
+            if (!temp.exists() || temp.length() <= 0L) return false
+            val output = when (source.scheme) {
+                "file" -> source.path?.let(::File)?.outputStream()
+                else -> context.contentResolver.openOutputStream(source, "wt")
+                    ?: context.contentResolver.openOutputStream(source, "w")
+            } ?: return false
+            output.use { temp.inputStream().use { inputStream -> inputStream.copyTo(it) } }
+            true
+        } catch (_: Throwable) {
+            false
+        } finally { temp.delete() }
     }
 
     private fun fetch(term: String, item: MediaItem, country: String): List<MetadataMatch> {
+        // Do not send one over-constrained query. iTunes can return zero rows when a local
+        // filename contains extra text. Try progressively broader catalog queries and merge them.
+        val title = item.title.trim()
+        val artist = item.artist?.trim().orEmpty()
+        val album = item.album?.trim().orEmpty()
+        val queries = linkedSetOf<String>().apply {
+            if (title.isNotBlank() && artist.isNotBlank()) add("$title $artist")
+            if (title.isNotBlank() && album.isNotBlank()) add("$title $album")
+            if (title.isNotBlank()) add(title)
+            if (term.isNotBlank()) add(term)
+        }
+        val merged = LinkedHashMap<String, MetadataMatch>()
+        for (queryText in queries) {
+            requestItunes(queryText, item, country).forEach { candidate ->
+                val key = "${candidate.provider}:${candidate.id}"
+                val previous = merged[key]
+                if (previous == null || candidate.score > previous.score) merged[key] = candidate
+            }
+            if (merged.values.count { it.score >= 70 } >= 5) break
+        }
+        return merged.values.sortedWith(compareByDescending<MetadataMatch> { it.score }.thenBy { it.title.lowercase() }).take(MAX_RESULTS)
+    }
+
+    private fun requestItunes(term: String, item: MediaItem, country: String): List<MetadataMatch> {
         val query = "term=${URLEncoder.encode(term, Charsets.UTF_8.name())}&country=${URLEncoder.encode(country, Charsets.UTF_8.name())}&media=music&entity=song&limit=$MAX_RESULTS"
-        val connection = (URL("https://itunes.apple.com/search?$query").openConnection() as HttpURLConnection).apply { connectTimeout = 9000; readTimeout = 9000; requestMethod = "GET"; setRequestProperty("Accept", "application/json") }
+        val connection = (URL("https://itunes.apple.com/search?$query").openConnection() as HttpURLConnection).apply {
+            connectTimeout = 12000; readTimeout = 12000; requestMethod = "GET"
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("User-Agent", "AirPlayr/1.0 (Android; online metadata)")
+            useCaches = true
+        }
         try {
             connection.connect()
-            if (connection.responseCode !in 200..299) return emptyList()
+            if (connection.responseCode !in 200..299) {
+                throw IOException("iTunes metadata service returned HTTP ${connection.responseCode}")
+            }
             val json = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
-            val results = json.optJSONArray("results") ?: JSONArray()
+            val results = json.optJSONArray("results") ?: return emptyList()
             return buildList {
                 for (i in 0 until results.length()) {
                     val obj = results.optJSONObject(i) ?: continue
-                    val id = obj.optLong("trackId", 0L).takeIf { it > 0 } ?: obj.optLong("collectionId", 0L).takeIf { it > 0 } ?: continue
+                    val id = obj.optLong("trackId", 0L).takeIf { it > 0 } ?: continue
                     add(MetadataMatch(
-                        provider = "itunes", id = id.toString(), title = obj.optString("trackName", obj.optString("collectionName", "")), artist = obj.optString("artistName", ""), album = obj.optString("collectionName", ""), albumArtist = obj.optString("artistName", ""), genre = obj.optString("primaryGenreName", ""), year = obj.optString("releaseDate", "").take(4), trackNumber = obj.optInt("trackNumber", 0), trackTotal = obj.optInt("trackCount", 0), discNumber = obj.optInt("discNumber", 0), discTotal = obj.optInt("discCount", 0), durationMs = obj.optLong("trackTimeMillis", 0L), artworkUrl = obj.optString("artworkUrl100", "").takeIf { it.isNotBlank() }, sourceUrl = obj.optString("trackViewUrl", obj.optString("collectionViewUrl", "")).takeIf { it.isNotBlank() }, score = score(item, obj)
+                        provider = "itunes", id = id.toString(), title = obj.optString("trackName"),
+                        artist = obj.optString("artistName"), album = obj.optString("collectionName"),
+                        albumArtist = obj.optString("artistName"), genre = obj.optString("primaryGenreName"),
+                        year = obj.optString("releaseDate").take(4), trackNumber = obj.optInt("trackNumber"),
+                        trackTotal = obj.optInt("trackCount"), discNumber = obj.optInt("discNumber"),
+                        discTotal = obj.optInt("discCount"), durationMs = obj.optLong("trackTimeMillis"),
+                        artworkUrl = obj.optString("artworkUrl100").takeIf { it.isNotBlank() },
+                        sourceUrl = obj.optString("trackViewUrl").takeIf { it.isNotBlank() }, score = score(item, obj)
                     ))
                 }
-            }.sortedByDescending { it.score }.take(MAX_RESULTS)
+            }
         } finally { connection.disconnect() }
     }
 

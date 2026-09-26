@@ -128,6 +128,6 @@ fun LibraryScreen(
     }
 
     detailsTarget?.let { item ->
-        HistoryFavoriteDetailsSheet(item, playing = playbackState.isPlaying && playbackState.currentId == item.id) { detailsTarget = null }
+        MediaDetailsSheet(item, playing = playbackState.isPlaying && playbackState.currentId == item.id) { detailsTarget = null }
     }
 }

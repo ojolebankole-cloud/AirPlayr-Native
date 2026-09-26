@@ -21,15 +21,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.compose.foundation.background
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -57,6 +49,7 @@ import com.airplayr.app.ui.screens.HistoryScreen
 import com.airplayr.app.ui.screens.CollectionsScreen
 import com.airplayr.app.ui.screens.VideoScreen
 import com.airplayr.app.ui.screens.VideoLibraryScreen
+import com.airplayr.app.ui.screens.VideoFolderDetailScreen
 import com.airplayr.app.ui.screens.VaultScreen
 import com.airplayr.app.ui.screens.VaultVideoScreen
 import com.airplayr.app.ui.screens.ExternalVideoScreen
@@ -126,8 +119,6 @@ fun AirPlayrApp(
     var startupContentReady by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var menuOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var donateOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    var musicPlayerSheetOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    var appSplashVisible by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(true) }
     val syncState by container.syncState.collectAsStateWithLifecycle()
     val safScanState by container.safScanState.collectAsStateWithLifecycle()
     val rootScope = androidx.compose.runtime.rememberCoroutineScope()
@@ -139,10 +130,6 @@ fun AirPlayrApp(
             container.appContext.contentResolver.takePersistableUriPermission(uri, flags)
         }
         container.startSafMediaScan(uri)
-    }
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(850L)
-        appSplashVisible = false
     }
     androidx.compose.runtime.LaunchedEffect(Unit) {
         AppFeedback.snackbar.collect { message ->
@@ -182,10 +169,6 @@ fun AirPlayrApp(
     val externalMedia by initialViewModel.externalMedia.collectAsStateWithLifecycle()
     val primaryRoutes = remember { setOf("home", "music", "videos", "settings") }
     fun navigate(route: String) {
-        if (route == "player") {
-            musicPlayerSheetOpen = true
-            return
-        }
         val isPrimary = route in primaryRoutes
         navController.navigate(route) {
             if (isPrimary) {
@@ -329,6 +312,15 @@ fun AirPlayrApp(
                         container = container,
                         playback = playbackController,
                         onNavigate = { route -> navigate(route) },
+                    )
+                }
+                composable("video-folder/{id}") { entry ->
+                    val folderPath = java.net.URLDecoder.decode(entry.arguments?.getString("id").orEmpty(), "UTF-8")
+                    VideoFolderDetailScreen(
+                        folderPath = folderPath,
+                        libraryViewModel = libraryViewModel,
+                        onBack = { navController.popBackStack() },
+                        onOpenVideo = { id -> navigate("video/$id") },
                     )
                 }
                 composable("videos") {
@@ -621,30 +613,6 @@ fun AirPlayrApp(
                 )
             }
 
-            if (musicPlayerSheetOpen) {
-                ModalBottomSheet(
-                    onDismissRequest = { musicPlayerSheetOpen = false },
-                    sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
-                    containerColor = MaterialTheme.colorScheme.background,
-                    tonalElevation = 0.dp,
-                ) {
-                    PlayerScreen(
-                        container.appContext,
-                        playbackController,
-                        onBack = { musicPlayerSheetOpen = false },
-                        onEqualizer = {
-                            musicPlayerSheetOpen = false
-                            navigate("equalizer")
-                        },
-                        onNavigate = { route ->
-                            musicPlayerSheetOpen = false
-                            navigate(route)
-                        },
-                        inSheet = true,
-                    )
-                }
-            }
-
             // Draw the drawer after the persistent bottom system so the drawer is the top
             // interactive layer when open. This prevents the mini-player/dock from covering
             // the final drawer items such as About AirPlayr and Support AirPlayr.
@@ -670,7 +638,7 @@ fun AirPlayrApp(
                 SafScanOverlay(safScanState)
             }
 
-            if (!appSplashVisible) StartupPermissionFlow(
+            StartupPermissionFlow(
                 context = container.appContext,
                 onCompleted = {
                     // Do not start any media synchronization until the complete startup
@@ -680,23 +648,6 @@ fun AirPlayrApp(
                 },
             )
 
-            if (appSplashVisible) {
-                Box(
-                    Modifier.fillMaxSize().background(
-                        Brush.linearGradient(
-                            listOf(Color(0xFF58B4F5), Color(0xFF79C5FD), Color(0xFFB7E3FF))
-                        )
-                    ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Image(
-                        painter = painterResource(com.airplayr.app.R.drawable.airplayr_about_logo),
-                        contentDescription = "AirPlayr",
-                        modifier = Modifier.fillMaxWidth(0.66f),
-                        contentScale = ContentScale.Fit,
-                    )
-                }
-            }
 
             if (donateOpen) {
                 DonateSheet(onDismiss = { donateOpen = false })

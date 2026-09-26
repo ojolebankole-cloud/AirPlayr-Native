@@ -4,14 +4,17 @@ import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.pm.ActivityInfo
 import android.os.Build
+import android.view.ViewConfiguration
 import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.awaitFirstDown
+import androidx.compose.ui.input.pointer.awaitPointerEvent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -24,6 +27,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.consume
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -177,58 +181,74 @@ fun ExternalVideoScreen(
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)
-        .pointerInput(player, settings?.gestureDoubleTapSeek, settings?.gestureLongPress2x) {
-            detectTapGestures(
-                onPress = {
-                    tryAwaitRelease()
-                    if (longPressBoostActive) { longPressBoostActive = false; player?.setPlaybackSpeed(settings?.defaultSpeed?.toFloat()?.coerceIn(.25f, 4f) ?: 1f) }
-                },
-                onTap = { controlsVisible = !controlsVisible; interaction++ },
-                onDoubleTap = { if (settings?.gestureDoubleTapSeek != false) { player?.let { if (it.isPlaying) it.pause() else it.play() }; controlsVisible = true; interaction++ } },
-                onLongPress = {
-                    if (settings?.gestureLongPress2x == true) { longPressBoostActive = true; player?.setPlaybackSpeed(2f) }
-                },
-            )
-        }
-        .pointerInput(player, settings?.gestureVolume, settings?.gestureBrightness, settings?.gestureHorizontalSeek, duration) {
-            var gestureStart = androidx.compose.ui.geometry.Offset.Zero
-            var gestureAxis = 0
-            var gestureDx = 0f
-            var gestureDy = 0f
-            detectDragGestures(
-                onDragStart = { gestureStart = it; gestureAxis = 0; gestureDx = 0f; gestureDy = 0f },
-                onDragEnd = { gestureAxis = 0 },
-                onDragCancel = { gestureAxis = 0 },
-                onDrag = { change, dragAmount ->
-                    change.consume()
-                    gestureDx += dragAmount.x
-                    gestureDy += dragAmount.y
-                    if (gestureAxis == 0 && (abs(gestureDx) > 12f || abs(gestureDy) > 12f)) gestureAxis = if (abs(gestureDx) > abs(gestureDy)) 1 else 2
-                    when (gestureAxis) {
-                        1 -> if (settings?.gestureHorizontalSeek != false && size.width > 0) {
-                            val maxSeek = if (duration > 0L) (duration / 20L).coerceIn(10_000L, 60_000L) else 10_000L
-                            val delta = (dragAmount.x / size.width.toFloat() * maxSeek).roundToLong()
-                            if (delta != 0L) seek(delta)
-                        }
-                        2 -> if (size.height > 0) {
-                            val left = gestureStart.x < size.width / 2f
-                            if (left && settings?.gestureVolume != false) {
-                                val fraction = VideoGestureSupport.adjustMusicVolume(context, -dragAmount.y / size.height.toFloat())
-                                volumeOverlayValue = (fraction * 100f).roundToInt().coerceIn(0, 100)
-                                volumeOverlay = true
-                            } else if (!left && settings?.gestureBrightness != false) {
-                                val activity = context as? Activity
-                                if (activity != null) {
-                                    val current = VideoGestureSupport.currentWindowBrightness(activity)
-                                    val next = (current - dragAmount.y / size.height.toFloat()).coerceIn(0.02f, 1f)
-                                    VideoGestureSupport.setWindowBrightness(activity, next)
-                                    brightnessFeedback = "${(next * 100f).roundToInt()}%"
+        .pointerInput(player, settings?.gestureDoubleTapSeek, settings?.gestureLongPress2x, settings?.gestureVolume, settings?.gestureBrightness, settings?.gestureHorizontalSeek, duration) {
+            var lastTapUptime = 0L
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                val start = down.position
+                var lastPosition = start
+                var axis = 0
+                var moved = false
+                var longPressTriggered = false
+                var finished = false
+                while (!finished) {
+                    val event = awaitPointerEvent()
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    val delta = change.position - lastPosition
+                    lastPosition = change.position
+                    val distance = (change.position - start).getDistance()
+                    if (!longPressTriggered && !moved && change.uptimeMillis - down.uptimeMillis >= ViewConfiguration.getLongPressTimeout().toLong()) {
+                        longPressTriggered = true
+                        if (settings?.gestureLongPress2x == true) { longPressBoostActive = true; player?.setPlaybackSpeed(2f) }
+                    }
+                    if (distance > 18f) {
+                        moved = true
+                        if (axis == 0) axis = if (abs(change.position.x - start.x) > abs(change.position.y - start.y)) 1 else 2
+                        when (axis) {
+                            1 -> if (settings?.gestureHorizontalSeek != false && size.width > 0) {
+                                val maxSeek = if (duration > 0L) (duration / 20L).coerceIn(10_000L, 60_000L) else 10_000L
+                                val seekDelta = (delta.x / size.width.toFloat() * maxSeek).roundToLong()
+                                if (seekDelta != 0L) seek(seekDelta)
+                            }
+                            2 -> if (size.height > 0) {
+                                val left = start.x < size.width / 2f
+                                if (left && settings?.gestureVolume != false) {
+                                    val fraction = VideoGestureSupport.adjustMusicVolume(context, -delta.y / size.height.toFloat() * 1.35f)
+                                    volumeOverlayValue = (fraction * 100f).roundToInt().coerceIn(0, 100)
+                                    volumeOverlay = true
+                                } else if (!left && settings?.gestureBrightness != false) {
+                                    val activity = context as? Activity
+                                    if (activity != null) {
+                                        val current = VideoGestureSupport.currentWindowBrightness(activity)
+                                        val next = (current - delta.y / size.height.toFloat() * 1.35f).coerceIn(0.02f, 1f)
+                                        VideoGestureSupport.setWindowBrightness(activity, next)
+                                        brightnessFeedback = "${(next * 100f).roundToInt()}%"
+                                    }
                                 }
                             }
                         }
                     }
-                },
-            )
+                    if (!change.pressed) finished = true
+                    change.consume()
+                }
+                if (!moved && !longPressTriggered) {
+                    val now = android.os.SystemClock.uptimeMillis()
+                    if (settings?.gestureDoubleTapSeek != false && now - lastTapUptime < 320L) {
+                        player?.let { if (it.isPlaying) it.pause() else it.play() }
+                        controlsVisible = true
+                        interaction++
+                        lastTapUptime = 0L
+                    } else {
+                        lastTapUptime = now
+                        controlsVisible = !controlsVisible
+                        interaction++
+                    }
+                }
+                if (longPressTriggered && longPressBoostActive) {
+                    longPressBoostActive = false
+                    player?.setPlaybackSpeed(settings?.defaultSpeed?.toFloat()?.coerceIn(.25f, 4f) ?: 1f)
+                }
+            }
         }
         .pointerInput(player, settings?.gesturePinchZoom) {
             if (settings?.gesturePinchZoom == true) {
@@ -240,7 +260,7 @@ fun ExternalVideoScreen(
         ) {
         player?.let { AndroidVideoSurface(it, fitMode, Modifier.fillMaxSize().graphicsLayer(scaleX = pinchZoomState.floatValue, scaleY = pinchZoomState.floatValue)) }
         if (subtitleOnState.value && cues.isNotEmpty()) {
-            VideoSubtitleOverlay(cues, settings?.subtitleSize ?: 1.0, parseSubtitleColor(settings?.subtitleColor), settings?.subtitleBg ?: true, settings?.subtitlePosition == "top", controlsVisible)
+            VideoSubtitleOverlay(cues, settings?.subtitleSize ?: 1.0, parseSubtitleColor(settings?.subtitleColor), settings?.subtitleBg ?: true, settings?.subtitlePosition ?: "bottom", controlsVisible)
         }
         AnimatedVisibility(visible = controlsVisible, modifier = Modifier.fillMaxSize(), enter = fadeIn(tween(120)), exit = fadeOut(tween(90))) {
             Box(Modifier.fillMaxSize()) {

@@ -15,12 +15,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -35,7 +37,13 @@ import com.airplayr.app.di.AppContainer
 import kotlinx.coroutines.launch
 
 @Composable
-fun VideoSubtitleSettingsSheet(container: AppContainer, onDismiss: () -> Unit) {
+fun VideoSubtitleSettingsSheet(
+    container: AppContainer,
+    subtitleEnabled: Boolean = true,
+    onToggleEnabled: (Boolean) -> Unit = {},
+    onConnectFile: () -> Unit = {},
+    onDismiss: () -> Unit,
+) {
     val settings by container.preferences.settings.collectAsStateWithLifecycle(initialValue = null)
     val current = settings ?: return
     val scope = rememberCoroutineScope()
@@ -51,6 +59,18 @@ fun VideoSubtitleSettingsSheet(container: AppContainer, onDismiss: () -> Unit) {
                     Text("Tune subtitles without changing the video itself.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Close") }
+            }
+
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Subtitles", fontWeight = FontWeight.SemiBold)
+                    Text(if (subtitleEnabled) "Displayed over the video" else "Currently hidden", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(checked = subtitleEnabled, onCheckedChange = onToggleEnabled)
+            }
+            Button(onClick = onConnectFile, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.AttachFile, null)
+                Text("Connect subtitle file", modifier = Modifier.padding(start = 8.dp))
             }
 
             Text("TEXT SIZE", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
@@ -83,9 +103,16 @@ fun VideoSubtitleSettingsSheet(container: AppContainer, onDismiss: () -> Unit) {
             }
 
             Text("POSITION", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = current.subtitlePosition == "bottom", onClick = { scope.launch { container.preferences.setSubtitlePosition("bottom") } }, label = { Text("Bottom") })
-                FilterChip(selected = current.subtitlePosition == "top", onClick = { scope.launch { container.preferences.setSubtitlePosition("top") } }, label = { Text("Top") })
+            Text("Drag-style position: choose where the subtitle sits on the video.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("top" to "Top", "center" to "Center", "bottom" to "Bottom").forEach { (value, label) ->
+                    FilterChip(
+                        selected = current.subtitlePosition == value,
+                        onClick = { scope.launch { container.preferences.setSubtitlePosition(value) } },
+                        label = { Text(label) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
 
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
