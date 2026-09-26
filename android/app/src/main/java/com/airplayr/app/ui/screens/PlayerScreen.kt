@@ -302,17 +302,15 @@ fun PlayerScreen(
             }
 
             Spacer(Modifier.height(4.dp))
-            key(state.currentId ?: "__empty__") {
-                Artwork(
-                    state.artworkUri,
-                    Modifier.size(artSizeDp).shadow(AirPlayrElevation.medium, RoundedCornerShape(min(34f, artSizeDp.value * 0.055f).dp)),
-                    min(34f, artSizeDp.value * 0.055f).dp,
-                    state.currentTitle,
-                    com.airplayr.app.core.data.media.MediaType.AUDIO,
-                    com.airplayr.app.ui.theme.AirPlayrIcons.Music,
-                    isPlaying = state.isPlaying,
-                )
-            }
+            Artwork(
+                state.artworkUri,
+                Modifier.size(artSizeDp).shadow(AirPlayrElevation.medium, RoundedCornerShape(min(34f, artSizeDp.value * 0.055f).dp)),
+                min(34f, artSizeDp.value * 0.055f).dp,
+                state.currentTitle,
+                com.airplayr.app.core.data.media.MediaType.AUDIO,
+                com.airplayr.app.ui.theme.AirPlayrIcons.Music,
+                isPlaying = state.isPlaying,
+            )
 
             Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
@@ -378,11 +376,10 @@ fun PlayerScreen(
 
             Surface(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
                     .fillMaxWidth(0.84f)
-                    .height(58.dp)
-                    .padding(bottom = 18.dp),
+                    .heightIn(min = 58.dp)
+                    .padding(horizontal = 0.dp, vertical = 5.dp)
+                    .offset(y = 10.dp),
                 shape = RoundedCornerShape(22.dp),
                 color = colors.surfaceContainerHighest,
                 tonalElevation = 2.dp,
