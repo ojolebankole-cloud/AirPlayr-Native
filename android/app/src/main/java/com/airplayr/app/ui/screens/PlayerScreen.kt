@@ -2,13 +2,7 @@ package com.airplayr.app.ui.screens
 
 import com.airplayr.app.ui.components.MediaDetailsSheet
 
-import androidx.compose.animation.core.tween
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 
 import com.airplayr.app.core.data.media.MediaType
@@ -308,14 +302,7 @@ fun PlayerScreen(
             }
 
             Spacer(Modifier.height(4.dp))
-            AnimatedContent(
-                targetState = state.currentId ?: "__empty__",
-                transitionSpec = {
-                    (slideInHorizontally(initialOffsetX = { it }) + fadeIn(tween(220))) togetherWith
-                        (slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(tween(170)))
-                },
-                label = "music-track-swipe",
-            ) { _ ->
+            key(state.currentId ?: "__empty__") {
                 Artwork(
                     state.artworkUri,
                     Modifier.size(artSizeDp).shadow(AirPlayrElevation.medium, RoundedCornerShape(min(34f, artSizeDp.value * 0.055f).dp)),
@@ -391,10 +378,11 @@ fun PlayerScreen(
 
             Surface(
                 modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
                     .fillMaxWidth(0.84f)
-                    .heightIn(min = 58.dp)
-                    .padding(horizontal = 0.dp, vertical = 5.dp)
-                    .offset(y = 10.dp),
+                    .height(58.dp)
+                    .padding(bottom = 18.dp),
                 shape = RoundedCornerShape(22.dp),
                 color = colors.surfaceContainerHighest,
                 tonalElevation = 2.dp,
