@@ -17,7 +17,7 @@ import kotlinx.coroutines.coroutineScope
 import org.json.JSONArray
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
-import org.jaudiotagger.tag.datatype.ArtworkFactory
+import org.jaudiotagger.tag.images.ArtworkFactory
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
