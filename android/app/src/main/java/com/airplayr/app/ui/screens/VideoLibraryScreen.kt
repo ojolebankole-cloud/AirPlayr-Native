@@ -435,7 +435,7 @@ private fun VideoHeader(
 ) {
     val colors = LocalAirPlayrColors.current
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 9.dp),
+        Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 18.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (onBack != null) {

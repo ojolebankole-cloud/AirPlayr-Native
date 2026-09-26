@@ -211,7 +211,7 @@ private fun AppIdentityCard(
                 contentAlignment = Alignment.Center,
             ) {
                 Image(
-                    painterResource(R.drawable.airplayr_about_logo),
+                    painterResource(R.drawable.airplayr_themeable_logo),
                     contentDescription = "AirPlayr logo",
                     modifier = Modifier.fillMaxWidth(0.78f),
                     contentScale = ContentScale.Fit,

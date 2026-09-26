@@ -282,7 +282,9 @@ fun MusicMixScreen(
                         item = heroItem,
                         config = config,
                         colors = colors,
-                        playing = heroItem?.id == playingId,
+                        playing = playbackState.isPlaying &&
+                            playbackState.currentMediaType == MediaType.AUDIO &&
+                            heroItem?.id == playingId,
                         onPlay = { if (mix.isNotEmpty()) { mixPlaybackActive = true; playback.playLoopingQueue(mix, repeatAll = false) } },
                         onShuffle = { if (mix.isNotEmpty()) { mixPlaybackActive = true; playback.playLoopingQueue(mix, repeatAll = false) } },
                     )

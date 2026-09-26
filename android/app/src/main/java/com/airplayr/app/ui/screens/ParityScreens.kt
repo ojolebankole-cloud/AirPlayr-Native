@@ -135,7 +135,7 @@ fun FeatureCollectionScreen(
     libraryViewModel: LibraryViewModel,
     playback: PlaybackController,
     container: AppContainer? = null,
-    onBack: () -> Unit = {},
+    onBack: () -> Unit,
     onVideoOpen: (String) -> Unit = {},
     onOpenPlayer: () -> Unit = {},
 ) {
@@ -770,7 +770,7 @@ fun FoldersScreen(
     libraryViewModel: LibraryViewModel,
     playback: PlaybackController,
     onOpen: (String) -> Unit,
-    onBack: () -> Unit = {},
+    onBack: () -> Unit,
 ) {
     val colors = LocalAirPlayrColors.current
     val snapshot by libraryViewModel.snapshot.collectAsStateWithLifecycle()
@@ -1029,7 +1029,7 @@ fun BrowseFilterScreen(
     playback: PlaybackController,
     onOpenPlayer: () -> Unit = {},
     onOpenVideo: (String) -> Unit = {},
-    onBack: () -> Unit = {},
+    onBack: () -> Unit,
     folderMode: String? = null,
     folderName: String? = null,
     container: AppContainer? = null,
@@ -1655,7 +1655,7 @@ fun RecentScreen(
     onOpen: (String) -> Unit,
     container: AppContainer? = null,
     onOpenPlayer: () -> Unit = {},
-    onBack: () -> Unit = {},
+    onBack: () -> Unit,
 ) {
     val snapshot by viewModel.snapshot.collectAsStateWithLifecycle()
     val audio = snapshot.audio
@@ -1777,7 +1777,7 @@ fun RecentScreen(
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun MyPlaylistsScreen(container: AppContainer, libraryViewModel: LibraryViewModel, playback: PlaybackController, onOpen: (String) -> Unit, onOpenGrid: (MediaType) -> Unit = {}, onBack: () -> Unit = {}, onOpenVideo: (String) -> Unit = {}) {
+fun MyPlaylistsScreen(container: AppContainer, libraryViewModel: LibraryViewModel, playback: PlaybackController, onOpen: (String) -> Unit, onOpenGrid: (MediaType) -> Unit = {}, onBack: () -> Unit, onOpenVideo: (String) -> Unit = {}) {
     val colors = LocalAirPlayrColors.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -2069,7 +2069,7 @@ fun PlaylistDetailScreen(
                     ) { Icon(Icons.Default.ArrowBack, "Back", tint = colors.textPrimary, modifier = Modifier.size(29.dp)) }
                     Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 22.dp, vertical = 18.dp)) {
                         Text(if (mediaType == MediaType.VIDEO) "VIDEO PLAYLIST" else "MUSIC PLAYLIST", fontFamily = AirPlayrFonts.OpenSansBold, fontSize = 11.sp, letterSpacing = 1.6.sp, color = colors.primary)
-                        Text(title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 42.sp, lineHeight = 46.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = colors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(title, fontFamily = AirPlayrFonts.SmoochSans, fontSize = 30.sp, lineHeight = 36.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = colors.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         Text("${items.size} ${if (mediaType == MediaType.VIDEO) if (items.size == 1) "Video" else "Videos" else if (items.size == 1) "Song" else "Songs"} · $durationLabel", fontFamily = AirPlayrFonts.OpenSans, fontSize = 13.sp, color = colors.textSecondary)
                     }
                 }

@@ -309,7 +309,7 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Image(
-                    painterResource(R.drawable.airplayr_about_logo),
+                    painterResource(R.drawable.airplayr_themeable_logo),
                     contentDescription = "AirPlayr logo",
                     modifier = Modifier.size(76.dp),
                     contentScale = ContentScale.Fit,

@@ -25,8 +25,17 @@ class MainActivity : ComponentActivity() {
             "light" -> false
             else -> (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         }
-        setTheme(if (dark) R.style.Theme_App_SplashScreen_Dark else R.style.Theme_App_SplashScreen_Light)
-        installSplashScreen()
+        if (savedInstanceState == null) {
+            // Show the Android launch splash only for a genuine app launch. Activity recreation
+            // (for example after a configuration/process restore while the task is still alive)
+            // must not flash the launch screen over the user's current screen.
+            setTheme(if (dark) R.style.Theme_App_SplashScreen_Dark else R.style.Theme_App_SplashScreen_Light)
+            installSplashScreen()
+        } else {
+            // Recreated Activity: enter directly into the normal app theme. Navigation Compose
+            // restores its saved back stack instead of showing the launch splash again.
+            setTheme(if (dark) R.style.AppTheme_Dark else R.style.AppTheme)
+        }
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {

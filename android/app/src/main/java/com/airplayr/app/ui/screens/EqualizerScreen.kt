@@ -76,7 +76,7 @@ private const val BAND_COLUMN_WIDTH = 78
 private const val GRAPH_PLOT_HEIGHT = 330
 
 @Composable
-fun EqualizerScreen(container: AppContainer, onBack: () -> Unit = {}) {
+fun EqualizerScreen(container: AppContainer, onBack: () -> Unit) {
     val state by container.dsp.state.collectAsStateWithLifecycle(initialValue = DspState())
     val scope = rememberCoroutineScope()
     val colors = LocalAirPlayrColors.current

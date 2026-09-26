@@ -2,7 +2,13 @@ package com.airplayr.app.ui.screens
 
 import com.airplayr.app.ui.components.MediaDetailsSheet
 
+import androidx.compose.animation.core.tween
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 
 import com.airplayr.app.core.data.media.MediaType
@@ -302,15 +308,24 @@ fun PlayerScreen(
             }
 
             Spacer(Modifier.height(4.dp))
-            Artwork(
-                state.artworkUri,
-                Modifier.size(artSizeDp).shadow(AirPlayrElevation.medium, RoundedCornerShape(min(34f, artSizeDp.value * 0.055f).dp)),
-                min(34f, artSizeDp.value * 0.055f).dp,
-                state.currentTitle,
-                com.airplayr.app.core.data.media.MediaType.AUDIO,
-                com.airplayr.app.ui.theme.AirPlayrIcons.Music,
-                isPlaying = state.isPlaying,
-            )
+            AnimatedContent(
+                targetState = state.currentId ?: "__empty__",
+                transitionSpec = {
+                    (slideInHorizontally(initialOffsetX = { it }) + fadeIn(tween(220))) togetherWith
+                        (slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(tween(170)))
+                },
+                label = "music-track-swipe",
+            ) { _ ->
+                Artwork(
+                    state.artworkUri,
+                    Modifier.size(artSizeDp).shadow(AirPlayrElevation.medium, RoundedCornerShape(min(34f, artSizeDp.value * 0.055f).dp)),
+                    min(34f, artSizeDp.value * 0.055f).dp,
+                    state.currentTitle,
+                    com.airplayr.app.core.data.media.MediaType.AUDIO,
+                    com.airplayr.app.ui.theme.AirPlayrIcons.Music,
+                    isPlaying = state.isPlaying,
+                )
+            }
 
             Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(

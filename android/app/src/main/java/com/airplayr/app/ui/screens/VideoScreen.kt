@@ -148,6 +148,7 @@ fun VideoScreen(
     var bufferedMs by remember { mutableLongStateOf(0L) }
     var interactionTick by remember { mutableIntStateOf(0) }
     var moreOpen by remember { mutableStateOf(false) }
+    var speedPickerOpen by remember { mutableStateOf(false) }
     var queueOpen by remember { mutableStateOf(false) }
     var subtitleSettingsOpen by remember { mutableStateOf(false) }
     var playbackInfoOpen by remember { mutableStateOf(false) }
@@ -568,7 +569,7 @@ fun VideoScreen(
             onEqualizer = { onNavigate("equalizer") },
             onQueue = { queueOpen = true; touch() },
             onBookmark = { video?.let { vm.bookmark(it.id, positionMs, formatVideoTime(positionMs)) }; touch() },
-            onMore = { moreOpen = true; touch() },
+            onMore = { speedPickerOpen = false; moreOpen = true; touch() },
             onPlayPause = ::togglePlay,
             onPrevious = { VideoQueueStore.previous(id)?.let(::openQueueItem) ?: player?.seekTo(0L); touch() },
             onNext = { VideoQueueStore.next(id)?.let(::openQueueItem) ?: touch() },
@@ -587,12 +588,24 @@ fun VideoScreen(
                 touch()
             },
             onSpeed = {
-                speed = nextPlaybackSpeed(speed)
-                player?.setPlaybackSpeed(speed)
+                speedPickerOpen = true
                 touch()
             },
             onSeek = { fraction -> player?.seekTo((durationMs * fraction).toLong()); touch() },
         )
+
+        if (speedPickerOpen) {
+            VideoSpeedPicker(
+                speed = speed,
+                onSelect = { selected ->
+                    speed = selected
+                    player?.setPlaybackSpeed(selected)
+                    speedPickerOpen = false
+                    touch()
+                },
+                onDismiss = { speedPickerOpen = false },
+            )
+        }
 
         if (locked) {
             GlassIconButton(
@@ -671,6 +684,18 @@ fun VideoScreen(
             onDismiss = { audioTracksOpen = false },
         )
     }
+    if (playbackInfoOpen) {
+        val size = player?.videoSize
+        val width = size?.width?.takeIf { it > 0 } ?: video?.width ?: 0
+        val height = size?.height?.takeIf { it > 0 } ?: video?.height ?: 0
+        VideoPlaybackInfoSheet(
+            decoder = decoderLabel ?: "Detecting…",
+            quality = videoQualityLabelOnly(width, height),
+            width = width,
+            height = height,
+            onDismiss = { playbackInfoOpen = false },
+        )
+    }
     if (moreOpen) {
         val item = video
         if (item != null) {
@@ -696,10 +721,10 @@ fun VideoScreen(
                         }),
                     ),
                     listOf(
-                        AirPlayrMediaMenuAction("Speed ${"%.2f".format(Locale.US, speed).trimEnd('0').trimEnd('.') }×", Icons.Default.Speed, {
-                            speed = nextPlaybackSpeed(speed)
-                            player?.setPlaybackSpeed(speed)
+                        AirPlayrMediaMenuAction("Playback speed · ${trimSpeed(speed)}×", Icons.Default.Speed, {
                             moreOpen = false
+                            speedPickerOpen = true
+                            touch()
                         }),
                         AirPlayrMediaMenuAction("Add bookmark", Icons.Default.BookmarkAdd, { vm.bookmark(id, positionMs, formatVideoTime(positionMs)); moreOpen = false }),
                     ),
@@ -1055,29 +1080,96 @@ internal fun VideoSubtitleOverlay(
     position: String,
     controlsVisible: Boolean,
 ) {
-    val positionModifier = when (position) {
-        "top" -> Modifier.fillMaxWidth().statusBarsPadding().padding(top = 92.dp)
-        "center" -> Modifier.fillMaxWidth().padding(horizontal = 28.dp)
-        else -> Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = if (controlsVisible) 112.dp else 48.dp)
-    }
-    Column(
-        positionModifier.padding(horizontal = 28.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = if (background) Color.Black.copy(alpha = .56f) else Color.Transparent,
+    Box(Modifier.fillMaxSize()) {
+        val positionModifier = when (position) {
+            "top" -> Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(top = 18.dp, start = 28.dp, end = 28.dp)
+            "center" -> Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth()
+                .padding(horizontal = 28.dp)
+            else -> Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(bottom = if (controlsVisible) 112.dp else 48.dp, start = 28.dp, end = 28.dp)
+        }
+        Column(
+            positionModifier,
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
-                cues.joinToString("\n"),
-                color = textColor,
-                fontSize = (18.0 * sizeScale).sp,
-                lineHeight = (23.0 * sizeScale).sp,
-                textAlign = TextAlign.Center,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            )
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (background) Color.Black.copy(alpha = .56f) else Color.Transparent,
+            ) {
+                Text(
+                    cues.joinToString("\n"),
+                    color = textColor,
+                    fontSize = (18.0 * sizeScale).sp,
+                    lineHeight = (23.0 * sizeScale).sp,
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun VideoSpeedPicker(
+    speed: Float,
+    onSelect: (Float) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = LocalAirPlayrColors.current
+    val speeds = listOf(.25f, .5f, .75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f, 4f)
+    Box(Modifier.fillMaxSize()) {
+        Surface(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 10.dp, start = 16.dp, end = 16.dp),
+        shape = RoundedCornerShape(22.dp),
+        color = Color.Black.copy(alpha = .78f),
+        tonalElevation = 0.dp,
+        shadowElevation = 8.dp,
+    ) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Playback speed", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text("Current ${trimSpeed(speed)}×", color = Color.White.copy(alpha = .68f), fontSize = 11.sp)
+                }
+                TextButton(onClick = onDismiss) { Text("Close", color = colors.primary) }
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                speeds.forEach { value ->
+                    val selected = kotlin.math.abs(value - speed) < .01f
+                    Surface(
+                        onClick = { onSelect(value) },
+                        shape = RoundedCornerShape(15.dp),
+                        color = if (selected) colors.primary else Color.White.copy(alpha = .10f),
+                    ) {
+                        Text(
+                            "${trimSpeed(value)}×",
+                            color = if (selected) colors.onPrimary else Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
+                        )
+                    }
+                }
+            }
+        }
         }
     }
 }
@@ -1238,12 +1330,6 @@ private fun videoQualityLabel(width: Int, height: Int, decoder: String?): String
         else -> "AUTO"
     }
     return listOfNotNull(decoder, quality).joinToString(" · ")
-}
-
-private fun nextPlaybackSpeed(value: Float): Float {
-    val speeds = listOf(.25f, .5f, .75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 2.5f, 3f, 4f)
-    val index = speeds.indexOfFirst { candidate -> candidate >= value }.coerceAtLeast(0)
-    return speeds[(index + 1) % speeds.size]
 }
 
 internal fun trimSpeed(value: Float): String = "%.2f".format(Locale.US, value).trimEnd('0').trimEnd('.')

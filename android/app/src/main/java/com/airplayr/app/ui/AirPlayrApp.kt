@@ -120,6 +120,7 @@ fun AirPlayrApp(
     var permissionFlowCompleted by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var startupContentReady by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var menuOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var playerOpen by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     var donateOpen by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val syncState by container.syncState.collectAsStateWithLifecycle()
     val safScanState by container.safScanState.collectAsStateWithLifecycle()
@@ -167,10 +168,14 @@ fun AirPlayrApp(
         kotlinx.coroutines.delay(350L)
         if (!container.preferences.hasSeenWhatsNew(appVersion)) whatsNewOpen = true
     }
-    val requestedRoute by initialViewModel.route.collectAsStateWithLifecycle()
     val externalMedia by initialViewModel.externalMedia.collectAsStateWithLifecycle()
     val primaryRoutes = remember { setOf("home", "music", "videos", "settings") }
     fun navigate(route: String) {
+        if (route == "player") {
+            playerOpen = true
+            return
+        }
+        if (playerOpen) playerOpen = false
         val isPrimary = route in primaryRoutes
         navController.navigate(route) {
             if (isPrimary) {
@@ -194,18 +199,6 @@ fun AirPlayrApp(
             initialViewModel.consumeExternalMedia()
         }
     }
-    androidx.compose.runtime.LaunchedEffect(requestedRoute) {
-        val route = when (requestedRoute) {
-            com.airplayr.app.ui.navigation.Route.Home -> "home"
-            com.airplayr.app.ui.navigation.Route.Music -> "music"
-            com.airplayr.app.ui.navigation.Route.Videos -> "videos"
-            com.airplayr.app.ui.navigation.Route.Settings -> "settings"
-        }
-        if (navController.currentDestination?.route != route) {
-            navigate(route)
-        }
-    }
-
     // startupTheme is resolved while the Android splash is still visible. Using it here as the
     // first-frame source means an existing user's saved light/dark choice is never rendered one
     // frame behind the DataStore settings flow.
@@ -243,14 +236,21 @@ fun AirPlayrApp(
         }
         val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
         val shellPlaybackState by playbackController.stableState.collectAsStateWithLifecycle()
+        androidx.compose.runtime.LaunchedEffect(currentRoute) {
+            if (currentRoute == "player" && !playerOpen) {
+                navController.popBackStack()
+                playerOpen = true
+            }
+        }
         val isPrimaryDockScreen = currentRoute in primaryRoutes
         val isVideoScreen = currentRoute == "video/{id}" || currentRoute == "external-video" || currentRoute == "vault-video/{id}"
         val isVaultScreen = currentRoute == "vault"
         androidx.compose.runtime.LaunchedEffect(currentRoute) {
             if (currentRoute != "vault" && currentRoute != "vault-video/{id}") container.vaultManager.lock()
         }
-        val isFullMusicPlayer = currentRoute == "player"
-        val showDock = isPrimaryDockScreen && !isVaultScreen
+        val isFullMusicPlayer = playerOpen || currentRoute == "player"
+        androidx.activity.compose.BackHandler(enabled = playerOpen) { playerOpen = false }
+        val showDock = isPrimaryDockScreen && !isVaultScreen && !isFullMusicPlayer
         val showMiniPlayer = !isPrimaryDockScreen && !isVideoScreen && !isFullMusicPlayer && !isVaultScreen
         val miniPlayerVisible = showMiniPlayer &&
             shellPlaybackState.currentId != null &&
@@ -493,6 +493,7 @@ fun AirPlayrApp(
                     playback = playbackController,
                     onVideoOpen = { id -> navigate("video/$id") },
                     onOpenPlayer = { navigate("player") },
+                    onBack = { navController.popBackStack() },
                 ) }
                 composable("video-collections") { FeatureCollectionScreen(
                     title = "Video collections",
@@ -502,6 +503,7 @@ fun AirPlayrApp(
                     playback = playbackController,
                     onVideoOpen = { id -> navigate("video/$id") },
                     onOpenPlayer = { navigate("player") },
+                    onBack = { navController.popBackStack() },
                 ) }
                 composable("album") { BrowseIndexScreen("Albums", com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController) { navigate("album/${it}") } }
                 composable("artist") { BrowseIndexScreen("Artists", com.airplayr.app.core.data.media.MediaType.AUDIO, libraryViewModel, playbackController) { navigate("artist/${it}") } }
@@ -574,6 +576,19 @@ fun AirPlayrApp(
 
             androidx.compose.runtime.LaunchedEffect(currentRoute) {
                 if (currentRoute != "home") menuOpen = false
+            }
+
+            if (playerOpen) {
+                PlayerScreen(
+                    appContext = container.appContext,
+                    controller = playbackController,
+                    onBack = { playerOpen = false },
+                    onEqualizer = {
+                        playerOpen = false
+                        navigate("equalizer")
+                    },
+                    onNavigate = { route -> navigate(route) },
+                )
             }
 
             SnackbarHost(

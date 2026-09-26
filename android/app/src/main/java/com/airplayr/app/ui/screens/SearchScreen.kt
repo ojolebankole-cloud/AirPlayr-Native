@@ -110,7 +110,7 @@ fun SearchScreen(
     libraryViewModel: LibraryViewModel,
     onOpen: (MediaItem) -> Unit,
     onNavigate: (String) -> Unit = {},
-    onBack: () -> Unit = {},
+    onBack: () -> Unit,
 ) {
     val colors = LocalAirPlayrColors.current
     val focus = LocalFocusManager.current

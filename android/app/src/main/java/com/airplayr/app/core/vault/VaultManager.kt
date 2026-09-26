@@ -133,7 +133,10 @@ class VaultManager(private val context: Context) {
         return runCatching {
             if (Build.VERSION.SDK_INT >= 29) {
                 val manager = context.getSystemService(BiometricManager::class.java) ?: return@runCatching false
-                manager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
+                // Some OEM fingerprint/face implementations are classified as WEAK even
+                // though they are perfectly valid for a user-facing Vault unlock. Requiring
+                // STRONG here was unnecessarily hiding the biometric action on those devices.
+                manager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
             } else {
                 false
             }
@@ -144,12 +147,13 @@ class VaultManager(private val context: Context) {
         if (Build.VERSION.SDK_INT < 28) { onError("Biometric unlock requires Android 9 or newer."); return }
         val executor = context.mainExecutor
         val cancellation = CancellationSignal()
-        val prompt = BiometricPrompt.Builder(activity)
+        val builder = BiometricPrompt.Builder(activity)
             .setTitle("Unlock AirPlayr Vault")
             .setSubtitle("Use your fingerprint or enrolled device biometric")
             .setDescription("Your private videos stay encrypted on this device.")
             .setNegativeButton("Use PIN", executor) { _, _ -> cancellation.cancel() }
-            .build()
+        if (Build.VERSION.SDK_INT >= 29) builder.setConfirmationRequired(false)
+        val prompt = builder.build()
         prompt.authenticate(cancellation, executor, object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                 executor.execute {
