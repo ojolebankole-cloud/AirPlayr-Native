@@ -42,8 +42,19 @@ jobs:
         working-directory: android
         run: ./gradlew :app:assembleDebug --stacktrace
 
+      - name: Prepare release signing
+        env:
+          AIRPLAYR_KEYSTORE_BASE64: ${{ secrets.AIRPLAYR_KEYSTORE_BASE64 }}
+        run: |
+          echo "$AIRPLAYR_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/airplayr-release.jks"
+          chmod 600 "$RUNNER_TEMP/airplayr-release.jks"
+
       - name: Build release APK
         working-directory: android
+        env:
+          AIRPLAYR_KEYSTORE_FILE: ${{ runner.temp }}/airplayr-release.jks
+          AIRPLAYR_KEYSTORE_PASSWORD: ${{ secrets.AIRPLAYR_KEYSTORE_PASSWORD }}
+          AIRPLAYR_KEY_PASSWORD: ${{ secrets.AIRPLAYR_KEY_PASSWORD }}
         run: ./gradlew :app:assembleRelease --stacktrace
 
       - name: Upload debug APK

@@ -19,8 +19,30 @@ android {
         vectorDrawables { useSupportLibrary = true }
     }
 
+    signingConfigs {
+        create("release") {
+            val keystoreFile = System.getenv("AIRPLAYR_KEYSTORE_FILE")
+                ?: project.findProperty("airplayrKeystoreFile")?.toString()
+            val keystorePassword = System.getenv("AIRPLAYR_KEYSTORE_PASSWORD")
+                ?: project.findProperty("airplayrKeystorePassword")?.toString()
+            val keyPassword = System.getenv("AIRPLAYR_KEY_PASSWORD")
+                ?: project.findProperty("airplayrKeyPassword")?.toString()
+
+            if (!keystoreFile.isNullOrBlank() &&
+                !keystorePassword.isNullOrBlank() &&
+                !keyPassword.isNullOrBlank()
+            ) {
+                storeFile = file(keystoreFile)
+                storePassword = keystorePassword
+                keyAlias = "airplayr"
+                this.keyPassword = keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
