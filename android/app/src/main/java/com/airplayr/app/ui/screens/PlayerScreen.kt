@@ -1,5 +1,9 @@
 package com.airplayr.app.ui.screens
 
+import com.airplayr.app.ui.components.MediaDetailsSheet
+
+import androidx.compose.animation.core.tween
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut

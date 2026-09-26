@@ -17,7 +17,7 @@ import kotlinx.coroutines.coroutineScope
 import org.json.JSONArray
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
-import org.jaudiotagger.tag.datatype.Artwork
+import org.jaudiotagger.tag.datatype.ArtworkFactory
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
@@ -155,7 +155,7 @@ class MetadataRepository(private val context: Context) {
                     val artFile = artwork.path?.let(::File)
                     if (artFile != null && artFile.exists()) {
                         tag.deleteArtworkField()
-                        tag.addField(Artwork.createArtworkFromFile(artFile))
+                        tag.addField(ArtworkFactory.createArtworkFromFile(artFile))
                     }
                 }
             }

@@ -331,7 +331,7 @@ fun MostPlayedScreen(
         )
     }
     playlistTarget?.let { com.airplayr.app.ui.components.HistoryFavoritePlaylistSheet(container, it) { playlistTarget = null } }
-    detailsTarget?.let { item -> com.airplayr.app.ui.components.MediaDetailsSheet(item, playing = playbackState.isPlaying && playbackState.currentId == item.id) { detailsTarget = null } }
+    detailsTarget?.let { item -> com.airplayr.app.ui.components.MediaDetailsSheet(item = item, playing = playbackState.isPlaying && playbackState.currentId == item.id, onDismiss = { detailsTarget = null }) }
     editTarget?.let { item -> com.airplayr.app.ui.components.HistoryFavoriteTagEditorSheet(container, item) { editTarget = null } }
     lyricsTarget?.let { item -> com.airplayr.app.ui.components.HistoryFavoriteLyricsSheet(container, item) { lyricsTarget = null } }
     deleteTarget?.let { item ->
