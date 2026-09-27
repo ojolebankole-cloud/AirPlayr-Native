@@ -145,55 +145,42 @@ fun SearchScreen(
         focusRequester.requestFocus()
     }
 
-    val lookup = remember(audio, video) { (audio + video).associateBy { it.id } }
-    val entries = remember(snapshot.audio, snapshot.video, snapshot.playlists) {
-        val songs = audio.map {
-            SearchEntry(it.id, "song", it.title.ifBlank { it.filename }, it.artist ?: "Unknown artist", it)
+    val lookup by produceState<Map<String, MediaItem>>(emptyMap(), audio, video, videoOnly, musicOnly) {
+        value = withContext(Dispatchers.Default) {
+            (if (videoOnly) video else if (musicOnly) audio else (audio + video)).associateBy { it.id }
         }
-        val albums = audio.filter { !it.album.isNullOrBlank() }
-            .groupBy { (it.album ?: "").trim().lowercase(Locale.ROOT) }
-            .values.map { group ->
-                val first = group.first()
-                SearchEntry("album:${group.first().album}", "album", group.first().album.orEmpty(),
-                    "${first.artist ?: "Unknown artist"} · ${group.size} songs", first, group.first().album)
+    }
+    val entries by produceState<List<SearchEntry>>(emptyList(), snapshot.audio, snapshot.video, snapshot.playlists, videoOnly, musicOnly) {
+        value = withContext(Dispatchers.Default) {
+            if (videoOnly) {
+                video.map {
+                    SearchEntry(it.id, "video", it.title.ifBlank { it.filename }, it.artist ?: "Video", it)
+                }
+            } else {
+                val songs = audio.map { SearchEntry(it.id, "song", it.title.ifBlank { it.filename }, it.artist ?: "Unknown artist", it) }
+                val albums = audio.filter { !it.album.isNullOrBlank() }.groupBy { (it.album ?: "").trim().lowercase(Locale.ROOT) }.values.map { group ->
+                    val first = group.first()
+                    SearchEntry("album:${group.first().album}", "album", group.first().album.orEmpty(), "${first.artist ?: "Unknown artist"} · ${group.size} songs", first, group.first().album)
+                }
+                val artists = audio.filter { !it.artist.isNullOrBlank() }.groupBy { (it.artist ?: "").trim().lowercase(Locale.ROOT) }.values.map { group ->
+                    val first = group.first()
+                    SearchEntry("artist:${group.first().artist}", "artist", group.first().artist.orEmpty(), "${group.size} songs", first, group.first().artist)
+                }
+                val genres = audio.filter { !it.genre.isNullOrBlank() }.groupBy { (it.genre ?: "").trim().lowercase(Locale.ROOT) }.values.map { group ->
+                    val first = group.first()
+                    SearchEntry("genre:${group.first().genre}", "genre", group.first().genre.orEmpty(), "${group.size} songs", first, group.first().genre)
+                }
+                val pls = playlists.map { SearchEntry("playlist:${it.id}", "playlist", it.name, "Playlist", null, it.id) }
+                val videos = if (musicOnly) emptyList() else video.map { SearchEntry(it.id, "video", it.title.ifBlank { it.filename }, it.artist ?: "Video", it) }
+                songs + albums + artists + pls + genres + videos
+            }.map { entry ->
+                entry.copy(searchable = normalize(listOf(entry.title, entry.subtitle, entry.item?.artist, entry.item?.album, entry.item?.genre, entry.item?.filename).filterNotNull().joinToString(" ")))
             }
-        val artists = audio.filter { !it.artist.isNullOrBlank() }
-            .groupBy { (it.artist ?: "").trim().lowercase(Locale.ROOT) }
-            .values.map { group ->
-                val first = group.first()
-                SearchEntry("artist:${group.first().artist}", "artist", group.first().artist.orEmpty(),
-                    "${group.size} songs", first, group.first().artist)
-            }
-        val genres = audio.filter { !it.genre.isNullOrBlank() }
-            .groupBy { (it.genre ?: "").trim().lowercase(Locale.ROOT) }
-            .values.map { group ->
-                val first = group.first()
-                SearchEntry("genre:${group.first().genre}", "genre", group.first().genre.orEmpty(),
-                    "${group.size} songs", first, group.first().genre)
-            }
-        val pls = playlists.map {
-            SearchEntry("playlist:${it.id}", "playlist", it.name, "Playlist", null, it.id)
-        }
-        val videos = video.map {
-            SearchEntry(it.id, "video", it.title.ifBlank { it.filename }, it.artist ?: "Video", it)
-        }
-        (songs + albums + artists + pls + genres + videos).map { entry ->
-            entry.copy(
-                searchable = normalize(
-                    listOf(
-                        entry.title,
-                        entry.subtitle,
-                        entry.item?.artist,
-                        entry.item?.album,
-                        entry.item?.genre,
-                        entry.item?.filename,
-                    ).filterNotNull().joinToString(" ")
-                )
-            )
         }
     }
 
-    val recentArtists = remember(snapshot.history, audio) {
+    val recentArtists = remember(snapshot.history, audio, videoOnly) {
+        if (videoOnly) emptyList() else {
         val byArtist = audio.filter { !it.artist.isNullOrBlank() }.groupBy { normalize(it.artist) }
         val seen = mutableSetOf<String>()
         history.asSequence()
@@ -207,10 +194,11 @@ fun SearchScreen(
                 SearchEntry("artist:${first.artist}", "artist", first.artist.orEmpty(), "${group.size} songs", first, first.artist)
             }
             .take(8).toList()
+        }
     }
 
-    val recentSongs = remember(snapshot.history, lookup) {
-        history.asSequence()
+    val recentSongs = remember(snapshot.history, lookup, videoOnly) {
+        if (videoOnly) emptyList() else history.asSequence()
             .filter { it.mediaType == MediaType.AUDIO.value }
             .mapNotNull { h ->
                 lookup[h.mediaId]?.takeIf { it.mediaType == MediaType.AUDIO }?.let { item ->
@@ -221,7 +209,8 @@ fun SearchScreen(
             .toList()
     }
 
-    val recentAlbums = remember(snapshot.history, audio) {
+    val recentAlbums = remember(snapshot.history, audio, videoOnly) {
+        if (videoOnly) emptyList() else {
         val byAlbum = audio.filter { !it.album.isNullOrBlank() }.groupBy { normalize(it.album) }
         val seen = mutableSetOf<String>()
         history.asSequence()
@@ -234,6 +223,7 @@ fun SearchScreen(
                 SearchEntry("album:${first.album}", "album", first.album.orEmpty(), first.artist ?: "Unknown artist", first, first.album)
             }
             .take(8).toList()
+        }
     }
 
     val recentVideos = remember(snapshot.history, lookup) {

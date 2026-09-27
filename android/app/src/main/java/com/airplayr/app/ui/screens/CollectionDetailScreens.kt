@@ -55,6 +55,8 @@ import com.airplayr.app.ui.components.AirPlayrPremiumMediaActionSheet
 import com.airplayr.app.ui.components.ActionButton
 import com.airplayr.app.ui.components.ActionGroup
 import com.airplayr.app.ui.components.AirPlayrScreenHeader
+import com.airplayr.app.ui.components.AirPlayrLongListFastScrollHandle
+import com.airplayr.app.ui.components.AirPlayrLongGridFastScrollHandle
 import com.airplayr.app.ui.components.Artwork
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.AirPlayrIcons
@@ -784,6 +786,8 @@ fun RecentCollectionsScreen(
 
     var collectionMenu by remember { mutableStateOf<Pair<String, List<MediaItem>>?>(null) }
     var songMenu by remember { mutableStateOf<MediaItem?>(null) }
+    val recentListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) }
+    val recentGridState = rememberSaveable(saver = androidx.compose.foundation.lazy.grid.LazyGridState.Saver) { androidx.compose.foundation.lazy.grid.LazyGridState() }
 
 
     val playSongAt = { items: List<MediaItem>, item: MediaItem ->
@@ -817,6 +821,7 @@ fun RecentCollectionsScreen(
                         EmptyNativeState("Nothing here yet", if (type == "on-repeat") "Songs you play repeatedly will appear here." else "Songs added to this device will appear here.")
                     } else {
                         LazyColumn(
+                            state = recentListState,
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = airPlayrBottomContentPadding()),
                             verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -831,6 +836,7 @@ fun RecentCollectionsScreen(
                             }
                         }
                     }
+                    AirPlayrLongListFastScrollHandle(recentListState, bottomPadding = airPlayrFloatingPlayBottomPadding() + 76.dp)
                 }
 
                 type == "albums" -> {
@@ -838,6 +844,7 @@ fun RecentCollectionsScreen(
                         EmptyNativeState("No recently played albums", "Play music from an album and it will appear here.")
                     } else {
                         LazyVerticalGrid(
+                            state = recentGridState,
                             columns = GridCells.Fixed(2),
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = airPlayrBottomContentPadding() + 84.dp),
@@ -863,6 +870,7 @@ fun RecentCollectionsScreen(
                         EmptyNativeState("No recent artists", "Play music from an artist and it will appear here.")
                     } else {
                         LazyVerticalGrid(
+                            state = recentGridState,
                             columns = GridCells.Fixed(2),
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = airPlayrBottomContentPadding() + 84.dp),
@@ -880,6 +888,7 @@ fun RecentCollectionsScreen(
                             }
                         }
                     }
+                    AirPlayrLongGridFastScrollHandle(recentGridState, bottomPadding = airPlayrFloatingPlayBottomPadding() + 76.dp)
                 }
             }
         }

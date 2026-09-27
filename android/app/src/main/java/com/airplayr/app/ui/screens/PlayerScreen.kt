@@ -1,15 +1,14 @@
 package com.airplayr.app.ui.screens
 
-import com.airplayr.app.ui.components.MediaDetailsSheet
-
 import androidx.compose.animation.core.tween
-
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+
+import com.airplayr.app.ui.components.MediaDetailsSheet
 
 import com.airplayr.app.core.data.media.MediaType
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -259,7 +258,8 @@ fun PlayerScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(horizontal = 20.dp),
+                // Reserve the bottom action dock so late metadata cannot collide with it.
+                .padding(start = 20.dp, end = 20.dp, top = 0.dp, bottom = 74.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // Header: back chevron pinned left, Lyrics pill + more menu pinned right.
@@ -389,33 +389,37 @@ fun PlayerScreen(
                 )
             }
 
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth(0.84f)
-                    .heightIn(min = 58.dp)
-                    .padding(horizontal = 0.dp, vertical = 5.dp)
-                    .offset(y = 10.dp),
-                shape = RoundedCornerShape(22.dp),
-                color = colors.surfaceContainerHighest,
-                tonalElevation = 2.dp,
-                shadowElevation = AirPlayrElevation.medium,
+        }
+
+        // Static bottom action dock. It is anchored outside the content Column so track
+        // metadata, title changes, or artwork changes cannot move it or cover the MP3 details.
+        Surface(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 8.dp)
+                .fillMaxWidth(0.84f)
+                .height(58.dp),
+            shape = RoundedCornerShape(22.dp),
+            color = colors.surfaceContainerHighest,
+            tonalElevation = 2.dp,
+            shadowElevation = AirPlayrElevation.medium,
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    PlayerAction(AirPlayrIcons.Shuffle, "Shuffle", state.shuffle, colors) { controller.toggleShuffle() }
-                    PlayerAction(if (favorite) AirPlayrIcons.Favorite else AirPlayrIcons.FavoriteBorder, if (favorite) "Remove favorite" else "Add favorite", false, colors, onClick = ::setFav)
-                    PlayerAction(AirPlayrIcons.Sleep, "Sleep timer", false, colors) { sheet = PlayerSheet.Sleep }
-                    PlayerAction(AirPlayrIcons.Queue, "Queue", false, colors, onClick = { queueOpen = true })
-                    PlayerAction(
-                        if (state.repeatMode == REPEAT_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
-                        repeatLabel,
-                        state.repeatMode != REPEAT_OFF,
-                        colors,
-                    ) { controller.cycleRepeat() }
-                }
+                PlayerAction(AirPlayrIcons.Shuffle, "Shuffle", state.shuffle, colors) { controller.toggleShuffle() }
+                PlayerAction(if (favorite) AirPlayrIcons.Favorite else AirPlayrIcons.FavoriteBorder, if (favorite) "Remove favorite" else "Add favorite", false, colors, onClick = ::setFav)
+                PlayerAction(AirPlayrIcons.Sleep, "Sleep timer", false, colors) { sheet = PlayerSheet.Sleep }
+                PlayerAction(AirPlayrIcons.Queue, "Queue", false, colors, onClick = { queueOpen = true })
+                PlayerAction(
+                    if (state.repeatMode == REPEAT_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                    repeatLabel,
+                    state.repeatMode != REPEAT_OFF,
+                    colors,
+                ) { controller.cycleRepeat() }
             }
         }
 

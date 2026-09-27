@@ -234,7 +234,9 @@ fun AirPlayrApp(
                 }
             }
         }
-        val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+        val currentBackStackEntry = navController.currentBackStackEntryAsState().value
+        val currentRoute = currentBackStackEntry?.destination?.route
+        val recentType = currentBackStackEntry?.arguments?.getString("type")
         val shellPlaybackState by playbackController.stableState.collectAsStateWithLifecycle()
         androidx.compose.runtime.LaunchedEffect(currentRoute) {
             if (currentRoute == "player" && !playerOpen) {
@@ -244,6 +246,20 @@ fun AirPlayrApp(
         }
         val isPrimaryDockScreen = currentRoute in primaryRoutes
         val isVideoScreen = currentRoute == "video/{id}" || currentRoute == "external-video" || currentRoute == "vault-video/{id}"
+        val isVideoOnlyBrowseScreen = isVideoScreen ||
+            currentRoute == "videos" ||
+            currentRoute == "video-search" ||
+            currentRoute == "video-folder/{id}" ||
+            currentRoute == "video-collections" ||
+            currentRoute == "continue-watching" ||
+            currentRoute == "currently-watching" ||
+            currentRoute == "complete-watching" ||
+            currentRoute == "completed-watching" ||
+            currentRoute == "rediscover" ||
+            currentRoute == "rediscover/rewind" ||
+            currentRoute == "video-playlists" ||
+            currentRoute == "video-playlist/{id}" ||
+            (currentRoute == "recent/{type}" && recentType?.startsWith("videos") == true)
         val isVaultScreen = currentRoute == "vault"
         androidx.compose.runtime.LaunchedEffect(currentRoute) {
             if (currentRoute != "vault" && currentRoute != "vault-video/{id}") container.vaultManager.lock()
@@ -251,7 +267,7 @@ fun AirPlayrApp(
         val isFullMusicPlayer = playerOpen || currentRoute == "player"
         androidx.activity.compose.BackHandler(enabled = playerOpen) { playerOpen = false }
         val showDock = isPrimaryDockScreen && !isVaultScreen && !isFullMusicPlayer
-        val showMiniPlayer = !isPrimaryDockScreen && !isVideoScreen && !isFullMusicPlayer && !isVaultScreen
+        val showMiniPlayer = !isPrimaryDockScreen && !isVideoOnlyBrowseScreen && !isFullMusicPlayer && !isVaultScreen
         val miniPlayerVisible = showMiniPlayer &&
             shellPlaybackState.currentId != null &&
             shellPlaybackState.currentMediaType == com.airplayr.app.core.data.media.MediaType.AUDIO
@@ -319,6 +335,7 @@ fun AirPlayrApp(
                 composable("video-folder/{id}") { entry ->
                     val folderPath = java.net.URLDecoder.decode(entry.arguments?.getString("id").orEmpty(), "UTF-8")
                     VideoFolderDetailScreen(
+                        container = container,
                         folderPath = folderPath,
                         libraryViewModel = libraryViewModel,
                         onBack = { navController.popBackStack() },

@@ -167,6 +167,7 @@ class AppContainer(context: Context) {
     val collections: com.airplayr.app.core.intelligence.CollectionsRepository by lazy { com.airplayr.app.core.intelligence.CollectionsRepository(mediaLibrary, structured) }
     val dsp: com.airplayr.app.core.playback.dsp.DspRepository by lazy { com.airplayr.app.core.playback.dsp.DspRepository(appContext) }
     val videoController: NativeVideoController by lazy { NativeVideoController(appContext) }
+    val videoNewTracker: com.airplayr.app.core.video.VideoNewTracker by lazy { com.airplayr.app.core.video.VideoNewTracker(appContext) }
     val vaultManager: com.airplayr.app.core.vault.VaultManager by lazy { com.airplayr.app.core.vault.VaultManager(appContext) }
     val cast: CastController by lazy { CastController(appContext) }
 

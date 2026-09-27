@@ -1,5 +1,6 @@
 package com.airplayr.app.core.intelligence
 
+import com.airplayr.app.core.data.db.PlaybackHistoryEntity
 import com.airplayr.app.core.data.media.MediaItem
 import com.airplayr.app.core.data.media.MediaType
 import java.time.LocalDate
@@ -48,6 +49,19 @@ class MusicMixGeneratorTest {
         assertEquals(listOf("Hip Hop", "Trap"), MusicMixGenerator.configForHour(21).priorityGenres)
         assertTrue(MusicMixGenerator.configForHour(23).priorityGenres.isEmpty())
         assertEquals(listOf("R&B"), MusicMixGenerator.configForHour(3).priorityGenres)
+    }
+
+    @Test
+    fun rockYourWorldIncludesWholeLibraryWithRepeatedSongsFirst() {
+        val history = listOf(
+            PlaybackHistoryEntity("rock", "audio", "rock", "Artist", "Album", null, 1L, 5, false, null),
+            PlaybackHistoryEntity("pop", "audio", "pop", "Artist", "Album", null, 1L, 2, false, null),
+        )
+        val result = MusicMixGenerator.rockYourWorldMix(songs, history, emptyList(), date = date)
+        assertEquals(songs.map { it.id }.toSet(), result.map { it.id }.toSet())
+        val repeatedIds = result.take(2).map { it.id }.toSet()
+        assertTrue("rock" in repeatedIds)
+        assertTrue("pop" in repeatedIds)
     }
 
     @Test

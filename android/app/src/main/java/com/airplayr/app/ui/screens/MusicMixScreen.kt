@@ -81,6 +81,7 @@ import com.airplayr.app.ui.components.AirPlayrPremiumMediaActionSheet
 import com.airplayr.app.ui.components.AirPlayrMediaMenuAction
 import com.airplayr.app.ui.components.HistoryFavoritePlaylistSheet
 import com.airplayr.app.ui.components.AirPlayrMediaArtwork
+import com.airplayr.app.ui.components.AirPlayrLongGridFastScrollHandle
 import com.airplayr.app.ui.components.Artwork
 import com.airplayr.app.ui.components.displayArtworkUri
 import com.airplayr.app.ui.navigation.LibraryViewModel
@@ -166,6 +167,25 @@ fun MusicMixScreen(
         // empty state or makes the user wait for the screen to reconstruct itself.
         mix = generated
         mixLoading = false
+    }
+
+    fun reshuffleMix() {
+        scope.launch {
+            val nextCycle = cycle + 1
+            val generated = withContext(Dispatchers.Default) {
+                if (mode == MusicMixMode.ROCK_YOUR_WORLD) {
+                    MusicMixGenerator.rockYourWorldMix(snapshot.audio, snapshot.history, snapshot.favorites, selectedGenre, today, nextCycle)
+                } else {
+                    MusicMixGenerator.dailyMix(config, snapshot.audio, snapshot.history, snapshot.favorites, selectedGenre, today, nextCycle)
+                }
+            }
+            cycle = nextCycle
+            mix = generated
+            if (generated.isNotEmpty()) {
+                mixPlaybackActive = true
+                playback.playLoopingQueue(generated, repeatAll = false)
+            }
+        }
     }
 
     LaunchedEffect(config.id, selectedGenre, today, mixPlaybackActive) {
@@ -275,7 +295,7 @@ fun MusicMixScreen(
                         hour = hour,
                         colors = colors,
                         onPlay = { if (mix.isNotEmpty()) { mixPlaybackActive = true; playback.playLoopingQueue(mix, repeatAll = false) } },
-                        onShuffle = { if (mix.isNotEmpty()) { mixPlaybackActive = true; playback.playLoopingQueue(mix, repeatAll = false) } },
+                        onShuffle = ::reshuffleMix,
                     )
                 } else {
                     MixHero(
@@ -286,7 +306,7 @@ fun MusicMixScreen(
                             playbackState.currentMediaType == MediaType.AUDIO &&
                             heroItem?.id == playingId,
                         onPlay = { if (mix.isNotEmpty()) { mixPlaybackActive = true; playback.playLoopingQueue(mix, repeatAll = false) } },
-                        onShuffle = { if (mix.isNotEmpty()) { mixPlaybackActive = true; playback.playLoopingQueue(mix, repeatAll = false) } },
+                        onShuffle = ::reshuffleMix,
                     )
                 }
             }
@@ -377,6 +397,8 @@ fun MusicMixScreen(
             }
         }
 
+        AirPlayrLongGridFastScrollHandle(gridState, bottomPadding = airPlayrFloatingPlayBottomPadding() + 76.dp)
+
         if (mix.isNotEmpty()) {
             FloatingActionButton(
                 onClick = {
@@ -400,13 +422,7 @@ fun MusicMixScreen(
             AirPlayrFeatureCollectionActionSheet(
                 title = config.title,
                 onDismiss = { headerMenu = false },
-                onShuffle = {
-                    if (mix.isNotEmpty()) {
-                        mixPlaybackActive = true
-                        playback.playLoopingQueue(mix, repeatAll = false)
-                    }
-                    headerMenu = false
-                },
+                onShuffle = { reshuffleMix(); headerMenu = false },
                 onPlayNext = {
                     mix.forEach(playback::playNext)
                     headerMenu = false

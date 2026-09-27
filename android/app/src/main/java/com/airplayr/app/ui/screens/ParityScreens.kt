@@ -142,6 +142,7 @@ fun FeatureCollectionScreen(
     val colors = LocalAirPlayrColors.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
+    val featureListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) }
     val cachedFeatures by libraryViewModel.cachedFeatures.collectAsStateWithLifecycle()
     val liveHistory by libraryViewModel.history.collectAsStateWithLifecycle()
     val cacheKey = "feature:$title"
@@ -186,7 +187,7 @@ fun FeatureCollectionScreen(
     }
     val hero = items.firstOrNull()
     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().background(colors.background)) {
-        LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding()), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        LazyColumn(state = featureListState,contentPadding = PaddingValues(bottom = airPlayrBottomContentPadding()), verticalArrangement = Arrangement.spacedBy(0.dp)) {
             item {
                 Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 22.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back", tint = colors.primary) }
@@ -276,6 +277,7 @@ fun FeatureCollectionScreen(
                 )
             }
         }
+        AirPlayrLongListFastScrollHandle(featureListState, bottomPadding = airPlayrFloatingPlayBottomPadding() + 76.dp)
         if (selectedIds.isNotEmpty()) {
             val chosen = items.filter { it.id in selectedIds }
             AirPlayrSelectionBar(
@@ -782,6 +784,7 @@ fun FoldersScreen(
     var menuOpen by remember { mutableStateOf(false) }
     var sortSheetOpen by remember { mutableStateOf(false) }
     var playlistSheetOpen by remember { mutableStateOf(false) }
+    val folderListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) }
 
     val allFolders = remember(snapshot.audio, snapshot.video) { buildFolderEntries(snapshot.audio, snapshot.video) }
     val musicFolders = remember(allFolders) { allFolders.filter { it.audio.isNotEmpty() } }
@@ -902,7 +905,7 @@ fun FoldersScreen(
             )
         } else {
             LazyColumn(
-                state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },
+                state = folderListState,
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = airPlayrBottomContentPadding()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -919,6 +922,7 @@ fun FoldersScreen(
                     )
                 }
             }
+            AirPlayrLongListFastScrollHandle(folderListState, bottomPadding = airPlayrBottomContentPadding())
         }
     }
 
@@ -1695,12 +1699,13 @@ fun RecentScreen(
     var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var selectedItem by remember { mutableStateOf<MediaItem?>(null) }
     var playlistTarget by remember { mutableStateOf<List<MediaItem>?>(null) }
+    val recentListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) }
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             ListTopBar(title, "${data.size} local items", onBack = onBack)
             if (!snapshot.ready) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = LocalAirPlayrColors.current.primary) }
             else if (data.isEmpty()) EmptyNativeState("Nothing here yet", "AirPlayr will build this section as your library and listening history grows.")
-            else LazyColumn(state = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) },contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = airPlayrBottomContentPadding()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            else LazyColumn(state = recentListState,contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = airPlayrBottomContentPadding()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(data, key = { it.id }) { item ->
                     MediaListCard(
                         item = item,
@@ -1715,6 +1720,7 @@ fun RecentScreen(
                 }
             }
         }
+        AirPlayrLongListFastScrollHandle(recentListState, bottomPadding = airPlayrFloatingPlayBottomPadding() + 76.dp)
         if (data.isNotEmpty()) {
             FloatingActionButton(
                 onClick = {
@@ -2128,6 +2134,7 @@ fun PlaylistDetailScreen(
             }
         }
 
+        AirPlayrLongListFastScrollHandle(state, bottomPadding = airPlayrBottomContentPadding())
         selectedItem?.let { item ->
             AirPlayrPremiumMediaActionSheet(
                 item = item,

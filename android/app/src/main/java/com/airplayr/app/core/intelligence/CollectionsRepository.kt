@@ -37,6 +37,17 @@ class CollectionsRepository(private val library: MediaLibraryRepository, private
         return progress.mapNotNull { lookup[it.mediaId] }
     }
 
+    suspend fun completedWatching(limit: Int = 50): List<MediaItem> {
+        val completed = structured.recent(500)
+            .filter { it.mediaType == MediaType.VIDEO.value && it.completed }
+            .sortedByDescending { it.completedAt ?: it.playedAt }
+            .map { it.mediaId }
+            .distinct()
+            .take(limit)
+        val lookup = library.page(MediaType.VIDEO, 250, 0).associateBy { it.id }
+        return completed.mapNotNull { lookup[it] }
+    }
+
     suspend fun unwatched(limit: Int = 50): List<MediaItem> {
         val completed = structured.allVideoProgress().first().filter { it.completed }.map { it.mediaId }.toSet()
         return library.page(MediaType.VIDEO, 250, 0).filterNot { it.id in completed }.take(limit)

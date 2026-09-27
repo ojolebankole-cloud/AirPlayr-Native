@@ -4,26 +4,38 @@ import android.content.Context
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import com.airplayr.app.core.data.media.MediaItem
 import com.airplayr.app.core.playback.service.MediaItemMapper
 
-/**
- * Video-only player. Videos deliberately do not connect to AirPlayrPlaybackService/MediaSession,
- * because that session is reserved for music and is therefore responsible for the Android
- * playback notification, lock-screen controls, and music mini-player state.
- */
+/** Video-only player. It never joins the music MediaSession/notification pipeline. */
 class NativeVideoController(private val context: Context) {
     private var player: ExoPlayer? = null
+    private var decoderMode: String = "auto"
 
-    fun connectAsync(onReady: (Player) -> Unit) {
+    fun connectAsync(mode: String = "auto", onReady: (Player) -> Unit) {
+        val normalized = mode.lowercase().ifBlank { "auto" }
         val existing = player
-        if (existing != null) {
+        if (existing != null && decoderMode == normalized) {
             onReady(existing)
             return
         }
+        if (existing != null) existing.release()
 
+        val selector = when (normalized) {
+            "software" -> MediaCodecSelector.PREFER_SOFTWARE
+            "hardware" -> HardwareFirstMediaCodecSelector
+            else -> MediaCodecSelector.DEFAULT
+        }
+        val renderers = DefaultRenderersFactory(context.applicationContext)
+            .setMediaCodecSelector(selector)
+            .setEnableDecoderFallback(true)
         val created = ExoPlayer.Builder(context.applicationContext)
+            .setRenderersFactory(renderers)
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
@@ -33,6 +45,7 @@ class NativeVideoController(private val context: Context) {
             )
             .setHandleAudioBecomingNoisy(true)
             .build()
+        decoderMode = normalized
         player = created
         onReady(created)
     }
@@ -44,8 +57,7 @@ class NativeVideoController(private val context: Context) {
     }
 
     fun playExternal(p: Player, uri: String, mimeType: String?, title: String) {
-        val resolvedMime = mimeType?.takeIf { it.isNotBlank() }
-            ?: inferVideoMimeType(uri)
+        val resolvedMime = mimeType?.takeIf { it.isNotBlank() } ?: inferVideoMimeType(uri)
         val item = androidx.media3.common.MediaItem.Builder()
             .setMediaId("external-video:$uri")
             .setUri(uri)
@@ -68,8 +80,24 @@ class NativeVideoController(private val context: Context) {
         player?.release()
         player = null
     }
-}
 
+    @OptIn(androidx.media3.common.util.UnstableApi::class)
+    private object HardwareFirstMediaCodecSelector : MediaCodecSelector {
+        override fun getDecoderInfos(
+            mimeType: String,
+            requiresSecureDecoder: Boolean,
+            requiresTunnelingDecoder: Boolean,
+        ): List<MediaCodecInfo> {
+            return MediaCodecUtil.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
+                .sortedBy { isSoftwareCodec(it.name) }
+        }
+
+        private fun isSoftwareCodec(name: String): Boolean {
+            val n = name.lowercase()
+            return n.contains("google") || n.contains("software") || n.contains("c2.android") || n.contains(".sw") || n.contains("sw.")
+        }
+    }
+}
 
 private fun inferVideoMimeType(uri: String): String? {
     val name = uri.substringBefore('?').substringAfterLast('/')

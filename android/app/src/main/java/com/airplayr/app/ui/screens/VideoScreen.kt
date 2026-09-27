@@ -8,11 +8,19 @@ import androidx.compose.foundation.rememberScrollState
 import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.Intent
+import android.content.Context
 import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.os.Build
 import android.view.View
 import android.view.ViewConfiguration
+import android.os.BatteryManager
+import android.os.Handler
+import android.os.Looper
+import android.graphics.Bitmap
+import android.view.PixelCopy
+import android.view.Display
+import android.hardware.display.DisplayManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -74,6 +82,7 @@ import com.airplayr.app.ui.components.AirPlayrMediaMenuAction
 import com.airplayr.app.ui.components.AirPlayrPremiumMediaActionSheet
 import com.airplayr.app.ui.components.VideoQueueSheet
 import com.airplayr.app.ui.components.VideoSubtitleSettingsSheet
+import com.airplayr.app.ui.feedback.AppFeedback
 import com.airplayr.app.ui.theme.AirPlayrFonts
 import com.airplayr.app.ui.theme.LocalAirPlayrColors
 import com.airplayr.app.ui.video.VideoPlayerViewModel
@@ -84,10 +93,22 @@ import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import kotlinx.coroutines.delay
 
+internal enum class VideoOrientationMode(val label: String) {
+    AUTO("AUTO (Sensor)"),
+    PORTRAIT("PORTRAIT (Locked)"),
+    LANDSCAPE("LANDSCAPE (Locked)"),
+    LANDSCAPE_REVERSE("LANDSCAPE REVERSE"),
+    SYSTEM_DEFAULT("SYSTEM DEFAULT"),
+}
+
 internal enum class VideoFitMode(val label: String, val resizeMode: Int) {
-    FIT("Fit", androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT),
-    FILL("Fill", androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL),
-    ZOOM("Zoom", androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM),
+    FIT("FIT", androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT),
+    FILL("FILL", androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL),
+    ZOOM("CROP / ZOOM", androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM),
+    RATIO_16_9("16:9", androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT),
+    RATIO_4_3("4:3", androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT),
+    ORIGINAL("ORIGINAL", androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT),
+    STRETCH("STRETCH", androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL),
 }
 
 @OptIn(UnstableApi::class)
@@ -143,7 +164,7 @@ fun VideoScreen(
     var subtitleCues by remember { mutableStateOf<List<String>>(emptyList()) }
     var pendingSubtitleCues by remember { mutableStateOf<List<String>?>(null) }
     var fitMode by remember(video?.id, defaultFitMode) { mutableStateOf(defaultFitMode) }
-    val isFullscreenState = remember { mutableStateOf(false) }
+    val isFullscreenState = remember(video?.id) { mutableStateOf(true) }
     var positionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
     var bufferedMs by remember { mutableLongStateOf(0L) }
@@ -153,16 +174,35 @@ fun VideoScreen(
     var queueOpen by remember { mutableStateOf(false) }
     var subtitleSettingsOpen by remember { mutableStateOf(false) }
     var playbackInfoOpen by remember { mutableStateOf(false) }
+    var playSettingsOpen by remember { mutableStateOf(false) }
+    var aspectPickerOpen by remember { mutableStateOf(false) }
+    var orientationPickerOpen by remember { mutableStateOf(false) }
+    var timerPickerOpen by remember { mutableStateOf(false) }
+    var decoderPickerOpen by remember { mutableStateOf(false) }
     var audioTracksOpen by remember { mutableStateOf(false) }
     var volumeOverlay by remember { mutableStateOf(false) }
-    var volumeOverlayValue by remember { mutableIntStateOf((VideoGestureSupport.musicVolumeFraction(context) * 100f).roundToInt().coerceIn(0, 100)) }
+    var volumeOverlayValue by remember(video?.id) { mutableIntStateOf((defaultVolume * 100f).roundToInt().coerceIn(0, 100)) }
     var brightnessFeedback by remember { mutableStateOf<String?>(null) }
+    var aspectFeedback by remember { mutableStateOf<String?>(null) }
+    var orientationMode by remember(video?.id) { mutableStateOf(VideoOrientationMode.SYSTEM_DEFAULT) }
     var seekFeedback by remember { mutableStateOf<String?>(null) }
     var resumePromptVisible by remember(video?.id) { mutableStateOf(false) }
     var playbackInitializedForId by remember { mutableStateOf<String?>(null) }
     var decoderLabel by remember(video?.id) { mutableStateOf<String?>(null) }
+    var hdrLabel by remember(video?.id) { mutableStateOf("SDR") }
     val pinchZoomState = remember(video?.id, settings?.gesturePinchZoom) { mutableFloatStateOf(1f) }
     var longPressBoostActive by remember(video?.id) { mutableStateOf(false) }
+    var nightMode by remember(video?.id) { mutableStateOf(false) }
+    var eyeCare by remember(video?.id) { mutableStateOf(false) }
+    var mirrored by remember(video?.id) { mutableStateOf(false) }
+    var abRepeatStart by remember(video?.id) { mutableStateOf<Long?>(null) }
+    var abRepeatEnd by remember(video?.id) { mutableStateOf<Long?>(null) }
+    var videoTimerDeadline by remember(video?.id) { mutableStateOf<Long?>(null) }
+    var videoTimerEndOfVideo by remember(video?.id) { mutableStateOf(false) }
+    var decoderMode by remember(video?.id) { mutableStateOf(context.getSharedPreferences("airplayr_video_playback", 0).getString("decoder:${video?.id}", "auto") ?: "auto") }
+    var decoderRebuildPosition by remember(video?.id) { mutableLongStateOf(-1L) }
+    var hiddenClockTick by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
     val activity = context as? Activity
     val originalRequestedOrientation = remember { activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
 
@@ -171,9 +211,9 @@ fun VideoScreen(
         interactionTick++
     }
 
-    fun showSeekFeedback(text: String) {
+    fun showSeekFeedback(text: String, revealControls: Boolean = true) {
         seekFeedback = text
-        touch()
+        if (revealControls) touch()
     }
 
     fun startOver() {
@@ -184,12 +224,12 @@ fun VideoScreen(
         touch()
     }
 
-    fun seekBy(deltaMs: Long) {
+    fun seekBy(deltaMs: Long, revealControls: Boolean = true) {
         player?.let { p ->
             val max = p.duration.takeIf { it > 0 } ?: durationMs
             p.seekTo((p.currentPosition + deltaMs).coerceIn(0L, max.coerceAtLeast(0L)))
         }
-        showSeekFeedback(if (deltaMs >= 0) "+${deltaMs / 1000}s" else "${deltaMs / 1000}s")
+        showSeekFeedback(if (deltaMs >= 0) "+${deltaMs / 1000}s" else "${deltaMs / 1000}s", revealControls)
     }
 
     fun togglePlay() {
@@ -201,7 +241,7 @@ fun VideoScreen(
         player?.let { p ->
             muted = !muted
             p.volume = if (muted) 0f else defaultVolume
-            volumeOverlayValue = if (muted) 0 else ((VideoGestureSupport.musicVolumeFraction(context) * 100f).roundToInt().coerceIn(0, 100))
+            volumeOverlayValue = (p.volume * 100f).roundToInt().coerceIn(0, 100)
             volumeOverlay = true
         }
         touch()
@@ -234,13 +274,138 @@ fun VideoScreen(
         touch()
     }
 
+    fun applyOrientation(mode: VideoOrientationMode) {
+        orientationMode = mode
+        context.getSharedPreferences("airplayr_video_playback", 0).edit().putString("orientation:${video?.id}", mode.name).apply()
+        (context as? Activity)?.requestedOrientation = when (mode) {
+            VideoOrientationMode.AUTO -> ActivityInfo.SCREEN_ORIENTATION_SENSOR
+            VideoOrientationMode.PORTRAIT -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            VideoOrientationMode.LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            VideoOrientationMode.LANDSCAPE_REVERSE -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+            VideoOrientationMode.SYSTEM_DEFAULT -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+        orientationPickerOpen = false
+        touch()
+    }
+
+    fun chooseAspect(mode: VideoFitMode) {
+        fitMode = mode
+        context.getSharedPreferences("airplayr_video_playback", 0).edit().putString("aspect:${video?.id}", mode.name).apply()
+        aspectFeedback = mode.label
+        aspectPickerOpen = false
+        touch()
+    }
+
+    fun toggleAbRepeat() {
+        when {
+            abRepeatStart == null -> abRepeatStart = positionMs
+            abRepeatEnd == null && positionMs > (abRepeatStart ?: 0L) -> abRepeatEnd = positionMs
+            else -> { abRepeatStart = null; abRepeatEnd = null }
+        }
+        touch()
+    }
+
+    fun captureVideoScreenshot() {
+        val activity = context as? Activity
+        val view = playerViewRef
+        if (activity == null || view == null || Build.VERSION.SDK_INT < 26) {
+            AppFeedback.showSnackbar("Video screenshot is not available on this device.")
+            return
+        }
+        val oldControls = controlsVisible
+        controlsVisible = false
+        interactionTick++
+        android.os.Handler(Looper.getMainLooper()).postDelayed({
+            val root = activity.window.decorView
+            val rootLocation = IntArray(2)
+            val viewLocation = IntArray(2)
+            root.getLocationOnScreen(rootLocation)
+            view.getLocationOnScreen(viewLocation)
+            val left = (viewLocation[0] - rootLocation[0]).coerceAtLeast(0)
+            val top = (viewLocation[1] - rootLocation[1]).coerceAtLeast(0)
+            val width = view.width.coerceAtMost(root.width - left)
+            val height = view.height.coerceAtMost(root.height - top)
+            if (width <= 0 || height <= 0) { controlsVisible = oldControls; return@postDelayed }
+            val full = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
+            PixelCopy.request(activity.window, full, { result ->
+                if (result == PixelCopy.SUCCESS) {
+                    val cropped = Bitmap.createBitmap(full, left, top, width, height)
+                    val values = android.content.ContentValues().apply {
+                        put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, "AirPlayr_${System.currentTimeMillis()}.png")
+                        put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
+                        if (Build.VERSION.SDK_INT >= 29) put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/AirPlayr")
+                    }
+                    runCatching {
+                        val uri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                        if (uri == null) throw IllegalStateException("MediaStore insert failed")
+                        context.contentResolver.openOutputStream(uri)?.use { cropped.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                            ?: throw IllegalStateException("Output stream failed")
+                        AppFeedback.showSnackbar("Video screenshot saved ✓")
+                    }.onFailure { AppFeedback.showSnackbar("Unable to save video screenshot") }
+                    cropped.recycle()
+                } else {
+                    AppFeedback.showSnackbar("Unable to capture video frame")
+                }
+                full.recycle()
+                controlsVisible = oldControls
+            }, Handler(Looper.getMainLooper()))
+        }, 80L)
+    }
+
+    fun shareVideo() {
+        val item = video ?: return
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = item.mimeType ?: "video/*"
+            putExtra(Intent.EXTRA_STREAM, Uri.parse(item.uri))
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching { context.startActivity(Intent.createChooser(send, "Share ${item.title}").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    }
+
+    fun deleteVideo() {
+        val item = video ?: return
+        val storeId = item.mediaStoreId
+        if (storeId == null) { AppFeedback.showSnackbar("This video cannot be deleted from the device library."); return }
+        val uri = android.content.ContentUris.withAppendedId(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, storeId)
+        runCatching {
+            if (Build.VERSION.SDK_INT >= 30) {
+                val request = android.provider.MediaStore.createDeleteRequest(context.contentResolver, listOf(uri))
+                deleteLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(request.intentSender).build())
+            } else {
+                context.contentResolver.delete(uri, null, null)
+    
+                onNavigate("videos")
+            }
+        }.onFailure { AppFeedback.showSnackbar("Unable to delete video") }
+    }
+
     fun toggleVideoShuffle() { VideoQueueStore.toggleShuffle(); touch() }
     fun toggleVideoRepeat() { VideoQueueStore.toggleRepeat(); touch() }
+
+    fun changeDecoderMode(mode: String) {
+        val normalized = mode.lowercase()
+        if (normalized == decoderMode) { decoderPickerOpen = false; return }
+        decoderRebuildPosition = player?.currentPosition?.coerceAtLeast(0L) ?: positionMs
+        context.getSharedPreferences("airplayr_video_playback", 0).edit().putString("decoder:${video?.id}", normalized).apply()
+        decoderMode = normalized
+        decoderPickerOpen = false
+        player?.pause()
+        player = null
+        playbackInitializedForId = null
+        container.videoController.release()
+    }
 
     fun openQueueItem(item: AppMediaItem) {
         VideoQueueStore.setCurrent(item)
         queueOpen = false
         if (item.id != id) onNavigate("video/${item.id}") else touch()
+    }
+
+    val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+
+            onNavigate("videos")
+        }
     }
 
     val subtitleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -282,10 +447,25 @@ fun VideoScreen(
     LaunchedEffect(id) { playbackInitializedForId = null; vm.load(id) }
     LaunchedEffect(video?.id) {
         favorite = video?.id?.let { vm.isFavorite(it) } ?: false
-        video?.let { VideoQueueStore.setCurrent(it) }
+        video?.let {
+            VideoQueueStore.setCurrent(it)
+            decoderMode = context.getSharedPreferences("airplayr_video_playback", 0).getString("decoder:${it.id}", "auto") ?: "auto"
+            orientationMode = runCatching { VideoOrientationMode.valueOf(context.getSharedPreferences("airplayr_video_playback", 0).getString("orientation:${it.id}", "SYSTEM_DEFAULT") ?: "SYSTEM_DEFAULT") }.getOrDefault(VideoOrientationMode.SYSTEM_DEFAULT)
+            (context as? Activity)?.requestedOrientation = when (orientationMode) {
+                VideoOrientationMode.AUTO -> ActivityInfo.SCREEN_ORIENTATION_SENSOR
+                VideoOrientationMode.PORTRAIT -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                VideoOrientationMode.LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                VideoOrientationMode.LANDSCAPE_REVERSE -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+                VideoOrientationMode.SYSTEM_DEFAULT -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            }
+            val savedAspect = context.getSharedPreferences("airplayr_video_playback", 0).getString("aspect:${it.id}", null)
+            if (savedAspect != null) fitMode = runCatching { VideoFitMode.valueOf(savedAspect) }.getOrDefault(defaultFitMode)
+            val savedBrightness = context.getSharedPreferences("airplayr_video_brightness", 0).getFloat("brightness:${it.id}", -1f)
+            if (savedBrightness > 0f) (context as? Activity)?.let { a -> VideoGestureSupport.setWindowBrightness(a, savedBrightness) }
+        }
     }
 
-    LaunchedEffect(video?.id, resume) {
+    LaunchedEffect(video?.id, resume, decoderMode) {
         val item = video ?: return@LaunchedEffect
         if (playbackInitializedForId == item.id) return@LaunchedEffect
         // Wait for the persisted resume position to arrive before initializing the native player.
@@ -293,7 +473,7 @@ fun VideoScreen(
         playerError = null
         resumePromptVisible = resume > 5_000L && resume.toDouble() < (item.durationMs.coerceAtLeast(1L) * VIDEO_COMPLETION_FRACTION)
         playbackInitializedForId = item.id
-        container.videoController.connectAsync { ready ->
+        container.videoController.connectAsync(decoderMode) { ready ->
             if (item.id != video?.id) return@connectAsync
             player = ready
             ready.addListener(object : Player.Listener {
@@ -311,6 +491,7 @@ fun VideoScreen(
                     }
                 }
                 override fun onTracksChanged(tracks: Tracks) {
+                    hdrLabel = detectHdrLabel(ready, context)
                     if (settings?.rememberAudioTrack != true || video?.id == null) return
                     val savedIndex = context.getSharedPreferences("airplayr_video_audio", 0).getInt("track:${video!!.id}", -1)
                     if (savedIndex < 0) return
@@ -323,6 +504,12 @@ fun VideoScreen(
                 }
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     if (playbackState == Player.STATE_ENDED) {
+                        if (videoTimerEndOfVideo) {
+                            videoTimerEndOfVideo = false
+                            vm.completePlayback(item)
+                            ready.pause()
+                            return
+                        }
                         vm.completePlayback(item)
                         VideoQueueStore.next(item.id)?.let { next ->
                             if (next.id == item.id) {
@@ -358,7 +545,8 @@ fun VideoScreen(
             // Register the session before starting the native player so a very fast play/stop
             // interaction cannot lose the initial playback-history event.
             vm.beginPlayback(item, savePlaybackHistory)
-            val startPosition = if (settings?.resumeMode == "start") 0L else resume
+            val startPosition = if (decoderRebuildPosition >= 0L) decoderRebuildPosition else if (settings?.resumeMode == "start") 0L else resume
+            decoderRebuildPosition = -1L
             container.videoController.playVideo(ready, item, startPosition)
         }
     }
@@ -384,11 +572,40 @@ fun VideoScreen(
         }
     }
 
+    LaunchedEffect(controlsVisible) {
+        while (!controlsVisible) {
+            hiddenClockTick = System.currentTimeMillis()
+            delay(1000L)
+        }
+    }
+    LaunchedEffect(videoTimerDeadline, videoTimerEndOfVideo) {
+        val deadline = videoTimerDeadline ?: return@LaunchedEffect
+        while (true) {
+            val remaining = deadline - System.currentTimeMillis()
+            if (remaining <= 0L) {
+                player?.pause()
+                videoTimerDeadline = null
+                break
+            }
+            delay(minOf(remaining, 500L))
+        }
+    }
+    LaunchedEffect(positionMs, abRepeatStart, abRepeatEnd) {
+        val a = abRepeatStart ?: return@LaunchedEffect
+        val b = abRepeatEnd ?: return@LaunchedEffect
+        if (b > a && positionMs >= b - 80L) player?.seekTo(a)
+    }
     LaunchedEffect(player, controlsVisible, locked, interactionTick, autoHideMs) {
         if (!locked && controlsVisible && player?.isPlaying == true && autoHideMs > 0) {
             delay(autoHideMs.toLong())
             controlsVisible = false
         }
+    }
+    LaunchedEffect(resumePromptVisible) {
+        if (resumePromptVisible) { delay(6000L); resumePromptVisible = false }
+    }
+    LaunchedEffect(aspectFeedback) {
+        if (aspectFeedback != null) { delay(1200L); aspectFeedback = null }
     }
     LaunchedEffect(seekFeedback) {
         if (seekFeedback != null) {
@@ -428,6 +645,7 @@ fun VideoScreen(
     }
 
     DisposableEffect(Unit) {
+        (context as? Activity)?.let { WindowMode.setFullscreen(it, true) }
         onDispose {
             val item = video
             val p = player
@@ -436,13 +654,30 @@ fun VideoScreen(
             container.videoController.release()
             val leavingActivity = context as? Activity
             runCatching {
-                leavingActivity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                leavingActivity?.requestedOrientation = originalRequestedOrientation
+                leavingActivity?.let { WindowMode.setFullscreen(it, false) }
             }
         }
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
-        player?.let { p -> AndroidVideoSurface(p, fitMode, Modifier.fillMaxSize().graphicsLayer(scaleX = pinchZoomState.floatValue, scaleY = pinchZoomState.floatValue)) }
+        player?.let { p ->
+            val videoWidth = p.videoSize.width.takeIf { it > 0 } ?: video?.width ?: 0
+            val videoHeight = p.videoSize.height.takeIf { it > 0 } ?: video?.height ?: 0
+            AndroidVideoSurface(
+                player = p,
+                fitMode = fitMode,
+                videoWidth = videoWidth,
+                videoHeight = videoHeight,
+                onViewReady = { playerViewRef = it },
+                modifier = Modifier.fillMaxSize().graphicsLayer(
+                    scaleX = pinchZoomState.floatValue * if (mirrored) -1f else 1f,
+                    scaleY = pinchZoomState.floatValue,
+                ),
+            )
+        }
+        if (nightMode) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .34f)))
+        if (eyeCare) Box(Modifier.fillMaxSize().background(Color(0xFFFFB74D).copy(alpha = .08f)))
 
         if (subtitleOnState.value && subtitleCues.isNotEmpty()) {
             VideoSubtitleOverlay(
@@ -453,6 +688,15 @@ fun VideoScreen(
                 position = settings?.subtitlePosition ?: "bottom",
                 controlsVisible = controlsVisible,
             )
+        }
+
+        if (!controlsVisible) {
+            VideoHiddenInfoOverlay(positionMs, durationMs, hiddenClockTick, Modifier.align(Alignment.TopEnd).padding(top = 12.dp, end = 14.dp))
+        }
+        aspectFeedback?.let { label ->
+            GlassPill(Modifier.align(Alignment.Center).padding(12.dp)) {
+                Text(label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
         }
 
         Box(
@@ -490,20 +734,26 @@ fun VideoScreen(
                                         1 -> if (settings?.gestureHorizontalSeek != false && size.width > 0) {
                                             val maxSeek = if (durationMs > 0L) (durationMs / 20L).coerceIn(10_000L, 60_000L) else 10_000L
                                             val seekDelta = (delta.x / size.width.toFloat() * maxSeek).roundToLong()
-                                            if (seekDelta != 0L) seekBy(seekDelta)
+                                            if (seekDelta != 0L) seekBy(seekDelta, revealControls = false)
                                         }
                                         2 -> if (size.height > 0) {
                                             val leftSide = start.x < size.width / 2f
                                             if (leftSide && settings?.gestureVolume != false) {
-                                                val fraction = VideoGestureSupport.adjustMusicVolume(context, -delta.y / size.height.toFloat() * 1.35f)
-                                                volumeOverlayValue = (fraction * 100f).roundToInt().coerceIn(0, 100)
-                                                volumeOverlay = true
+                                                val p = player
+                                                if (p != null) {
+                                                    val next = (p.volume - delta.y / size.height.toFloat() * 1.35f).coerceIn(0f, 1f)
+                                                    p.volume = next
+                                                    muted = next <= 0.001f
+                                                    volumeOverlayValue = (next * 100f).roundToInt().coerceIn(0, 100)
+                                                    volumeOverlay = true
+                                                }
                                             } else if (!leftSide && settings?.gestureBrightness != false) {
                                                 val a = context as? Activity
                                                 if (a != null) {
                                                     val current = VideoGestureSupport.currentWindowBrightness(a)
                                                     val next = (current - delta.y / size.height.toFloat() * 1.35f).coerceIn(0.02f, 1f)
                                                     VideoGestureSupport.setWindowBrightness(a, next)
+                                                    video?.id?.let { id -> context.getSharedPreferences("airplayr_video_brightness", 0).edit().putFloat("brightness:$id", next).apply() }
                                                     brightnessFeedback = "${(next * 100f).roundToInt()}%"
                                                 }
                                             }
@@ -517,9 +767,13 @@ fun VideoScreen(
                         if (!moved && !longPressTriggered && !locked) {
                             val now = android.os.SystemClock.uptimeMillis()
                             if (settings?.gestureDoubleTapSeek != false && now - lastTapUptime < 320L) {
-                                player?.let { if (it.isPlaying) it.pause() else it.play() }
-                                controlsVisible = true
-                                interactionTick++
+                                val width = size.width.toFloat().coerceAtLeast(1f)
+                                val x = start.x
+                                when {
+                                    x < width / 3f -> seekBy(-10_000L, revealControls = false)
+                                    x > width * 2f / 3f -> seekBy(10_000L, revealControls = false)
+                                    else -> player?.let { if (it.isPlaying) it.pause() else it.play() }
+                                }
                                 lastTapUptime = 0L
                             } else {
                                 lastTapUptime = now
@@ -561,8 +815,8 @@ fun VideoScreen(
             queueCount = queue.count { it.id != id },
             shuffleQueue = shuffleQueue,
             repeatQueue = repeatQueue,
-            qualityLabel = player?.videoSize?.let { videoQualityLabel(it.width, it.height, decoderLabel) }
-                ?: video?.let { videoQualityLabel(it.width, it.height, decoderLabel) }
+            qualityLabel = player?.videoSize?.let { videoQualityLabel(it.width, it.height, decoderLabel, hdrLabel) }
+                ?: video?.let { videoQualityLabel(it.width, it.height, decoderLabel, hdrLabel) }
                 ?: "",
             onBack = { if (isFullscreenState.value) toggleFullscreen() else (context as? ComponentActivity)?.onBackPressedDispatcher?.onBackPressed() },
             onCast = onCast,
@@ -571,6 +825,7 @@ fun VideoScreen(
             onQueue = { queueOpen = true; touch() },
             onBookmark = { video?.let { vm.bookmark(it.id, positionMs, formatVideoTime(positionMs)) }; touch() },
             onMore = { speedPickerOpen = false; moreOpen = true; touch() },
+            onPlaySettings = { playSettingsOpen = true; touch() },
             onPlayPause = ::togglePlay,
             onPrevious = { VideoQueueStore.previous(id)?.let(::openQueueItem) ?: player?.seekTo(0L); touch() },
             onNext = { VideoQueueStore.next(id)?.let(::openQueueItem) ?: touch() },
@@ -665,6 +920,54 @@ fun VideoScreen(
         }
     }
 
+    val timerLabel = when {
+        videoTimerEndOfVideo -> "END"
+        videoTimerDeadline != null -> "${((videoTimerDeadline!! - System.currentTimeMillis()).coerceAtLeast(0L) / 60_000L)}m"
+        else -> "Off"
+    }
+    val abLabel = when {
+        abRepeatStart == null -> "Set A"
+        abRepeatEnd == null -> "Set B"
+        else -> "A-B"
+    }
+
+    if (playSettingsOpen) {
+        VideoPlaySettingsSheet(
+            nightMode = nightMode,
+            eyeCare = eyeCare,
+            mirrored = mirrored,
+            abLabel = abLabel,
+            decoderMode = decoderMode,
+            aspect = fitMode,
+            orientation = orientationMode,
+            timerLabel = timerLabel,
+            onNight = { nightMode = !nightMode },
+            onEyeCare = { eyeCare = !eyeCare },
+            onMirror = { mirrored = !mirrored },
+            onTimer = { playSettingsOpen = false; timerPickerOpen = true },
+            onAbRepeat = ::toggleAbRepeat,
+            onDecoder = { playSettingsOpen = false; decoderPickerOpen = true },
+            onAspect = { playSettingsOpen = false; aspectPickerOpen = true },
+            onOrientation = { playSettingsOpen = false; orientationPickerOpen = true },
+            onDetails = { playSettingsOpen = false; playbackInfoOpen = true },
+            onShare = { playSettingsOpen = false; shareVideo() },
+            onDelete = { playSettingsOpen = false; deleteVideo() },
+            onScreenshot = { playSettingsOpen = false; captureVideoScreenshot() },
+            onDismiss = { playSettingsOpen = false },
+        )
+    }
+    if (aspectPickerOpen) VideoAspectSheet(fitMode, ::chooseAspect) { aspectPickerOpen = false }
+    if (orientationPickerOpen) VideoOrientationSheet(orientationMode, ::applyOrientation) { orientationPickerOpen = false }
+    if (timerPickerOpen) {
+        VideoTimerSheet(
+            onSelectMinutes = { minutes -> videoTimerEndOfVideo = false; videoTimerDeadline = System.currentTimeMillis() + minutes * 60_000L; timerPickerOpen = false },
+            onEndOfVideo = { videoTimerDeadline = null; videoTimerEndOfVideo = true; timerPickerOpen = false },
+            onClear = { videoTimerDeadline = null; videoTimerEndOfVideo = false; timerPickerOpen = false },
+            onDismiss = { timerPickerOpen = false },
+        )
+    }
+    if (decoderPickerOpen) VideoDecoderSheet(decoderMode, ::changeDecoderMode) { decoderPickerOpen = false }
+
     if (queueOpen) {
         VideoQueueSheet(container.mediaLibrary, ::openQueueItem) { queueOpen = false }
     }
@@ -692,6 +995,7 @@ fun VideoScreen(
         VideoPlaybackInfoSheet(
             decoder = decoderLabel ?: "Detecting…",
             quality = videoQualityLabelOnly(width, height),
+            hdr = hdrLabel,
             width = width,
             height = height,
             onDismiss = { playbackInfoOpen = false },
@@ -715,10 +1019,9 @@ fun VideoScreen(
                     listOf(
                         AirPlayrMediaMenuAction("Subtitles", Icons.Default.ClosedCaption, { moreOpen = false; subtitleSettingsOpen = true }),
                         AirPlayrMediaMenuAction("Add subtitle file", Icons.Default.Subtitles, { moreOpen = false; subtitleLauncher.launch(arrayOf("text/vtt", "application/x-subrip", "text/plain")) }),
-                        AirPlayrMediaMenuAction("Fit: ${fitMode.label}", Icons.Default.AspectRatio, {
-                            fitMode = VideoFitMode.entries[(fitMode.ordinal + 1) % VideoFitMode.entries.size]
+                        AirPlayrMediaMenuAction("Aspect: ${fitMode.label}", Icons.Default.AspectRatio, {
+                            chooseAspect(VideoFitMode.entries[(fitMode.ordinal + 1) % VideoFitMode.entries.size])
                             moreOpen = false
-                            touch()
                         }),
                     ),
                     listOf(
@@ -739,7 +1042,16 @@ fun VideoScreen(
 
 @OptIn(UnstableApi::class)
 @Composable
-internal fun AndroidVideoSurface(player: Player, fitMode: VideoFitMode, modifier: Modifier) {
+internal fun AndroidVideoSurface(player: Player, fitMode: VideoFitMode, videoWidth: Int, videoHeight: Int, onViewReady: (PlayerView) -> Unit = {}, modifier: Modifier) {
+    val constrainedModifier = when (fitMode) {
+        VideoFitMode.RATIO_16_9 -> modifier.fillMaxSize().wrapContentSize().aspectRatio(16f / 9f, matchHeightConstraintsFirst = false)
+        VideoFitMode.RATIO_4_3 -> modifier.fillMaxSize().wrapContentSize().aspectRatio(4f / 3f, matchHeightConstraintsFirst = false)
+        VideoFitMode.ORIGINAL -> {
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            if (videoWidth > 0 && videoHeight > 0) modifier.wrapContentSize().width(with(density) { videoWidth.toDp() }).height(with(density) { videoHeight.toDp() }) else modifier
+        }
+        else -> modifier
+    }
     AndroidView(
         factory = { context ->
             PlayerView(context).apply {
@@ -748,16 +1060,18 @@ internal fun AndroidVideoSurface(player: Player, fitMode: VideoFitMode, modifier
                 setKeepContentOnPlayerReset(true)
                 resizeMode = fitMode.resizeMode
                 this.player = player
+                onViewReady(this)
                 setBackgroundColor(android.graphics.Color.BLACK)
                 findViewById<View>(androidx.media3.ui.R.id.exo_subtitles)?.visibility = View.GONE
             }
         },
         update = { view ->
             view.player = player
+            onViewReady(view)
             view.resizeMode = fitMode.resizeMode
             view.findViewById<View>(androidx.media3.ui.R.id.exo_subtitles)?.visibility = View.GONE
         },
-        modifier = modifier,
+        modifier = constrainedModifier,
     )
 }
 
@@ -787,6 +1101,7 @@ private fun VideoControlsOverlay(
     onQueue: () -> Unit,
     onBookmark: () -> Unit,
     onMore: () -> Unit,
+    onPlaySettings: () -> Unit,
     onPlayPause: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
@@ -830,6 +1145,7 @@ private fun VideoControlsOverlay(
                             GlassAction(Icons.Default.Cast, "Cast", onCast)
                             GlassAction(Icons.Default.Headphones, "Audio", onAudioTracks)
                             GlassIconButton(Icons.Default.Speed, "Speed ${trimSpeed(speed)}×", Modifier.size(48.dp), onSpeed)
+                            GlassAction(Icons.Default.Settings, "Play settings", onPlaySettings)
                             GlassAction(Icons.Default.MoreHoriz, "More", onMore)
                         }
                     } else {
@@ -846,6 +1162,8 @@ private fun VideoControlsOverlay(
                         GlassIconButton(Icons.Default.BookmarkBorder, "Bookmark", Modifier.size(48.dp), onBookmark)
                         Spacer(Modifier.width(6.dp))
                         GlassIconButton(Icons.Default.QueueMusic, if (queueCount > 0) "Queue, $queueCount next" else "Queue", Modifier.size(48.dp), onQueue)
+                        Spacer(Modifier.width(6.dp))
+                        GlassIconButton(Icons.Default.Settings, "Play settings", Modifier.size(48.dp), onPlaySettings)
                         Spacer(Modifier.width(6.dp))
                         GlassIconButton(Icons.Default.MoreHoriz, "More", Modifier.size(48.dp), onMore)
                     }
@@ -953,6 +1271,25 @@ private fun ResumeVideoPrompt(
                 Text("Resume")
             }
         }
+    }
+}
+
+@Composable
+private fun VideoHiddenInfoOverlay(positionMs: Long, durationMs: Long, tick: Long, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val battery = remember(tick) {
+        val intent = context.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, 100) ?: 100
+        if (level >= 0) (level * 100 / scale.coerceAtLeast(1)) else -1
+    }
+    val progress = if (durationMs > 0L) ((positionMs.toDouble() / durationMs.toDouble()) * 100.0).toInt().coerceIn(0, 100) else 0
+    val clock = remember(tick) { java.text.SimpleDateFormat("HH:mm", Locale.getDefault()).format(java.util.Date(tick)) }
+    GlassPill(modifier) {
+        Text(clock, color = Color.White, fontSize = 11.sp)
+        Text(if (battery >= 0) "${battery}%" else "--", color = Color.White, fontSize = 11.sp)
+        Text("${progress}%", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        Text(formatVideoTime(positionMs), color = Color.White.copy(alpha = .78f), fontSize = 11.sp)
     }
 }
 
@@ -1202,6 +1539,168 @@ internal fun VideoVolumeOverlay(value: Int, muted: Boolean, modifier: Modifier) 
 }
 
 @Composable
+private fun VideoPlaySettingsSheet(
+    nightMode: Boolean,
+    eyeCare: Boolean,
+    mirrored: Boolean,
+    abLabel: String,
+    decoderMode: String,
+    aspect: VideoFitMode,
+    orientation: VideoOrientationMode,
+    timerLabel: String,
+    onNight: () -> Unit,
+    onEyeCare: () -> Unit,
+    onMirror: () -> Unit,
+    onTimer: () -> Unit,
+    onAbRepeat: () -> Unit,
+    onDecoder: () -> Unit,
+    onAspect: () -> Unit,
+    onOrientation: () -> Unit,
+    onDetails: () -> Unit,
+    onShare: () -> Unit,
+    onDelete: () -> Unit,
+    onScreenshot: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = LocalAirPlayrColors.current
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.surfaceContainerLow.copy(alpha = .90f), tonalElevation = 0.dp) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 18.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Play settings", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 26.sp, color = colors.textPrimary)
+                    Text("Real playback controls", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary)
+                }
+                IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Close", tint = colors.textPrimary) }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PlaybackSettingTile(Icons.Default.NightsStay, "Night", if (nightMode) "On" else "Off", onNight)
+                PlaybackSettingTile(Icons.Default.Visibility, "Eye care", if (eyeCare) "On" else "Off", onEyeCare)
+                PlaybackSettingTile(Icons.Default.SwapHoriz, "Mirror", if (mirrored) "On" else "Off", onMirror)
+                PlaybackSettingTile(Icons.Default.PhotoCamera, "Screenshot", "Capture", onScreenshot)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PlaybackSettingTile(Icons.Default.Timer, "Timer", timerLabel, onTimer)
+                PlaybackSettingTile(Icons.Default.Repeat, "A-B", abLabel, onAbRepeat)
+                PlaybackSettingTile(Icons.Default.Memory, "Decoder", decoderMode.uppercase(), onDecoder)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PlaybackSettingTile(Icons.Default.AspectRatio, "Aspect", aspect.label, onAspect)
+                PlaybackSettingTile(Icons.Default.ScreenRotation, "Orientation", orientation.label.substringBefore(" ("), onOrientation)
+                PlaybackSettingTile(Icons.Default.Info, "Details", "Info", onDetails)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PlaybackSettingTile(Icons.Default.Share, "Share", "Send", onShare)
+                PlaybackSettingTile(Icons.Default.Delete, "Delete", "Remove", onDelete)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.PlaybackSettingTile(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, value: String, onClick: () -> Unit) {
+    val colors = LocalAirPlayrColors.current
+    Surface(onClick = onClick, modifier = Modifier.weight(1f).heightIn(min = 72.dp), shape = RoundedCornerShape(18.dp), color = colors.surfaceContainerHigh) {
+        Column(Modifier.fillMaxWidth().padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Icon(icon, title, tint = colors.primary, modifier = Modifier.size(22.dp))
+            Text(title, color = colors.textPrimary, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+            Text(value, color = colors.textSecondary, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun VideoAspectSheet(selected: VideoFitMode, onSelect: (VideoFitMode) -> Unit, onDismiss: () -> Unit) {
+    val colors = LocalAirPlayrColors.current
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.surfaceContainerLow) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Aspect ratio", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 25.sp, color = colors.textPrimary)
+            VideoFitMode.entries.forEach { mode ->
+                Surface(onClick = { onSelect(mode) }, shape = RoundedCornerShape(16.dp), color = if (mode == selected) colors.primaryContainer else colors.surfaceContainer) {
+                    Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(if (mode == selected) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked, null, tint = colors.primary)
+                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                            Text(mode.label, color = colors.textPrimary, fontWeight = FontWeight.SemiBold)
+                            Text(aspectDescription(mode), color = colors.textSecondary, fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun aspectDescription(mode: VideoFitMode): String = when (mode) {
+    VideoFitMode.FIT -> "Full video with black bars. No crop."
+    VideoFitMode.FILL -> "Fills the screen. May stretch faces."
+    VideoFitMode.ZOOM -> "Crops edges to remove black bars."
+    VideoFitMode.RATIO_16_9 -> "Forces a 16:9 frame."
+    VideoFitMode.RATIO_4_3 -> "Forces a 4:3 frame for older video."
+    VideoFitMode.ORIGINAL -> "Native video dimensions without scaling."
+    VideoFitMode.STRETCH -> "Stretches to the full phone screen."
+}
+
+@Composable
+private fun VideoOrientationSheet(selected: VideoOrientationMode, onSelect: (VideoOrientationMode) -> Unit, onDismiss: () -> Unit) {
+    val colors = LocalAirPlayrColors.current
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.surfaceContainerLow) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Playback orientation", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 25.sp, color = colors.textPrimary)
+            VideoOrientationMode.entries.forEach { mode ->
+                Surface(onClick = { onSelect(mode) }, shape = RoundedCornerShape(16.dp), color = if (mode == selected) colors.primaryContainer else colors.surfaceContainer) {
+                    Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(if (mode == selected) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked, null, tint = colors.primary)
+                        Text(mode.label, color = colors.textPrimary, modifier = Modifier.padding(start = 12.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VideoTimerSheet(onSelectMinutes: (Int) -> Unit, onEndOfVideo: () -> Unit, onClear: () -> Unit, onDismiss: () -> Unit) {
+    val colors = LocalAirPlayrColors.current
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.surfaceContainerLow) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Video timer", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 25.sp, color = colors.textPrimary)
+            listOf(5, 10, 15, 30, 45, 60, 90, 120).forEach { minutes ->
+                Surface(onClick = { onSelectMinutes(minutes) }, shape = RoundedCornerShape(16.dp), color = colors.surfaceContainer) {
+                    Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Timer, null, tint = colors.primary)
+                        Text("$minutes minutes", color = colors.textPrimary, modifier = Modifier.padding(start = 12.dp))
+                    }
+                }
+            }
+            Surface(onClick = onEndOfVideo, shape = RoundedCornerShape(16.dp), color = colors.primaryContainer) {
+                Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.StopCircle, null, tint = colors.primary)
+                    Text("End of video", color = colors.textPrimary, modifier = Modifier.padding(start = 12.dp))
+                }
+            }
+            TextButton(onClick = onClear, modifier = Modifier.fillMaxWidth()) { Text("Clear timer") }
+        }
+    }
+}
+
+@Composable
+private fun VideoDecoderSheet(selected: String, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
+    val colors = LocalAirPlayrColors.current
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.surfaceContainerLow) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Decoder", fontFamily = AirPlayrFonts.SmoochSans, fontSize = 25.sp, color = colors.textPrimary)
+            listOf("auto" to "AUTO — best available", "hardware" to "HW — prefer hardware decoder", "software" to "SW — prefer software decoder when available").forEach { (mode, label) ->
+                Surface(onClick = { onSelect(mode) }, shape = RoundedCornerShape(16.dp), color = if (mode == selected) colors.primaryContainer else colors.surfaceContainer) {
+                    Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(if (mode == selected) Icons.Default.RadioButtonChecked else Icons.Default.RadioButtonUnchecked, null, tint = colors.primary)
+                        Text(label, color = colors.textPrimary, modifier = Modifier.padding(start = 12.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun VideoAudioTrackSheet(player: Player?, rememberSelection: Boolean, rememberKey: String?, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val tracks = player?.currentTracks?.groups.orEmpty().filter { it.type == C.TRACK_TYPE_AUDIO && it.isSupported }
@@ -1260,6 +1759,7 @@ private fun VideoAudioTrackSheet(player: Player?, rememberSelection: Boolean, re
 private fun VideoPlaybackInfoSheet(
     decoder: String,
     quality: String,
+    hdr: String,
     width: Int,
     height: Int,
     onDismiss: () -> Unit,
@@ -1293,6 +1793,16 @@ private fun VideoPlaybackInfoSheet(
                     Text(quality, fontWeight = FontWeight.Bold)
                 }
             }
+            Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.HighQuality, null, tint = MaterialTheme.colorScheme.primary)
+                    Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                        Text("HDR / Dolby", fontWeight = FontWeight.SemiBold)
+                        Text("Automatic stream and display detection", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text(hdr, fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }
@@ -1312,16 +1822,38 @@ internal object WindowMode {
         if (fullscreen) {
             controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
             controller.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         } else {
             controller.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
 }
 
 internal fun parseSubtitleColor(value: String?): Color = runCatching { Color(android.graphics.Color.parseColor(value ?: "#FFFFFF")) }.getOrDefault(Color.White)
-private fun videoQualityLabel(width: Int, height: Int, decoder: String?): String {
+@OptIn(UnstableApi::class)
+private fun detectHdrLabel(player: Player, context: android.content.Context): String {
+    val videoGroup = player.currentTracks.groups.firstOrNull { it.type == C.TRACK_TYPE_VIDEO && it.isSelected } ?: return "SDR"
+    val format = videoGroup.getTrackFormat(0)
+    val codecs = format.codecs.orEmpty().lowercase(Locale.ROOT)
+    val color = format.colorInfo
+    val content = when {
+        codecs.startsWith("dvhe") || codecs.startsWith("dvh1") || format.sampleMimeType?.contains("dolby", true) == true -> "Dolby Vision"
+        color?.colorTransfer == C.COLOR_TRANSFER_ST2084 -> "HDR10"
+        color?.colorTransfer == C.COLOR_TRANSFER_HLG -> "HLG HDR"
+        else -> "SDR"
+    }
+    if (content == "SDR") return content
+    val display = (context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(Display.DEFAULT_DISPLAY)
+    val supported = if (Build.VERSION.SDK_INT >= 24) {
+        val types = display?.hdrCapabilities?.supportedHdrTypes.orEmpty()
+        when (content) {
+            "Dolby Vision" -> Display.HdrCapabilities.HDR_TYPE_DOLBY_VISION in types
+            else -> Display.HdrCapabilities.HDR_TYPE_HDR10 in types || Display.HdrCapabilities.HDR_TYPE_HLG in types
+        }
+    } else false
+    return "$content · Display ${if (supported) "✓" else "not HDR"}"
+}
+
+private fun videoQualityLabel(width: Int, height: Int, decoder: String?, hdr: String = "SDR"): String {
     val quality = when {
         height >= 2160 -> "4K"
         height >= 1440 -> "2K"
@@ -1330,7 +1862,7 @@ private fun videoQualityLabel(width: Int, height: Int, decoder: String?): String
         height > 0 -> "SD"
         else -> "AUTO"
     }
-    return listOfNotNull(decoder, quality).joinToString(" · ")
+    return listOfNotNull(decoder, quality, hdr.takeIf { it != "SDR" }).joinToString(" · ")
 }
 
 internal fun trimSpeed(value: Float): String = "%.2f".format(Locale.US, value).trimEnd('0').trimEnd('.')

@@ -58,32 +58,26 @@ object MusicMixGenerator {
             .filter { it.mediaType == com.airplayr.app.core.data.media.MediaType.AUDIO.value }
             .associate { it.mediaId to it.playCount }
         val repeated = filtered.filter { (counts[it.id] ?: 0) > 1 }
-        val played = filtered.filter { (counts[it.id] ?: 0) > 0 }
-        // Rock Your World is driven by songs the listener has actually repeated. If the
-        // library does not have enough repeat history yet, gracefully widen to played songs,
-        // then to the real audio library so the screen never invents or loses playback.
-        val source = when {
-            repeated.size >= 2 -> repeated
-            played.size >= 2 -> played
-            else -> filtered
-        }
+        val remainder = filtered.filter { (counts[it.id] ?: 0) <= 1 }
 
         val seedText = "rock-your-world|${date}|${normalizedFilter.orEmpty()}|cycle=$cycle"
-        val random = Random(seedText.hashCode())
         val favoriteIds = favorites.asSequence().map { it.mediaId }.toSet()
-        val ranked = source.map { item ->
+        fun shuffleTier(items: List<MediaItem>, offset: Int): MutableList<MediaItem> = items.map { item ->
             val playCount = counts[item.id] ?: 0
             val favoriteBoost = if (item.id in favoriteIds) 1.5 else 0.0
-            val repeatWeight = 1.0 + minOf(playCount, 12) * 0.35 + favoriteBoost
-            val u = random.nextDouble().coerceIn(Double.MIN_VALUE, 1.0)
-            item to (ln(u) / repeatWeight)
+            val weight = 1.0 + minOf(playCount, 12) * 0.35 + favoriteBoost
+            val u = Random(seedText.hashCode() + offset + item.id.hashCode()).nextDouble().coerceIn(Double.MIN_VALUE, 1.0)
+            item to (ln(u) / weight)
         }.sortedByDescending { it.second }.map { it.first }.toMutableList()
+
+        // All songs are included. Repeated songs are the priority tier; every other song follows.
+        val ranked = (shuffleTier(repeated, 17) + shuffleTier(remainder, 71)).toMutableList()
 
         // A new cycle is still a real shuffle, but never starts with the exact song that
         // ended the previous cycle when another song is available.
         if (ranked.size > 1 && cycle > 0) {
             val previousSeed = Random("rock-your-world|${date}|${normalizedFilter.orEmpty()}|cycle=${cycle - 1}".hashCode())
-            val previousFirst = source.map { item ->
+            val previousFirst = filtered.map { item ->
                 val playCount = counts[item.id] ?: 0
                 val favoriteBoost = if (item.id in favoriteIds) 1.5 else 0.0
                 val repeatWeight = 1.0 + minOf(playCount, 12) * 0.35 + favoriteBoost
@@ -91,7 +85,11 @@ object MusicMixGenerator {
                 item to (ln(u) / repeatWeight)
             }.maxByOrNull { it.second }?.first
             if (previousFirst != null && ranked.first().id == previousFirst.id) {
-                val swapIndex = ranked.indexOfFirst { it.id != previousFirst.id }
+                val repeatedIds = repeated.map { it.id }.toSet()
+                val sameTier = previousFirst.id in repeatedIds
+                val swapIndex = ranked.indexOfFirst { candidate ->
+                    candidate.id != previousFirst.id && (candidate.id in repeatedIds) == sameTier
+                }.takeIf { it > 0 } ?: ranked.indexOfFirst { it.id != previousFirst.id }
                 if (swapIndex > 0) {
                     val first = ranked[0]
                     ranked[0] = ranked[swapIndex]
@@ -125,7 +123,6 @@ object MusicMixGenerator {
         val historyById = history.associateBy { it.mediaId }
         val favoriteIds = favorites.asSequence().map { it.mediaId }.toSet()
         val seedText = "${date}|${config.id}|${normalizedFilter.orEmpty()}|cycle=$cycle"
-        val random = Random(seedText.hashCode())
 
         val weighted = when {
             config.priorityGenres.isNotEmpty() -> filtered.map { item ->

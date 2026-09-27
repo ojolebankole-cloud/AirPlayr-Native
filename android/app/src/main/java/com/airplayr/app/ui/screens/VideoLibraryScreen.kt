@@ -348,6 +348,7 @@ fun VideoLibraryScreen(
 
 @Composable
 fun VideoFolderDetailScreen(
+    container: AppContainer,
     folderPath: String,
     libraryViewModel: LibraryViewModel,
     onBack: () -> Unit,
@@ -360,6 +361,16 @@ fun VideoFolderDetailScreen(
             .sortedWith(compareByDescending<MediaItem> { it.dateAdded }.thenBy { it.title.lowercase() })
     }
     val currentVideoId by VideoQueueStore.currentId.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var folderMenuOpen by remember { mutableStateOf(false) }
+    var videoMenuItem by remember { mutableStateOf<MediaItem?>(null) }
+    var detailsTarget by remember { mutableStateOf<MediaItem?>(null) }
+    var menuFavorite by remember { mutableStateOf(false) }
+    LaunchedEffect(videoMenuItem?.id) {
+        val item = videoMenuItem
+        menuFavorite = item?.let { runCatching { container.structured.isFavorite(it.id) }.getOrDefault(false) } ?: false
+    }
     val listState = rememberSaveable(saver = androidx.compose.foundation.lazy.LazyListState.Saver) { androidx.compose.foundation.lazy.LazyListState(0) }
 
     fun playFolder(start: MediaItem? = null) {
@@ -385,6 +396,12 @@ fun VideoFolderDetailScreen(
                     )
                     Text("${videos.size} ${if (videos.size == 1) "video" else "videos"}", fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary)
                 }
+                IconButton(
+                    onClick = { folderMenuOpen = true },
+                    modifier = Modifier.size(46.dp),
+                ) {
+                    Icon(Icons.Default.MoreVert, "Folder options", tint = colors.primary, modifier = Modifier.size(27.dp))
+                }
             }
             if (!snapshot.ready) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { androidx.compose.material3.CircularProgressIndicator(color = colors.primary) }
@@ -401,7 +418,7 @@ fun VideoFolderDetailScreen(
                         AirPlayrMediaRow(
                             item = item,
                             onOpen = { playFolder(item) },
-                            onMore = {},
+                            onMore = { videoMenuItem = item },
                             playing = currentVideoId == item.id,
                             compact = false,
                         )
@@ -420,6 +437,92 @@ fun VideoFolderDetailScreen(
                 elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp, pressedElevation = 10.dp),
             ) {
                 Icon(Icons.Default.PlayArrow, "Play folder", modifier = Modifier.size(31.dp))
+            }
+        }
+    }
+
+    videoMenuItem?.let { item ->
+        AirPlayrPremiumMediaActionSheet(
+            item = item,
+            playing = currentVideoId == item.id,
+            favorite = menuFavorite,
+            onFavorite = { scope.launch { menuFavorite = container.structured.toggleFavorite(item) } },
+            groups = listOf(
+                listOf(
+                    AirPlayrMediaMenuAction("Open", AirPlayrIcons.Video, { videoMenuItem = null; playFolder(item) }),
+                    AirPlayrMediaMenuAction("Details", Icons.Default.Info, { videoMenuItem = null; detailsTarget = item }),
+                ),
+                listOf(
+                    AirPlayrMediaMenuAction("Play next", Icons.Default.SkipNext, { videoMenuItem = null; VideoQueueStore.playNext(listOf(item)) }),
+                    AirPlayrMediaMenuAction("Add to video queue", Icons.Default.QueueMusic, { videoMenuItem = null; VideoQueueStore.add(listOf(item)) }),
+                    AirPlayrMediaMenuAction("Share", Icons.Default.Share, {
+                        val uri = android.net.Uri.parse(item.uri)
+                        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = item.mimeType ?: "video/*"
+                            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                            clipData = android.content.ClipData.newRawUri(item.title, uri)
+                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        runCatching { context.startActivity(android.content.Intent.createChooser(send, "Share ${item.title}")) }
+                        videoMenuItem = null
+                    }),
+                ),
+            ),
+            onDismiss = { videoMenuItem = null },
+        )
+    }
+
+    detailsTarget?.let { item ->
+        MediaDetailsSheet(
+            item = item,
+            playing = currentVideoId == item.id,
+            onDismiss = { detailsTarget = null },
+        )
+    }
+
+    if (folderMenuOpen) {
+        ModalBottomSheet(
+            onDismissRequest = { folderMenuOpen = false },
+            containerColor = colors.surfaceContainerLow,
+        ) {
+            Column(
+                Modifier.fillMaxWidth().navigationBarsPadding().padding(22.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    folderPath.substringAfterLast('/').ifBlank { folderPath.substringAfterLast('\\').ifBlank { "Videos" } },
+                    fontFamily = AirPlayrFonts.SmoochSans, fontSize = 25.sp, color = colors.textPrimary,
+                )
+                Text(
+                    "${videos.size} ${if (videos.size == 1) "video" else "videos"}",
+                    fontFamily = AirPlayrFonts.OpenSans, fontSize = 12.sp, color = colors.textSecondary,
+                )
+                Surface(
+                    onClick = { folderMenuOpen = false; playFolder() },
+                    shape = RoundedCornerShape(18.dp), color = colors.surfaceContainer,
+                ) {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.PlayArrow, null, tint = colors.primary, modifier = Modifier.size(22.dp))
+                        Text("Play folder", color = colors.textPrimary, modifier = Modifier.padding(start = 12.dp))
+                    }
+                }
+                Surface(
+                    onClick = {
+                        folderMenuOpen = false
+                        val name = folderPath.substringAfterLast('/').ifBlank { folderPath.substringAfterLast('\\').ifBlank { "Videos" } }
+                        val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(android.content.Intent.EXTRA_TEXT, "AirPlayr video folder: $name\n$folderPath")
+                        }
+                        runCatching { context.startActivity(android.content.Intent.createChooser(send, "Share folder")) }
+                    },
+                    shape = RoundedCornerShape(18.dp), color = colors.surfaceContainer,
+                ) {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Share, null, tint = colors.primary, modifier = Modifier.size(22.dp))
+                        Text("Share folder", color = colors.textPrimary, modifier = Modifier.padding(start = 12.dp))
+                    }
+                }
             }
         }
     }
