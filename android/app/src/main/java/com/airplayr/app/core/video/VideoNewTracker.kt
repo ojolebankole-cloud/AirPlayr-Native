@@ -32,6 +32,10 @@ class VideoNewTracker(context: Context) {
 
     fun markVideoSeen(id: String) = synchronized(lock) { writeSet(KEY_NEW, readSet(KEY_NEW) - id) }
 
+    fun newVideoIds(): Set<String> = synchronized(lock) {
+        readSet(KEY_NEW)
+    }
+
     fun folderNewCount(folderPath: String, videos: List<MediaItem>): Int {
         val seenAt = folderSeenAt(folderPath)
         return videos.count { it.id in newVideoIds() && it.dateAdded > seenAt }

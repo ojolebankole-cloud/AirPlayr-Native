@@ -256,7 +256,16 @@ fun ExternalVideoScreen(
             }
         }
         ) {
-        player?.let { AndroidVideoSurface(it, fitMode, Modifier.fillMaxSize().graphicsLayer(scaleX = pinchZoomState.floatValue, scaleY = pinchZoomState.floatValue)) }
+        player?.let { AndroidVideoSurface(
+                            player = it,
+                            fitMode = fitMode,
+                            videoWidth = it.videoSize.width.coerceAtLeast(1),
+                            videoHeight = it.videoSize.height.coerceAtLeast(1),
+                            modifier = Modifier.fillMaxSize().graphicsLayer(
+                                scaleX = pinchZoomState.floatValue,
+                                scaleY = pinchZoomState.floatValue
+                            )
+                        ) }
         if (subtitleOnState.value && cues.isNotEmpty()) {
             VideoSubtitleOverlay(cues, settings?.subtitleSize ?: 1.0, parseSubtitleColor(settings?.subtitleColor), settings?.subtitleBg ?: true, settings?.subtitlePosition ?: "bottom", controlsVisible)
         }

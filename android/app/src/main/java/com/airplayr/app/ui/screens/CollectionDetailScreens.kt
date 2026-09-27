@@ -786,7 +786,11 @@ fun RecentCollectionsScreen(
 
     var collectionMenu by remember { mutableStateOf<Pair<String, List<MediaItem>>?>(null) }
     var songMenu by remember { mutableStateOf<MediaItem?>(null) }
-    val recentListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0) }
+    val recentListState = rememberSaveable(
+        saver = androidx.compose.foundation.lazy.LazyListState.Saver
+    ) {
+        androidx.compose.foundation.lazy.LazyListState(0)
+    }
     val recentGridState = rememberSaveable(saver = androidx.compose.foundation.lazy.grid.LazyGridState.Saver) { androidx.compose.foundation.lazy.grid.LazyGridState() }
 
 

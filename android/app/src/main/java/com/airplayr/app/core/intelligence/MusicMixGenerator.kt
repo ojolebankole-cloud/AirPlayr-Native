@@ -147,7 +147,7 @@ object MusicMixGenerator {
 
         val ordered = listeningWeighted
             .map { entry ->
-                val u = random.nextDouble().coerceIn(Double.MIN_VALUE, 1.0)
+                val u = kotlin.random.Random.nextDouble().coerceIn(Double.MIN_VALUE, 1.0)
                 entry to (ln(u) / entry.weight)
             }
             .sortedByDescending { it.second }

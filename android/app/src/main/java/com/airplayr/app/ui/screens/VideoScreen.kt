@@ -1833,7 +1833,7 @@ internal fun parseSubtitleColor(value: String?): Color = runCatching { Color(and
 private fun detectHdrLabel(player: Player, context: android.content.Context): String {
     val videoGroup = player.currentTracks.groups.firstOrNull { it.type == C.TRACK_TYPE_VIDEO && it.isSelected } ?: return "SDR"
     val format = videoGroup.getTrackFormat(0)
-    val codecs = format.codecs.orEmpty().lowercase(Locale.ROOT)
+    val codecs = format.codecs.lowercase(Locale.ROOT)
     val color = format.colorInfo
     val content = when {
         codecs.startsWith("dvhe") || codecs.startsWith("dvh1") || format.sampleMimeType?.contains("dolby", true) == true -> "Dolby Vision"

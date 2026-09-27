@@ -512,7 +512,13 @@ private fun RediscoverVideoPreview(item: MediaItem) {
         exo.playWhenReady = true
         onDispose { exo.release(); player = null }
     }
-    player?.let { AndroidVideoSurface(it, VideoFitMode.ZOOM, Modifier.fillMaxSize()) }
+    player?.let { AndroidVideoSurface(
+                        player = it,
+                        fitMode = VideoFitMode.ZOOM,
+                        videoWidth = it.videoSize.width.coerceAtLeast(1),
+                        videoHeight = it.videoSize.height.coerceAtLeast(1),
+                        modifier = Modifier.fillMaxSize(),
+                    ) }
 }
 
 @Composable
