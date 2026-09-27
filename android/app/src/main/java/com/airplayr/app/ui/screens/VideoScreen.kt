@@ -362,6 +362,13 @@ fun VideoScreen(
         runCatching { context.startActivity(Intent.createChooser(send, "Share ${item.title}").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
     }
 
+    val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+
+            onNavigate("videos")
+        }
+    }
+
     fun deleteVideo() {
         val item = video ?: return
         val storeId = item.mediaStoreId
@@ -399,13 +406,6 @@ fun VideoScreen(
         VideoQueueStore.setCurrent(item)
         queueOpen = false
         if (item.id != id) onNavigate("video/${item.id}") else touch()
-    }
-
-    val deleteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-
-            onNavigate("videos")
-        }
     }
 
     val subtitleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -1833,7 +1833,7 @@ internal fun parseSubtitleColor(value: String?): Color = runCatching { Color(and
 private fun detectHdrLabel(player: Player, context: android.content.Context): String {
     val videoGroup = player.currentTracks.groups.firstOrNull { it.type == C.TRACK_TYPE_VIDEO && it.isSelected } ?: return "SDR"
     val format = videoGroup.getTrackFormat(0)
-    val codecs = format.codecs.lowercase(Locale.ROOT)
+    val codecs = format.codecs?.lowercase(Locale.ROOT) ?: ""
     val color = format.colorInfo
     val content = when {
         codecs.startsWith("dvhe") || codecs.startsWith("dvh1") || format.sampleMimeType?.contains("dolby", true) == true -> "Dolby Vision"
@@ -1844,7 +1844,7 @@ private fun detectHdrLabel(player: Player, context: android.content.Context): St
     if (content == "SDR") return content
     val display = (context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)?.getDisplay(Display.DEFAULT_DISPLAY)
     val supported = if (Build.VERSION.SDK_INT >= 24) {
-        val types = display?.hdrCapabilities?.supportedHdrTypes.orEmpty()
+        val types = display?.hdrCapabilities?.supportedHdrTypes ?: intArrayOf()
         when (content) {
             "Dolby Vision" -> Display.HdrCapabilities.HDR_TYPE_DOLBY_VISION in types
             else -> Display.HdrCapabilities.HDR_TYPE_HDR10 in types || Display.HdrCapabilities.HDR_TYPE_HLG in types
