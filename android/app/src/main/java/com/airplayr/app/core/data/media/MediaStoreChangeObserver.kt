@@ -37,6 +37,14 @@ class MediaStoreChangeObserver(
             true,
             this,
         )
+        // Some download/indexer implementations notify a broad MediaStore or Downloads URI
+        // rather than the final Audio.Media row. These registrations make the trigger resilient
+        // without changing what AirPlayr imports: the repository still reads the supported media
+        // collections and SAF remains separate.
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            resolver.registerContentObserver(MediaStoreUris.externalFiles, true, this)
+            resolver.registerContentObserver(MediaStoreUris.downloads, true, this)
+        }
     }
 
     fun unregister() {
@@ -70,6 +78,8 @@ class MediaStoreChangeObserver(
     private object MediaStoreUris {
         val audio: Uri = android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
         val video: Uri = android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+        val externalFiles: Uri = android.provider.MediaStore.Files.getContentUri(android.provider.MediaStore.VOLUME_EXTERNAL)
+        val downloads: Uri = android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI
     }
 
     private companion object {

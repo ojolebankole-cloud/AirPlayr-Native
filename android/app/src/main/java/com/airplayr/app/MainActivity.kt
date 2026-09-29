@@ -47,6 +47,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        // Foreground re-entry is a cheap freshness check. The container compares the current
+        // MediaStore fingerprint (version + generation) before doing any database work.
+        (application as AirPlayrApplication).container.requestLibrarySynchronization(startupDelayMs = 0L)
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)

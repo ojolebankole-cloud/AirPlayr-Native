@@ -254,20 +254,20 @@ class PreferencesRepository(private val context: Context) {
         context.airPlayrDataStore.data.map { it[INITIAL_LIBRARY_SCAN_DONE] == true }.first()
     suspend fun markInitialLibraryScanDone() { context.airPlayrDataStore.edit { it[INITIAL_LIBRARY_SCAN_DONE] = true } }
 
-    suspend fun shouldRefreshMediaStore(currentVersion: String?, minimumIntervalMs: Long = 15 * 60_000L): Boolean {
+    suspend fun shouldRefreshMediaStore(currentFingerprint: String?, minimumIntervalMs: Long = 15 * 60_000L): Boolean {
         val p = context.airPlayrDataStore.data.first()
-        val storedVersion = p[MEDIASTORE_VERSION]
+        val storedFingerprint = p[MEDIASTORE_VERSION]
         val lastRefresh = p[MEDIASTORE_LAST_REFRESH_MS] ?: 0L
-        return if (!currentVersion.isNullOrBlank() && !storedVersion.isNullOrBlank()) {
-            currentVersion != storedVersion
+        return if (!currentFingerprint.isNullOrBlank() && !storedFingerprint.isNullOrBlank()) {
+            currentFingerprint != storedFingerprint
         } else {
             System.currentTimeMillis() - lastRefresh >= minimumIntervalMs
         }
     }
 
-    suspend fun markMediaStoreRefresh(version: String?) {
+    suspend fun markMediaStoreRefresh(fingerprint: String?) {
         context.airPlayrDataStore.edit { prefs ->
-            if (version.isNullOrBlank()) prefs.remove(MEDIASTORE_VERSION) else prefs[MEDIASTORE_VERSION] = version
+            if (fingerprint.isNullOrBlank()) prefs.remove(MEDIASTORE_VERSION) else prefs[MEDIASTORE_VERSION] = fingerprint
             prefs[MEDIASTORE_LAST_REFRESH_MS] = System.currentTimeMillis()
         }
     }

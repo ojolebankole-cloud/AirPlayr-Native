@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="330" viewBox="0 0 600 330">
+<defs>
+  <linearGradient id="orange" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ffad2e"/>
+    <stop offset="0.55" stop-color="#ff9617"/>
+    <stop offset="1" stop-color="#ff8610"/>
+  </linearGradient>
+  <linearGradient id="bluebar" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ffffff"/>
+    <stop offset="0.28" stop-color="#f4fbff"/>
+    <stop offset="0.7" stop-color="#72c7f5"/>
+    <stop offset="1" stop-color="#18a7ef"/>
+  </linearGradient>
+  <linearGradient id="red" x1="0" y1="0" x2="0.2" y2="1">
+    <stop offset="0" stop-color="#ff5555"/>
+    <stop offset="0.48" stop-color="#ff3035"/>
+    <stop offset="1" stop-color="#ed0018"/>
+  </linearGradient>
+  <linearGradient id="play" x1="0.15" y1="0" x2="0.55" y2="1">
+    <stop offset="0" stop-color="#ffffff"/>
+    <stop offset="0.34" stop-color="#f8fcff"/>
+    <stop offset="0.67" stop-color="#77c9f6"/>
+    <stop offset="1" stop-color="#12a1ee"/>
+  </linearGradient>
+  <linearGradient id="playGloss" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#ffffff" stop-opacity=".5"/>
+    <stop offset=".5" stop-color="#ffffff" stop-opacity="0"/>
+  </linearGradient>
+  <filter id="shadow" x="-30%" y="-30%" width="170%" height="180%">
+    <feDropShadow dx="7" dy="9" stdDeviation="7" flood-color="#005b8a" flood-opacity=".38"/>
+  </filter>
+  <filter id="softShadow" x="-30%" y="-30%" width="170%" height="180%">
+    <feDropShadow dx="5" dy="8" stdDeviation="6" flood-color="#005b8a" flood-opacity=".34"/>
+  </filter>
+</defs>
+
+<!-- left orange bar -->
+<rect x="0" y="111" width="56" height="131" rx="28" fill="url(#orange)" filter="url(#softShadow)"/>
+<path d="M8 121 C8 115 13 111 20 111 H36 C43 111 48 116 48 123" fill="none" stroke="#ffd27d" stroke-opacity=".42" stroke-width="2"/>
+
+<!-- blue bar -->
+<rect x="75" y="57" width="57" height="230" rx="28.5" fill="url(#bluebar)" filter="url(#softShadow)"/>
+<path d="M84 70 C84 62 91 57 100 57 H107" fill="none" stroke="#fff" stroke-opacity=".65" stroke-width="2.2"/>
+
+<!-- red center bar -->
+<rect x="150" y="0" width="60" height="327" rx="29" fill="url(#red)" filter="url(#shadow)"/>
+<path d="M160 16 C160 7 167 1 176 1 H190" fill="none" stroke="#ff9a9a" stroke-opacity=".45" stroke-width="2.2"/>
+
+<!-- right orange bar -->
+<rect x="231" y="56" width="58" height="234" rx="29" fill="url(#orange)" filter="url(#softShadow)"/>
+<path d="M240 68 C240 60 247 56 256 56 H270" fill="none" stroke="#ffd27d" stroke-opacity=".42" stroke-width="2"/>
+
+<!-- play triangle -->
+<path d="M371 16
+         C356 7 340 15 340 32
+         V292
+         C340 311 359 321 375 311
+         L583 188
+         C605 175 605 145 583 132
+         Z"
+      fill="url(#play)" filter="url(#shadow)"/>
+<path d="M371 16
+         C356 7 340 15 340 32
+         V292
+         C340 300 344 306 350 310
+         C347 292 347 64 350 33
+         C351 21 360 14 371 16 Z"
+      fill="url(#playGloss)" opacity=".8"/>
+<path d="M367 20 C356 13 348 20 348 32" fill="none" stroke="#fff" stroke-opacity=".72" stroke-width="2"/>
+</svg>

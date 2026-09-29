@@ -1,16 +1,23 @@
-Phase 9 — AirPlayr icon + splash implementation
+AirPlayr branding source-of-truth
 
-Source assets:
-- App launcher icon: supplied 1536x1536 JPEG used as the legacy density launcher artwork.
-- Splash logo: supplied airplayr-themeable-logo.svg translated to Android VectorDrawable geometry so its color comes from the theme instead of a baked bitmap color.
+Master artwork:
+- android/app/src/main/assets/branding/AirPlayr_logo.svg
+- design-assets/AirPlayr_logo.svg (same source bytes)
 
-Android 13+:
-- Adaptive launcher icon includes a monochrome layer for themed-icon support.
-- Legacy launcher artwork remains the supplied app icon image.
+Runtime Android branding:
+- Splash: @drawable/airplayr_splash_logo
+- Adaptive color foreground: @drawable/airplayr_adaptive_foreground
+- Android 13+ themed icon: @drawable/ic_launcher_monochrome
+- Adaptive background: @color/iconBackground
+- Legacy launcher fallbacks: density-specific ic_launcher.webp / ic_launcher_round.webp generated from the same master SVG
 
-Splash:
-- AndroidX SplashScreen continues to be installed before Activity super.onCreate.
-- Splash icon now uses the themeable vector logo.
-- API 31+ splash background uses a system dynamic neutral color; older APIs retain the existing fallback color.
+The splash no longer uses the former themeable monochrome vector or splash_logo_color.
+The full-color source artwork is used for the splash and normal launcher icon. The monochrome drawable is intentionally separate because Android 13+ themed icons require a single-color layer.
 
-No dependencies were added or changed.
+
+FINAL APP ICON PASS (2026-09-29)
+- Master launcher artwork: assets/branding/AirPlayr_app_icon_source.png (supplied image, unchanged).
+- Launcher presentation: drawable-nodpi/airplayr_launcher_artwork.png, 1.08x centered viewport scaling; blue field remains full-bleed and logo remains fully visible.
+- Adaptive background: #7CBFF9, sampled from the supplied icon background.
+- Splash logo is unchanged. Splash background only changed from #071B2B to #7CBFF9.
+- Monochrome themed icon is a separate white silhouette derived from the supplied logo.

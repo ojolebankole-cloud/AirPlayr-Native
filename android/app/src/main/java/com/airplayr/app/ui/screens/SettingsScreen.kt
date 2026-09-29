@@ -32,6 +32,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -308,12 +309,24 @@ fun SettingsScreen(container: AppContainer, onDiagnostics: () -> Unit = {}, onMe
                 Modifier.fillMaxWidth().clickable { onNavigate("about") }.padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Image(
-                    painterResource(R.drawable.airplayr_themeable_logo),
-                    contentDescription = "AirPlayr logo",
-                    modifier = Modifier.size(76.dp),
-                    contentScale = ContentScale.Fit,
-                )
+                Box(
+                    Modifier
+                        .size(76.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(colors.primaryContainer, colors.secondaryContainer, colors.tertiaryContainer)
+                            )
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(
+                        painterResource(R.drawable.airplayr_splash_logo),
+                        contentDescription = "AirPlayr logo",
+                        modifier = Modifier.fillMaxWidth(0.78f),
+                        contentScale = ContentScale.Fit,
+                    )
+                }
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
                     Text("AirPlayr", style = MaterialTheme.typography.titleLarge, color = colors.textPrimary)
                     Text("Kole Design Dev", style = MaterialTheme.typography.bodyMedium, color = colors.textPrimary, modifier = Modifier.padding(top = 2.dp))

@@ -1,5 +1,6 @@
 package com.airplayr.app.di
 
+import com.airplayr.app.BuildConfig
 import android.content.Context
 import androidx.room.Room
 import androidx.room.migration.Migration
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import com.airplayr.app.core.video.NativeVideoController
@@ -38,6 +40,7 @@ class AppContainer(context: Context) {
     val appContext: Context = context.applicationContext
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val initialScanMutex = Mutex()
+    private val librarySyncMutex = Mutex()
     private val _syncState = MutableStateFlow(LibrarySyncState.IDLE)
     val syncState: StateFlow<LibrarySyncState> = _syncState
     private val _syncProgress = MutableStateFlow(LibrarySyncProgress())
@@ -223,13 +226,21 @@ class AppContainer(context: Context) {
         if (!MediaPermission.granted(appContext)) return
         if (!preferences.hasCompletedInitialLibraryScan()) return
 
-        _syncState.value = LibrarySyncState.DELTA
-        runCatching { mediaLibrary.deltaRefresh() }
-            .onFailure { _syncState.value = LibrarySyncState.FAILED }
-            .onSuccess {
-                preferences.markMediaStoreRefresh(mediaStore.externalLibraryVersion())
-                _syncState.value = LibrarySyncState.IDLE
-            }
+        librarySyncMutex.withLock {
+            _syncState.value = LibrarySyncState.DELTA
+            runCatching { mediaLibrary.deltaRefresh() }
+                .onFailure {
+                    _syncState.value = LibrarySyncState.FAILED
+                    if (BuildConfig.DEBUG) Log.w("AirPlayrMediaSync", "MediaStore change refresh failed", it)
+                }
+                .onSuccess { result ->
+                    preferences.markMediaStoreRefresh(mediaStore.externalLibraryFingerprint())
+                    _syncState.value = LibrarySyncState.IDLE
+                    if (BuildConfig.DEBUG && (result.added > 0 || result.updated > 0 || result.deleted > 0)) {
+                        Log.d("AirPlayrMediaSync", "MediaStore delta: +${result.added} ~${result.updated} -${result.deleted}")
+                    }
+                }
+        }
     }
 
     fun requestLibrarySynchronization(startupDelayMs: Long = 3_000L) {
@@ -239,16 +250,31 @@ class AppContainer(context: Context) {
             if (!preferences.hasCompletedInitialLibraryScan()) {
                 ensureInitialLibraryScan()
                 runCatching { homeRepository.prewarm() }
-            } else if (preferences.shouldRefreshMediaStore(mediaStore.externalLibraryVersion())) {
-                // Freshness work is application-scoped and only runs when MediaStore can
-                // actually have changed. If its version is unchanged, there is nothing to
-                // reconcile and Room emits nothing to Home.
+                return@launch
+            }
+
+            val fingerprint = mediaStore.externalLibraryFingerprint()
+            if (!preferences.shouldRefreshMediaStore(fingerprint)) return@launch
+
+            librarySyncMutex.withLock {
+                // Re-check after waiting for another synchronization caller. This prevents an
+                // Activity re-entry and a ContentObserver callback from both doing the same
+                // MediaStore reconciliation.
+                val latestFingerprint = mediaStore.externalLibraryFingerprint()
+                if (!preferences.shouldRefreshMediaStore(latestFingerprint)) return@withLock
+
                 _syncState.value = LibrarySyncState.DELTA
                 runCatching { mediaLibrary.deltaRefresh() }
-                    .onFailure { _syncState.value = LibrarySyncState.FAILED }
-                    .onSuccess {
-                        preferences.markMediaStoreRefresh(mediaStore.externalLibraryVersion())
+                    .onFailure {
+                        _syncState.value = LibrarySyncState.FAILED
+                        if (BuildConfig.DEBUG) Log.w("AirPlayrMediaSync", "Startup MediaStore refresh failed", it)
+                    }
+                    .onSuccess { result ->
+                        preferences.markMediaStoreRefresh(mediaStore.externalLibraryFingerprint())
                         _syncState.value = LibrarySyncState.IDLE
+                        if (BuildConfig.DEBUG && (result.added > 0 || result.updated > 0 || result.deleted > 0)) {
+                            Log.d("AirPlayrMediaSync", "Startup delta: +${result.added} ~${result.updated} -${result.deleted}")
+                        }
                     }
             }
         }
@@ -290,7 +316,7 @@ class AppContainer(context: Context) {
                     )
                 }
                 preferences.markInitialLibraryScanDone()
-                preferences.markMediaStoreRefresh(mediaStore.externalLibraryVersion())
+                preferences.markMediaStoreRefresh(mediaStore.externalLibraryFingerprint())
                 _syncState.value = LibrarySyncState.IDLE
                 kotlinx.coroutines.delay(650)
                 _syncProgress.value = LibrarySyncProgress()

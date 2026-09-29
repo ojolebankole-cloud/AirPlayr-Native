@@ -5,6 +5,7 @@ import android.content.ContentUris
 import android.content.Context
 import android.os.Build
 import android.provider.MediaStore
+import org.json.JSONObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -12,12 +13,28 @@ class MediaStoreDataSource(context: Context) {
     private val appContext = context.applicationContext
     private val resolver: ContentResolver = appContext.contentResolver
 
-    /** MediaStore provides a cheap collection version on API 30+. Use it to skip full deltas
-     * when the device media database has not changed at all. */
-    fun externalLibraryVersion(): String? =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            runCatching { MediaStore.getVersion(appContext, MediaStore.VOLUME_EXTERNAL) }.getOrNull()
-        } else null
+    /**
+     * Returns an opaque fingerprint of each mounted external MediaStore volume. On API 30+ it
+     * combines the documented collection version with the per-volume generation counter. The
+     * version is the guard for generation resets; generation is the fine-grained signal for media
+     * additions/changes that getVersion() intentionally does not guarantee to expose.
+     */
+    fun externalLibraryFingerprint(): String? = runCatching {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return@runCatching null
+        val volumes = MediaStore.getExternalVolumeNames(appContext).toList().sorted()
+        if (volumes.isEmpty()) return@runCatching null
+        val root = JSONObject()
+        volumes.forEach { volume ->
+            val entry = JSONObject()
+            entry.put("version", MediaStore.getVersion(appContext, volume))
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                entry.put("generation", MediaStore.getGeneration(appContext, volume))
+            }
+            root.put(volume, entry)
+        }
+        root.toString()
+    }.getOrNull()
+
 
     suspend fun query(type: MediaType, maxItems: Int = MAX_LIBRARY_ITEMS): MediaStoreRead = withContext(Dispatchers.IO) {
         val projection = when (type) {

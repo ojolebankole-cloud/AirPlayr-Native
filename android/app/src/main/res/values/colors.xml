@@ -1,9 +1,8 @@
 <resources>
-    <color name="splashscreen_background">#79C5FD</color>
-    <color name="splashscreen_background_light">#79C5FD</color>
-    <color name="splashscreen_background_dark">#79C5FD</color>
-    <color name="iconBackground">#79C5FD</color>
-    <color name="splash_logo_color">#077EF8</color>
+    <color name="splashscreen_background">#7CBFF9</color>
+    <color name="splashscreen_background_light">#7CBFF9</color>
+    <color name="splashscreen_background_dark">#7CBFF9</color>
+    <color name="iconBackground">#7CBFF9</color>
     <color name="colorPrimary">#023c69</color>
     <color name="colorPrimaryDark">#07080C</color>
 </resources>
